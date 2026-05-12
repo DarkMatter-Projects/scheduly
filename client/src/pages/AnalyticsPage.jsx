@@ -51,11 +51,15 @@ function formatNum(n) {
 }
 
 export default function AnalyticsPage() {
-  const [rangeDays, setRangeDays] = useState(30);
   const { activeClientId, activeClient } = useClientScope();
+  const [end, setEnd] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [start, setStart] = useState(() => format(subDays(startOfDay(new Date()), 30), 'yyyy-MM-dd'));
 
-  const end = format(new Date(), 'yyyy-MM-dd');
-  const start = format(subDays(startOfDay(new Date()), rangeDays), 'yyyy-MM-dd');
+  const applyPreset = (days) => {
+    const e = new Date();
+    setEnd(format(e, 'yyyy-MM-dd'));
+    setStart(format(subDays(startOfDay(e), days - 1), 'yyyy-MM-dd'));
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', 'overview', start, end, activeClientId],
@@ -63,8 +67,12 @@ export default function AnalyticsPage() {
   });
 
   const { data: paidOverview } = useQuery({
-    queryKey: ['adsOverview', activeClientId, rangeDays],
-    queryFn: () => getAdsOverview({ clientId: activeClientId || undefined, days: rangeDays }),
+    queryKey: ['adsOverview', activeClientId, start, end],
+    queryFn: () => getAdsOverview({
+      clientId: activeClientId || undefined,
+      start,
+      end,
+    }),
   });
 
   const summary = data?.summary || {};
@@ -87,19 +95,36 @@ export default function AnalyticsPage() {
               : 'Performance metrics for your published posts'}
           </p>
         </div>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-          {RANGES.map(r => (
-            <button
-              key={r.days}
-              onClick={() => setRangeDays(r.days)}
-              className={clsx(
-                'px-3 py-1.5 text-xs font-medium rounded-md transition',
-                rangeDays === r.days ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+            {RANGES.map(r => (
+              <button
+                key={r.days}
+                onClick={() => applyPreset(r.days)}
+                className="px-3 py-1.5 text-xs font-medium rounded-md text-gray-500 hover:bg-white hover:shadow-sm hover:text-gray-900 transition"
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded-lg">
+            <input
+              type="date"
+              value={start}
+              max={end}
+              onChange={e => setStart(e.target.value)}
+              className="text-xs text-slate-700 bg-transparent outline-none"
+            />
+            <span className="text-xs text-slate-400">to</span>
+            <input
+              type="date"
+              value={end}
+              min={start}
+              max={format(new Date(), 'yyyy-MM-dd')}
+              onChange={e => setEnd(e.target.value)}
+              className="text-xs text-slate-700 bg-transparent outline-none"
+            />
+          </div>
         </div>
       </div>
 

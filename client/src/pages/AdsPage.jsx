@@ -1,16 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { format } from 'date-fns';
+import { format, subDays, startOfDay } from 'date-fns';
 import {
-  DollarSign, Eye, MousePointer, Target, TrendingUp, RefreshCw, Activity, Building2, AlertTriangle,
+  DollarSign, Eye, MousePointer, Target, TrendingUp, RefreshCw, Activity, Building2, AlertTriangle, Trash2,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { listAdAccounts, listCampaigns, getAdsOverview, syncAllAds, syncAdAccount } from '../api/adsApi';
+import { listAdAccounts, listCampaigns, getAdsOverview, syncAllAds, syncAdAccount, assignAdAccountClient, disconnectAdAccount } from '../api/adsApi';
 import { listClients } from '../api/clientsApi';
-import { assignAdAccountClient } from '../api/adsApi';
 import { useClientScope } from '../context/ClientContext';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -21,6 +20,10 @@ const RANGES = [
   { label: '30 days', days: 30 },
   { label: '90 days', days: 90 },
 ];
+
+function toDateInput(date) {
+  return format(date, 'yyyy-MM-dd');
+}
 
 const STATUS_COLORS = {
   ACTIVE: 'bg-emerald-100 text-emerald-700',
@@ -70,8 +73,24 @@ export default function AdsPage() {
   const queryClient = useQueryClient();
   const { hasRole } = useAuth();
   const { activeClientId, activeClient } = useClientScope();
-  const [rangeDays, setRangeDays] = useState(30);
+  const [endDate, setEndDate] = useState(() => toDateInput(new Date()));
+  const [startDate, setStartDate] = useState(() => toDateInput(subDays(startOfDay(new Date()), 30)));
   const canSync = hasRole('admin', 'manager');
+  const canRemove = hasRole('admin');
+
+  // Used to label the spend chart and the campaign table header
+  const rangeLabel = useMemo(() => {
+    const ms = new Date(endDate).getTime() - new Date(startDate).getTime();
+    const days = Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24))) + 1;
+    return `${days} day${days === 1 ? '' : 's'}`;
+  }, [startDate, endDate]);
+
+  const applyPreset = (days) => {
+    const end = new Date();
+    const start = subDays(startOfDay(end), days - 1);
+    setStartDate(toDateInput(start));
+    setEndDate(toDateInput(end));
+  };
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery({
     queryKey: ['adAccounts', activeClientId],
@@ -81,8 +100,12 @@ export default function AdsPage() {
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: listClients });
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ['adsOverview', activeClientId, rangeDays],
-    queryFn: () => getAdsOverview({ clientId: activeClientId || undefined, days: rangeDays }),
+    queryKey: ['adsOverview', activeClientId, startDate, endDate],
+    queryFn: () => getAdsOverview({
+      clientId: activeClientId || undefined,
+      start: startDate,
+      end: endDate,
+    }),
   });
 
   const { data: campaigns = [] } = useQuery({
@@ -121,6 +144,17 @@ export default function AdsPage() {
     onError: () => toast.error('Failed to update client'),
   });
 
+  const disconnectMut = useMutation({
+    mutationFn: disconnectAdAccount,
+    onSuccess: () => {
+      toast.success('Ad account removed');
+      queryClient.invalidateQueries({ queryKey: ['adAccounts'] });
+      queryClient.invalidateQueries({ queryKey: ['adsOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['adCampaigns'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove'),
+  });
+
   const summary = overview?.summary;
   const daily = overview?.daily || [];
   const topCampaigns = overview?.topCampaigns || [];
@@ -143,15 +177,30 @@ export default function AdsPage() {
             {RANGES.map(r => (
               <button
                 key={r.days}
-                onClick={() => setRangeDays(r.days)}
-                className={clsx(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition',
-                  rangeDays === r.days ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-                )}
+                onClick={() => applyPreset(r.days)}
+                className="px-3 py-1.5 text-xs font-medium rounded-md text-gray-500 hover:bg-white hover:shadow-sm hover:text-gray-900 transition"
               >
                 {r.label}
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded-lg">
+            <input
+              type="date"
+              value={startDate}
+              max={endDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="text-xs text-slate-700 bg-transparent outline-none"
+            />
+            <span className="text-xs text-slate-400">to</span>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              max={toDateInput(new Date())}
+              onChange={e => setEndDate(e.target.value)}
+              className="text-xs text-slate-700 bg-transparent outline-none"
+            />
           </div>
           {canSync && (
             <button
@@ -271,7 +320,7 @@ export default function AdsPage() {
           {topCampaigns.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-8">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-700">Top Campaigns (last {rangeDays} days)</h3>
+                <h3 className="text-sm font-medium text-gray-700">Top Campaigns ({rangeLabel})</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -369,6 +418,20 @@ export default function AdsPage() {
                       title="Sync this account"
                     >
                       <RefreshCw className={clsx('w-3.5 h-3.5', syncOneMut.isPending && syncOneMut.variables === a.id && 'animate-spin')} />
+                    </button>
+                  )}
+                  {canRemove && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`Remove "${a.name}" (${a.platformAccountId})? Historical insights stay; you can re-add it by reconnecting Facebook.`)) {
+                          disconnectMut.mutate(a.id);
+                        }
+                      }}
+                      disabled={disconnectMut.isPending}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                      title="Remove ad account"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>

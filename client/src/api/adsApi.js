@@ -17,3 +17,6 @@ export const syncAdAccount = (id) =>
 
 export const assignAdAccountClient = (id, clientId) =>
   api.post(`/ads/accounts/${id}/client`, { clientId }).then(r => r.data);
+
+export const disconnectAdAccount = (id) =>
+  api.delete(`/ads/accounts/${id}`).then(r => r.data);

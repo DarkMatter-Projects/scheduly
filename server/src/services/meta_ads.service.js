@@ -255,8 +255,16 @@ async function listAccounts({ clientId }) {
   return rows.map(formatAccount);
 }
 
-async function getOverview({ clientId, days = 30 }) {
-  const params = [days];
+async function getOverview({ clientId, start, end, days = 30 }) {
+  // Resolve start/end. Explicit dates win; otherwise fall back to last `days` days.
+  if (!start || !end) {
+    const e = new Date();
+    const s = new Date(e.getTime() - days * 24 * 60 * 60 * 1000);
+    start = s.toISOString().slice(0, 10);
+    end = e.toISOString().slice(0, 10);
+  }
+
+  const params = [start, end];
   let scopeJoin = '';
   let scopeWhere = '';
   if (clientId) {
@@ -276,7 +284,7 @@ async function getOverview({ clientId, days = 30 }) {
      FROM meta_ad_insights i
      ${scopeJoin}
      WHERE i.level = 'account'
-       AND i.date_start >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       AND i.date_start BETWEEN ? AND ?
        ${scopeWhere}`,
     params
   );
@@ -290,13 +298,14 @@ async function getOverview({ clientId, days = 30 }) {
      FROM meta_ad_insights i
      ${scopeJoin}
      WHERE i.level = 'account'
-       AND i.date_start >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       AND i.date_start BETWEEN ? AND ?
        ${scopeWhere}
      GROUP BY i.date_start
      ORDER BY i.date_start ASC`,
     params
   );
 
+  const campaignParams = clientId ? [start, end, clientId] : [start, end];
   const [topCampaigns] = await pool.execute(
     `SELECT camp.id, camp.platform_campaign_id, camp.name, camp.objective, camp.effective_status,
             camp.budget_currency, camp.daily_budget, camp.lifetime_budget,
@@ -308,12 +317,12 @@ async function getOverview({ clientId, days = 30 }) {
      LEFT JOIN meta_ad_insights i
        ON i.campaign_id = camp.id
        AND i.level = 'campaign'
-       AND i.date_start >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       AND i.date_start BETWEEN ? AND ?
      WHERE 1=1 ${clientId ? 'AND aa2.client_id = ?' : ''}
      GROUP BY camp.id
      ORDER BY spend DESC, camp.name ASC
      LIMIT 25`,
-    clientId ? [days, clientId] : [days]
+    campaignParams
   );
 
   const t = totals[0] || {};
@@ -416,6 +425,13 @@ async function assignAccountToClient(adAccountId, clientId) {
   );
 }
 
+async function disconnectAccount(adAccountId) {
+  await pool.execute(
+    'UPDATE meta_ad_accounts SET is_active = 0 WHERE id = ?',
+    [adAccountId]
+  );
+}
+
 async function syncAll() {
   const [accounts] = await pool.execute(
     'SELECT * FROM meta_ad_accounts WHERE is_active = 1'
@@ -469,4 +485,5 @@ module.exports = {
   listCampaigns,
   getOverview,
   assignAccountToClient,
+  disconnectAccount,
 };

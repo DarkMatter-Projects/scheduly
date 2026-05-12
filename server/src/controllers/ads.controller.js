@@ -23,10 +23,12 @@ async function listCampaigns(req, res, next) {
 
 async function getOverview(req, res, next) {
   try {
-    const { clientId, days } = req.query;
+    const { clientId, days, start, end } = req.query;
     const data = await metaAds.getOverview({
       clientId: clientId ? parseInt(clientId, 10) : undefined,
-      days: days ? Math.max(1, Math.min(90, parseInt(days, 10))) : 30,
+      days: days ? Math.max(1, Math.min(365, parseInt(days, 10))) : 30,
+      start: start || undefined,
+      end: end || undefined,
     });
     res.json(data);
   } catch (err) { next(err); }
@@ -55,4 +57,11 @@ async function assignAccountClient(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listAccounts, listCampaigns, getOverview, syncAll, syncOne, assignAccountClient };
+async function disconnectAccount(req, res, next) {
+  try {
+    await metaAds.disconnectAccount(parseInt(req.params.id, 10));
+    res.json({ message: 'Ad account removed' });
+  } catch (err) { next(err); }
+}
+
+module.exports = { listAccounts, listCampaigns, getOverview, syncAll, syncOne, assignAccountClient, disconnectAccount };

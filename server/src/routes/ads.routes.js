@@ -12,5 +12,6 @@ router.get('/overview', authenticate, adsController.getOverview);
 router.post('/sync', authenticate, requireRole('admin', 'manager'), adsController.syncAll);
 router.post('/accounts/:id/sync', authenticate, requireRole('admin', 'manager'), adsController.syncOne);
 router.post('/accounts/:id/client', authenticate, requireRole('admin', 'manager'), adsController.assignAccountClient);
+router.delete('/accounts/:id', authenticate, requireRole('admin'), adsController.disconnectAccount);
 
 module.exports = router;
