@@ -78,7 +78,12 @@ function ClientForm({ initial, onSubmit, onCancel, submitLabel }) {
 
 function AccountAssignment({ client, accounts, onAssign }) {
   const assigned = accounts.filter(a => a.clientId === client.id && a.isActive);
-  const unassigned = accounts.filter(a => a.clientId !== client.id && a.isActive);
+  // Only offer accounts that are (1) connected with a working token and
+  // (2) not already assigned to any client. To move an account between
+  // clients, unassign it from the current owner first.
+  const available = accounts.filter(a =>
+    a.isActive && a.clientId == null && a.tokenStatus !== 'expired'
+  );
   const [picking, setPicking] = useState(false);
 
   return (
@@ -110,10 +115,10 @@ function AccountAssignment({ client, accounts, onAssign }) {
 
       {picking ? (
         <div className="space-y-1">
-          {unassigned.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">No other accounts available</p>
+          {available.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">No unassigned accounts available</p>
           ) : (
-            unassigned.map(a => {
+            available.map(a => {
               const platform = PLATFORMS[a.platform];
               const Icon = platform?.icon;
               return (
@@ -124,9 +129,6 @@ function AccountAssignment({ client, accounts, onAssign }) {
                 >
                   {Icon && <Icon className="w-3.5 h-3.5 text-slate-500" />}
                   <span className="text-slate-700">{a.accountName}</span>
-                  {a.clientName && (
-                    <span className="ml-auto text-[10px] text-slate-400">(currently: {a.clientName})</span>
-                  )}
                 </button>
               );
             })
