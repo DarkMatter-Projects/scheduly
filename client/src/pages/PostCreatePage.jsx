@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPost, schedulePost } from '../api/postsApi';
 import { listMedia, uploadMedia } from '../api/mediaApi';
 import { listAccounts } from '../api/socialApi';
+import { listClients } from '../api/clientsApi';
 import { useAuth } from '../context/AuthContext';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
@@ -11,7 +12,7 @@ import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   X, Upload, Film, Clock, ChevronDown, ChevronUp, Trash2, Image as ImageIcon,
   Smile, Hash, Sparkles, Zap, Edit3, FileText, Settings2,
-  ArrowLeftRight, MessageSquare, AlertTriangle,
+  ArrowLeftRight, MessageSquare, AlertTriangle, Check, Users,
 } from 'lucide-react';
 import { FacebookIcon, InstagramIcon } from '../components/common/SocialIcons';
 import { getPlatform } from '../utils/platforms';
@@ -26,7 +27,7 @@ function localNow() {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
-function AccountSelector({ accounts, selected, onChange }) {
+function ProfilePicker({ accounts, clients, selected, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -36,87 +37,172 @@ function AccountSelector({ accounts, selected, onChange }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const selectedAccount = accounts.find(a => a.id === selected);
+  // Group accounts by client, in client-list order, with unassigned last
+  const groups = useMemo(() => {
+    const byId = new Map();
+    for (const c of clients) byId.set(c.id, { client: c, accounts: [] });
+    const unassigned = [];
+    for (const a of accounts) {
+      if (a.clientId && byId.has(a.clientId)) byId.get(a.clientId).accounts.push(a);
+      else unassigned.push(a);
+    }
+    const ordered = [...byId.values()].filter(g => g.accounts.length > 0);
+    if (unassigned.length > 0) ordered.push({ client: null, accounts: unassigned });
+    return ordered;
+  }, [accounts, clients]);
+
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const selectedAccounts = accounts.filter(a => selectedSet.has(a.id));
+
+  const toggle = (id) => {
+    const next = new Set(selectedSet);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    onChange([...next]);
+  };
+
+  const toggleGroup = (groupAccounts) => {
+    const ids = groupAccounts.map(a => a.id);
+    const allSelected = ids.every(id => selectedSet.has(id));
+    const next = new Set(selectedSet);
+    if (allSelected) ids.forEach(id => next.delete(id));
+    else ids.forEach(id => next.add(id));
+    onChange([...next]);
+  };
 
   return (
     <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-3 pl-2 pr-3 py-1.5 bg-white border border-slate-200 rounded-full hover:border-slate-300 transition min-w-[200px]"
-      >
-        {selectedAccount ? (
-          <>
-            <div className="relative">
-              {selectedAccount.profilePictureUrl ? (
-                <img src={selectedAccount.profilePictureUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setOpen(!open)}
+          className="relative flex items-center gap-2 pl-3 pr-3 py-1.5 bg-white border border-slate-300 rounded-full hover:bg-slate-50 transition"
+        >
+          <span className="text-sm font-medium text-slate-700">Select Profiles</span>
+          {selectedAccounts.length > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-orange-500 text-white text-[11px] font-bold leading-none">
+              {selectedAccounts.length}
+            </span>
+          )}
+          <ChevronDown className={clsx('w-3.5 h-3.5 text-slate-400 transition-transform', open && 'rotate-180')} />
+        </button>
+
+        {selectedAccounts.slice(0, 6).map(a => {
+          const p = getPlatform(a.platform);
+          const PIcon = p.icon;
+          return (
+            <div key={a.id} className="relative" title={`${a.accountName} (${p.label})`}>
+              {a.profilePictureUrl ? (
+                <img src={a.profilePictureUrl} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-white shadow-sm" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-slate-200" />
+                <div className={clsx('w-9 h-9 rounded-full flex items-center justify-center text-white ring-2 ring-white shadow-sm', p.bg)}>
+                  <PIcon className="w-4 h-4" />
+                </div>
               )}
-              {(() => {
-                const p = getPlatform(selectedAccount.platform);
-                const Icon = p.icon;
-                return (
-                  <div className={clsx(
-                    'absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-white',
-                    p.bg
-                  )}>
-                    <Icon className="w-2 h-2 text-white" />
-                  </div>
-                );
-              })()}
+              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center border-2 border-white">
+                <Check className="w-2.5 h-2.5 text-white" />
+              </div>
             </div>
-            <div className="text-left flex-1">
-              <p className="text-sm font-semibold text-slate-900 leading-tight">{selectedAccount.accountName}</p>
-              <p className="text-[11px] text-slate-500 leading-tight">
-                {getPlatform(selectedAccount.platform).label}
-              </p>
-            </div>
-          </>
-        ) : (
-          <span className="text-sm text-slate-500 flex-1 text-left">Select account...</span>
+          );
+        })}
+        {selectedAccounts.length > 6 && (
+          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-[11px] font-semibold text-slate-600 ring-2 ring-white shadow-sm">
+            +{selectedAccounts.length - 6}
+          </div>
         )}
-        <ChevronDown className="w-4 h-4 text-slate-400" />
-      </button>
+      </div>
 
       {open && (
-        <div className="absolute top-full mt-2 left-0 w-72 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50 max-h-80 overflow-y-auto">
+        <div className="absolute top-full mt-2 left-0 w-80 max-h-[70vh] bg-white rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-900">Select profiles</h3>
+            <span className="text-[11px] text-slate-500">{selected.length} of {accounts.length} selected</span>
+          </div>
+
           {accounts.length === 0 ? (
-            <p className="p-4 text-sm text-slate-500 text-center">No connected accounts. Go to Accounts to connect one.</p>
+            <p className="p-6 text-sm text-slate-500 text-center">No connected accounts. Go to Accounts to connect one.</p>
           ) : (
-            accounts.map(account => (
-              <button
-                key={account.id}
-                onClick={() => { onChange(account.id); setOpen(false); }}
-                className={clsx(
-                  'w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 transition',
-                  selected === account.id && 'bg-blue-50'
-                )}
-              >
-                <div className="relative">
-                  {account.profilePictureUrl ? (
-                    <img src={account.profilePictureUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-slate-200" />
-                  )}
-                  {(() => {
-                    const p = getPlatform(account.platform);
-                    const PIcon = p.icon;
-                    return (
-                      <div className={clsx('absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-white', p.bg)}>
-                        <PIcon className="w-2 h-2 text-white" />
+            <div className="overflow-y-auto">
+              {groups.map((group) => {
+                const groupIds = group.accounts.map(a => a.id);
+                const allSelected = groupIds.every(id => selectedSet.has(id));
+                return (
+                  <div key={group.client?.id || 'unassigned'}>
+                    <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-y border-slate-100 sticky top-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: group.client?.color || '#94a3b8' }}
+                        />
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 truncate">
+                          {group.client?.name || 'No client'}
+                        </span>
+                        <span className="text-[10px] text-slate-400">({group.accounts.length})</span>
                       </div>
-                    );
-                  })()}
-                </div>
-                <div className="text-left flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">{account.accountName}</p>
-                  <p className="text-xs text-slate-500">
-                    {getPlatform(account.platform).label} {getPlatform(account.platform).sublabel}
-                  </p>
-                </div>
-              </button>
-            ))
+                      <button
+                        onClick={() => toggleGroup(group.accounts)}
+                        className="text-[11px] font-medium text-blue-600 hover:text-blue-700 flex-shrink-0"
+                      >
+                        {allSelected ? 'Clear' : 'Select all'}
+                      </button>
+                    </div>
+                    {group.accounts.map(account => {
+                      const isSel = selectedSet.has(account.id);
+                      const p = getPlatform(account.platform);
+                      const PIcon = p.icon;
+                      return (
+                        <button
+                          key={account.id}
+                          onClick={() => toggle(account.id)}
+                          className={clsx(
+                            'w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 transition text-left',
+                            isSel && 'bg-blue-50/40'
+                          )}
+                        >
+                          <div className="relative flex-shrink-0">
+                            {account.profilePictureUrl ? (
+                              <img src={account.profilePictureUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+                            ) : (
+                              <div className={clsx('w-9 h-9 rounded-full flex items-center justify-center text-white', p.bg)}>
+                                <PIcon className="w-4 h-4" />
+                              </div>
+                            )}
+                            <div className={clsx('absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-white', p.bg)}>
+                              <PIcon className="w-2 h-2 text-white" />
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900 truncate">{account.accountName}</p>
+                            <p className="text-[11px] text-slate-500">{p.label}</p>
+                          </div>
+                          <div className={clsx(
+                            'w-5 h-5 rounded-md border-2 flex items-center justify-center transition flex-shrink-0',
+                            isSel ? 'bg-blue-500 border-blue-500' : 'border-slate-300'
+                          )}>
+                            {isSel && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
           )}
+
+          <div className="px-3 py-2 border-t border-slate-100 bg-white flex items-center justify-between">
+            <button
+              onClick={() => onChange([])}
+              disabled={selected.length === 0}
+              className="text-xs text-slate-500 hover:text-slate-700 disabled:opacity-40"
+            >
+              Clear all
+            </button>
+            <button
+              onClick={() => setOpen(false)}
+              className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              Done
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -182,7 +268,7 @@ export default function PostCreatePage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [attachedMedia, setAttachedMedia] = useState([]);
-  const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [selectedAccountIds, setSelectedAccountIds] = useState([]);
   const [autoPublish, setAutoPublish] = useState(true);
   const [scheduleDate, setScheduleDate] = useState(() => {
     const d = new Date();
@@ -208,14 +294,11 @@ export default function PostCreatePage() {
     queryKey: ['socialAccounts'],
     queryFn: listAccounts,
   });
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: listClients,
+  });
   const activeAccounts = socialAccounts.filter(a => a.isActive);
-
-  // Auto-select first account
-  useEffect(() => {
-    if (!selectedAccountId && activeAccounts.length > 0) {
-      setSelectedAccountId(activeAccounts[0].id);
-    }
-  }, [activeAccounts, selectedAccountId]);
 
   const createMutation = useMutation({
     mutationFn: createPost,
@@ -261,20 +344,20 @@ export default function PostCreatePage() {
 
   const handleSchedule = async () => {
     if (!content.trim()) { toast.error('Caption is required'); return; }
+    if (selectedAccountIds.length === 0) { toast.error('Select at least one profile to publish to'); return; }
 
     try {
       const post = await createMutation.mutateAsync({
         title: title || undefined,
         content,
         mediaIds: attachedMedia.map(m => m.id),
-        targetAccountIds: selectedAccountId ? [selectedAccountId] : [],
+        targetAccountIds: selectedAccountIds,
       });
 
-      if (autoPublish && selectedAccountId) {
-        // Convert datetime-local to ISO
+      if (autoPublish) {
         const scheduledAt = new Date(scheduleDate).toISOString();
         await scheduleMutation.mutateAsync({ id: post.id, scheduledAt });
-        toast.success('Post scheduled!');
+        toast.success(`Scheduled to ${selectedAccountIds.length} profile${selectedAccountIds.length === 1 ? '' : 's'}`);
       } else {
         toast.success('Post saved as draft');
       }
@@ -293,7 +376,7 @@ export default function PostCreatePage() {
         title: title || undefined,
         content,
         mediaIds: attachedMedia.map(m => m.id),
-        targetAccountIds: selectedAccountId ? [selectedAccountId] : [],
+        targetAccountIds: selectedAccountIds,
       });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       toast.success('Saved as draft');
@@ -308,9 +391,10 @@ export default function PostCreatePage() {
   const firstMedia = attachedMedia[0];
   const isVideo = firstMedia?.mimeType?.startsWith('video/');
   const charCount = content.length;
-  const selectedAccount = activeAccounts.find(a => a.id === selectedAccountId);
-  const isIG = selectedAccount?.platform === 'instagram_business';
-  const limit = isIG ? IG_LIMIT : FB_LIMIT;
+  const selectedAccounts = activeAccounts.filter(a => selectedAccountIds.includes(a.id));
+  // Use the strictest applicable limit (Instagram) when any selected target is IG
+  const anyIG = selectedAccounts.some(a => a.platform === 'instagram_business');
+  const limit = anyIG || selectedAccounts.length === 0 ? IG_LIMIT : FB_LIMIT;
   const overLimit = charCount > limit;
 
   const isPending = createMutation.isPending || scheduleMutation.isPending;
@@ -321,7 +405,7 @@ export default function PostCreatePage() {
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 flex-shrink-0 gap-4 flex-wrap">
-        <AccountSelector accounts={activeAccounts} selected={selectedAccountId} onChange={setSelectedAccountId} />
+        <ProfilePicker accounts={activeAccounts} clients={clients} selected={selectedAccountIds} onChange={setSelectedAccountIds} />
 
         <div className="flex items-center gap-3 flex-1 justify-center min-w-[300px]">
           <Zap className={clsx('w-4 h-4', autoPublish ? 'text-violet-600' : 'text-slate-300')} />
@@ -571,11 +655,11 @@ export default function PostCreatePage() {
 
           <button
             onClick={handleSchedule}
-            disabled={isPending || !content.trim() || !selectedAccountId}
+            disabled={isPending || !content.trim() || selectedAccountIds.length === 0}
             className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-full shadow-lg shadow-violet-600/20 transition disabled:opacity-50"
           >
             <Clock className="w-4 h-4" />
-            {isPending ? 'Scheduling...' : 'Schedule Post'}
+            {isPending ? 'Scheduling...' : selectedAccountIds.length > 1 ? `Schedule to ${selectedAccountIds.length}` : 'Schedule Post'}
           </button>
         </div>
       </div>
