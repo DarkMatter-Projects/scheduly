@@ -4,8 +4,9 @@ const GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 
-// Google Ads API v18 (REST). Update when Google deprecates older versions.
-const GOOGLE_ADS_API_VERSION = 'v18';
+// Google Ads API REST. Each release is supported for ~12 months before
+// Google starts returning 404 from its paths. Override via env if needed.
+const GOOGLE_ADS_API_VERSION = process.env.GOOGLE_ADS_API_VERSION || 'v20';
 const GOOGLE_ADS_API_BASE = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}`;
 
 const GOOGLE_SCOPES = [

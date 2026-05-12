@@ -191,7 +191,15 @@ async function discoverAccounts(grantId) {
       );
       throw e;
     }
-    const msg = e.response?.data?.error?.message || e.message;
+    const status = e.response?.status;
+    const body = e.response?.data;
+    const apiMsg = (body && typeof body === 'object' && body.error?.message)
+      || (typeof body === 'string' ? body.slice(0, 200) : null);
+    const versionHint = status === 404
+      ? ` (this often means the Google Ads API version "${google.GOOGLE_ADS_API_VERSION}" is no longer supported — bump GOOGLE_ADS_API_VERSION env var)`
+      : '';
+    const msg = `[${status || 'no status'}] ${apiMsg || e.message}${versionHint}`;
+    logger.warn('Google Ads listAccessibleCustomers failed', { status, body: typeof body === 'object' ? body : String(body).slice(0, 400) });
     await pool.execute(
       'UPDATE google_oauth_grants SET last_discover_error = ? WHERE id = ?',
       [msg.slice(0, 500), grantId]
