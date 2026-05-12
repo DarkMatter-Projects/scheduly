@@ -55,7 +55,11 @@ const env = {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/social/auth/google/callback',
+    // If GOOGLE_REDIRECT_URI isn't explicitly set, derive from SERVER_URL
+    // (already set in prod). Falling back to localhost in production breaks
+    // OAuth with redirect_uri_mismatch — better to derive than guess wrong.
+    redirectUri: process.env.GOOGLE_REDIRECT_URI
+      || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/google/callback`,
     adsDeveloperToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
     // Optional MCC login customer (digits only, no dashes). Used when the
     // OAuth user is a Google Ads manager that owns multiple sub-accounts.

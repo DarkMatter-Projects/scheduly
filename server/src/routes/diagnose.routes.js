@@ -4,8 +4,23 @@ const authenticate = require('../middleware/auth');
 const requireRole = require('../middleware/rbac');
 const pool = require('../config/db');
 const { decrypt } = require('../services/token.service');
+const googleConfig = require('../config/google');
 
 const router = Router();
+
+// Returns what the server thinks its Google config looks like — without
+// leaking client secret or developer token values. Helps debug
+// "redirect_uri_mismatch" / "invalid_client" from Google.
+router.get('/google-config', authenticate, requireRole('admin'), (req, res) => {
+  res.json({
+    clientIdSet: !!googleConfig.clientId,
+    clientIdSuffix: googleConfig.clientId ? googleConfig.clientId.slice(-30) : null,
+    clientSecretSet: !!googleConfig.clientSecret,
+    devTokenSet: !!googleConfig.adsDeveloperToken,
+    redirectUri: googleConfig.redirectUri,
+    scopes: googleConfig.GOOGLE_SCOPES,
+  });
+});
 
 /**
  * GET /api/diagnose/instagram/:platformAccountId
