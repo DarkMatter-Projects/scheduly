@@ -174,9 +174,7 @@ async function publishSingleMedia(igAccountId, token, content, media, publicBase
     { params }
   );
 
-  if (isVideo) {
-    await waitForMediaProcessing(container.id, token);
-  }
+  await waitForMediaProcessing(container.id, token);
 
   const { data: publishData } = await axios.post(
     `${ig.IG_GRAPH_URL}/${igAccountId}/media_publish`,
@@ -208,7 +206,7 @@ async function publishCarousel(igAccountId, token, content, mediaFiles, publicBa
     const { data } = await axios.post(`${ig.IG_GRAPH_URL}/${igAccountId}/media`, null, { params });
     childIds.push(data.id);
 
-    if (isVideo) await waitForMediaProcessing(data.id, token);
+    await waitForMediaProcessing(data.id, token);
   }
 
   const { data: carousel } = await axios.post(
@@ -221,6 +219,8 @@ async function publishCarousel(igAccountId, token, content, mediaFiles, publicBa
       access_token: token,
     } }
   );
+
+  await waitForMediaProcessing(carousel.id, token);
 
   const { data: publishData } = await axios.post(
     `${ig.IG_GRAPH_URL}/${igAccountId}/media_publish`,
@@ -237,8 +237,9 @@ async function waitForMediaProcessing(containerId, token, maxAttempts = 30) {
       params: { fields: 'status_code', access_token: token },
     });
 
-    if (data.status_code === 'FINISHED') return;
+    if (data.status_code === 'FINISHED' || data.status_code === 'PUBLISHED') return;
     if (data.status_code === 'ERROR') throw new Error('Instagram media processing failed');
+    if (data.status_code === 'EXPIRED') throw new Error('Instagram media container expired before publishing');
 
     await new Promise(resolve => setTimeout(resolve, 2000));
   }
