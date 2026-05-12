@@ -121,10 +121,20 @@ async function oauthCallback(req, res, next) {
     // Fetch pages and Instagram accounts
     const accounts = await facebookService.fetchPagesAndInstagram(accessToken, userId, teamId);
 
-    logger.info(`Facebook OAuth: connected ${accounts.length} account(s) for user ${userId}`);
+    // Best-effort: also pull Meta ad accounts (won't fail OAuth if ads scope was denied)
+    let adAccountCount = 0;
+    try {
+      const metaAds = require('../services/meta_ads.service');
+      const adAccounts = await metaAds.fetchAndStoreAdAccounts(accessToken, userId, teamId);
+      adAccountCount = adAccounts.length;
+    } catch (e) {
+      logger.warn(`Facebook OAuth: ad accounts skipped (${e.message})`);
+    }
+
+    logger.info(`Facebook OAuth: connected ${accounts.length} account(s) + ${adAccountCount} ad account(s) for user ${userId}`);
 
     // Redirect back to accounts page with success
-    res.redirect(`${clientBase()}/accounts?connected=${accounts.length}`);
+    res.redirect(`${clientBase()}/accounts?connected=${accounts.length}&adAccounts=${adAccountCount}`);
   } catch (err) {
     logger.error('Facebook OAuth callback error:', { error: err.message });
     res.redirect(`${clientBase()}/accounts?error=connection_failed`);

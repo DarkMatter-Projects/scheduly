@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS meta_campaigns (
+  id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  ad_account_id         INT UNSIGNED NOT NULL,
+  platform_campaign_id  VARCHAR(64) NOT NULL,
+  name                  VARCHAR(500) NOT NULL,
+  objective             VARCHAR(64) NULL,
+  status                VARCHAR(32) NULL,
+  effective_status      VARCHAR(32) NULL,
+  daily_budget          DECIMAL(12,2) NULL,
+  lifetime_budget       DECIMAL(12,2) NULL,
+  budget_currency       VARCHAR(8) NULL,
+  start_time            DATETIME NULL,
+  stop_time             DATETIME NULL,
+  created_time          DATETIME NULL,
+  updated_time          DATETIME NULL,
+  last_synced_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ad_account_id) REFERENCES meta_ad_accounts(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_meta_campaign (platform_campaign_id),
+  INDEX idx_meta_campaigns_account (ad_account_id),
+  INDEX idx_meta_campaigns_status (effective_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

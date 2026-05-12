@@ -9,6 +9,9 @@ const FB_PERMISSIONS = [
   'pages_show_list',
   'pages_manage_posts',
   'pages_read_engagement',
+  'ads_read',
+  'ads_management',
+  'business_management',
 ].join(',');
 
 module.exports = {

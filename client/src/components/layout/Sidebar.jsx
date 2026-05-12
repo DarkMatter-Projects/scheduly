@@ -10,6 +10,7 @@ import {
   Settings,
   FileText,
   FolderClosed,
+  Megaphone,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -20,6 +21,7 @@ const navItems = [
   { to: '/posts/new', icon: PenSquare, label: 'New Post', highlight: true },
   { to: '/media', icon: Image, label: 'Library' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/ads', icon: Megaphone, label: 'Ads' },
 ];
 
 const secondaryItems = [

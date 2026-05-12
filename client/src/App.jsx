@@ -13,6 +13,7 @@ import PostCreatePage from './pages/PostCreatePage';
 import PostDetailPage from './pages/PostDetailPage';
 import MediaLibraryPage from './pages/MediaLibraryPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import AdsPage from './pages/AdsPage';
 import AccountsPage from './pages/AccountsPage';
 import ClientsPage from './pages/ClientsPage';
 import SettingsPage from './pages/SettingsPage';
@@ -47,6 +48,7 @@ function App() {
                   <Route path="/posts/:id/edit" element={<PostEditPage />} />
                   <Route path="/media" element={<MediaLibraryPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route path="/ads" element={<AdsPage />} />
                   <Route path="/accounts" element={<AccountsPage />} />
                   <Route path="/clients" element={<ClientsPage />} />
                   <Route element={<RoleGate allowed={['admin']} />}>

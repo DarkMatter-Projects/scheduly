@@ -18,6 +18,7 @@ const teamsRoutes = require('./routes/teams.routes');
 const clientsRoutes = require('./routes/clients.routes');
 const activityRoutes = require('./routes/activity.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
+const adsRoutes = require('./routes/ads.routes');
 const diagnoseRoutes = require('./routes/diagnose.routes');
 
 const app = express();
@@ -80,6 +81,7 @@ app.use('/api/teams', teamsRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/ads', adsRoutes);
 app.use('/api/diagnose', diagnoseRoutes);
 
 // Error handler

@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getOverviewAnalytics } from '../api/analyticsApi';
+import { getAdsOverview } from '../api/adsApi';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { format, subDays, startOfDay } from 'date-fns';
-import { Eye, Users, Heart, MessageSquare, Share2, MousePointer, TrendingUp, BarChart3, Smile } from 'lucide-react';
+import { Eye, Users, Heart, MessageSquare, Share2, MousePointer, TrendingUp, BarChart3, Smile, DollarSign, Target, Megaphone, ArrowRight } from 'lucide-react';
 import clsx from 'clsx';
 import { SENTIMENT_STYLES } from '../utils/sentiment';
 import { useClientScope } from '../context/ClientContext';
@@ -58,6 +60,11 @@ export default function AnalyticsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', 'overview', start, end, activeClientId],
     queryFn: () => getOverviewAnalytics(start, end, activeClientId || undefined),
+  });
+
+  const { data: paidOverview } = useQuery({
+    queryKey: ['adsOverview', activeClientId, rangeDays],
+    queryFn: () => getAdsOverview({ clientId: activeClientId || undefined, days: rangeDays }),
   });
 
   const summary = data?.summary || {};
@@ -165,6 +172,33 @@ export default function AnalyticsPage() {
               </div>
             </div>
           )}
+
+          {/* Paid media summary */}
+          {paidOverview && paidOverview.summary.spend > 0 && (() => {
+            const s = paidOverview.summary;
+            const fmt = (n) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : Number(n || 0).toLocaleString();
+            const money = (n) => `$${Number(n || 0).toFixed(2)}`;
+            return (
+              <div className="bg-white rounded-xl border border-gray-200 p-5 mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Megaphone className="w-4 h-4 text-emerald-500" />
+                    <h3 className="text-sm font-medium text-gray-700">Paid (Meta Ads)</h3>
+                  </div>
+                  <Link to="/ads" className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                    View Ads <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                  <StatCard icon={DollarSign} label="Spend" value={money(s.spend)} color="bg-emerald-500" />
+                  <StatCard icon={Eye} label="Impressions" value={fmt(s.impressions)} color="bg-blue-500" />
+                  <StatCard icon={MousePointer} label="Clicks" value={fmt(s.clicks)} color="bg-cyan-500" />
+                  <StatCard icon={Target} label="Conversions" value={fmt(s.conversions)} color="bg-violet-500" />
+                  <StatCard icon={TrendingUp} label="ROAS" value={`${(s.roas || 0).toFixed(2)}x`} color="bg-amber-500" />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Caption sentiment */}
           {totalScoredCaptions > 0 && (
