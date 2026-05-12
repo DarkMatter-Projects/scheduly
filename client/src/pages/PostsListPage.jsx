@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listPosts, deletePost } from '../api/postsApi';
+import { listClients } from '../api/clientsApi';
+import { listAccounts } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { Plus, Trash2, PenSquare, Search, Film, Image } from 'lucide-react';
 import Thumbnail from '../components/common/Thumbnail';
 import clsx from 'clsx';
+import { SENTIMENT_STYLES } from '../utils/sentiment';
 
 const statusConfig = {
   draft: { label: 'Draft', color: 'bg-gray-100 text-gray-700' },
@@ -35,16 +38,30 @@ export default function PostsListPage() {
   const { hasRole } = useAuth();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
+  const [accountFilter, setAccountFilter] = useState('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
 
+  const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: listClients });
+  const { data: accounts = [] } = useQuery({ queryKey: ['socialAccounts'], queryFn: listAccounts });
+
+  // Accounts shown in the dropdown narrow to the selected client (when one is selected)
+  const accountOptions = useMemo(() => {
+    const active = accounts.filter(a => a.isActive);
+    if (!clientFilter) return active;
+    return active.filter(a => String(a.clientId) === clientFilter);
+  }, [accounts, clientFilter]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['posts', page, statusFilter, search],
+    queryKey: ['posts', page, statusFilter, search, clientFilter, accountFilter],
     queryFn: () => listPosts({
       page,
       limit: 15,
       status: statusFilter || undefined,
       search: search || undefined,
+      clientId: clientFilter || undefined,
+      socialAccountId: accountFilter || undefined,
     }),
   });
 
@@ -80,8 +97,8 @@ export default function PostsListPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
-        <form onSubmit={handleSearch} className="flex-1 max-w-sm relative">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <form onSubmit={handleSearch} className="flex-1 min-w-[200px] max-w-sm relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -91,6 +108,26 @@ export default function PostsListPage() {
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           />
         </form>
+        <select
+          value={clientFilter}
+          onChange={e => { setClientFilter(e.target.value); setAccountFilter(''); setPage(1); }}
+          className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+        >
+          <option value="">All clients</option>
+          {clients.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+        <select
+          value={accountFilter}
+          onChange={e => { setAccountFilter(e.target.value); setPage(1); }}
+          className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+        >
+          <option value="">All accounts</option>
+          {accountOptions.map(a => (
+            <option key={a.id} value={a.id}>{a.accountName}</option>
+          ))}
+        </select>
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
@@ -120,6 +157,7 @@ export default function PostsListPage() {
                   <tr className="border-b border-gray-100 bg-gray-50/50">
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Post</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Status</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Tone</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Type</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Author</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Date</th>
@@ -157,6 +195,22 @@ export default function PostsListPage() {
                           <span className={clsx('px-2.5 py-0.5 rounded-full text-xs font-medium', sc.color)}>
                             {sc.label}
                           </span>
+                        </td>
+                        <td className="px-5 py-3">
+                          {post.captionSentimentLabel ? (() => {
+                            const ss = SENTIMENT_STYLES[post.captionSentimentLabel];
+                            return (
+                              <span
+                                className={clsx('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium', ss.bg, ss.text)}
+                                title={post.captionSentimentScore != null ? `Score: ${post.captionSentimentScore}` : ''}
+                              >
+                                <span className={clsx('w-1.5 h-1.5 rounded-full', ss.dot)} />
+                                {ss.label}
+                              </span>
+                            );
+                          })() : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
                         </td>
                         <td className="px-5 py-3 text-sm text-gray-600 capitalize">{post.postType}</td>
                         <td className="px-5 py-3 text-sm text-gray-600">{post.creatorName}</td>

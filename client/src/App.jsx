@@ -14,6 +14,7 @@ import MediaLibraryPage from './pages/MediaLibraryPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import TeamPage from './pages/TeamPage';
 import AccountsPage from './pages/AccountsPage';
+import ClientsPage from './pages/ClientsPage';
 import SettingsPage from './pages/SettingsPage';
 import PostsListPage from './pages/PostsListPage';
 import PostEditPage from './pages/PostEditPage';
@@ -47,6 +48,7 @@ function App() {
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/team" element={<TeamPage />} />
                   <Route path="/accounts" element={<AccountsPage />} />
+                  <Route path="/clients" element={<ClientsPage />} />
                   <Route element={<RoleGate allowed={['admin']} />}>
                     <Route path="/settings" element={<SettingsPage />} />
                   </Route>

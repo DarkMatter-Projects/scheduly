@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const storage = require('./storage.service');
+const sentiment = require('./sentiment.service');
 
 // Convert an ISO 8601 string (or anything Date accepts) into the
 // MySQL DATETIME format: YYYY-MM-DD HH:MM:SS (UTC).
@@ -11,10 +12,11 @@ function toMysqlDatetime(value) {
 }
 
 async function createPost({ title, content, postType, createdBy, teamId, mediaIds, targetAccountIds }) {
+  const s = sentiment.analyze(content);
   const [result] = await pool.execute(
-    `INSERT INTO posts (title, content, post_type, status, created_by, team_id)
-     VALUES (?, ?, ?, 'draft', ?, ?)`,
-    [title || null, content, postType || 'text', createdBy, teamId || null]
+    `INSERT INTO posts (title, content, caption_sentiment_score, caption_sentiment_label, post_type, status, created_by, team_id)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)`,
+    [title || null, content, s.comparative, s.label, postType || 'text', createdBy, teamId || null]
   );
 
   const postId = result.insertId;
@@ -127,7 +129,7 @@ async function getPost(id) {
   return post;
 }
 
-async function listPosts({ page = 1, limit = 20, status, teamId, createdBy, search }) {
+async function listPosts({ page = 1, limit = 20, status, teamId, createdBy, search, clientId, socialAccountId }) {
   let where = '1=1';
   const params = [];
 
@@ -146,6 +148,16 @@ async function listPosts({ page = 1, limit = 20, status, teamId, createdBy, sear
   if (search) {
     where += ' AND (p.title LIKE ? OR p.content LIKE ?)';
     params.push(`%${search}%`, `%${search}%`);
+  }
+  // Filter by social account targeted by the post
+  if (socialAccountId) {
+    where += ' AND EXISTS (SELECT 1 FROM post_targets pt WHERE pt.post_id = p.id AND pt.social_account_id = ?)';
+    params.push(socialAccountId);
+  }
+  // Filter by client (any of the post's target accounts belongs to that client)
+  if (clientId) {
+    where += ' AND EXISTS (SELECT 1 FROM post_targets pt JOIN social_accounts sa ON pt.social_account_id = sa.id WHERE pt.post_id = p.id AND sa.client_id = ?)';
+    params.push(clientId);
   }
 
   const offset = (page - 1) * limit;
@@ -214,7 +226,12 @@ async function updatePost(id, { title, content, postType, assignedTo, teamId, me
   const values = [];
 
   if (title !== undefined) { fields.push('title = ?'); values.push(title); }
-  if (content !== undefined) { fields.push('content = ?'); values.push(content); }
+  if (content !== undefined) {
+    fields.push('content = ?'); values.push(content);
+    const s = sentiment.analyze(content);
+    fields.push('caption_sentiment_score = ?'); values.push(s.comparative);
+    fields.push('caption_sentiment_label = ?'); values.push(s.label);
+  }
   if (postType !== undefined) { fields.push('post_type = ?'); values.push(postType); }
   if (assignedTo !== undefined) { fields.push('assigned_to = ?'); values.push(assignedTo || null); }
   if (teamId !== undefined) { fields.push('team_id = ?'); values.push(teamId || null); }
@@ -366,6 +383,8 @@ function formatPost(row) {
     id: row.id,
     title: row.title,
     content: row.content,
+    captionSentimentScore: row.caption_sentiment_score != null ? Number(row.caption_sentiment_score) : null,
+    captionSentimentLabel: row.caption_sentiment_label || null,
     postType: row.post_type,
     status: row.status,
     scheduledAt: row.scheduled_at,

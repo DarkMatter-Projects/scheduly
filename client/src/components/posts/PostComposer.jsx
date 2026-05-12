@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import { Smile, Hash, AtSign, Type } from 'lucide-react';
 import clsx from 'clsx';
+import { analyzeSentiment, SENTIMENT_STYLES } from '../../utils/sentiment';
 
 const IG_LIMIT = 2200;
 const FB_LIMIT = 63206;
@@ -55,6 +56,8 @@ export default function PostComposer({ content, onChange, title, onTitleChange }
   const charCount = content.length;
   const igWarning = charCount > IG_LIMIT;
   const fbWarning = charCount > FB_LIMIT;
+  const sentiment = useMemo(() => analyzeSentiment(content), [content]);
+  const sentimentStyle = SENTIMENT_STYLES[sentiment.label];
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -154,8 +157,20 @@ export default function PostComposer({ content, onChange, title, onTitleChange }
           )}
         </div>
 
-        {/* Character counters */}
+        {/* Character counters + sentiment */}
         <div className="flex items-center gap-3 text-[11px]">
+          {content.trim().length > 0 && (
+            <span
+              className={clsx(
+                'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-medium',
+                sentimentStyle.bg, sentimentStyle.text
+              )}
+              title={`Tone score: ${sentiment.comparative}`}
+            >
+              <span className={clsx('w-1.5 h-1.5 rounded-full', sentimentStyle.dot)} />
+              {sentimentStyle.label}
+            </span>
+          )}
           <div className="flex items-center gap-1">
             <span className="font-semibold text-pink-600">IG</span>
             <span className={clsx(igWarning ? 'text-red-500 font-semibold' : 'text-slate-400')}>

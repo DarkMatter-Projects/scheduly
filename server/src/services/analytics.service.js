@@ -214,6 +214,35 @@ async function getOverviewAnalytics(startDate, endDate) {
     [startDate, endDate]
   );
 
+  // Caption sentiment distribution across published posts in the window
+  const [sentimentDist] = await pool.execute(
+    `SELECT
+       COALESCE(p.caption_sentiment_label, 'unknown') AS label,
+       COUNT(*) AS cnt
+     FROM posts p
+     WHERE p.published_at BETWEEN ? AND ?
+     GROUP BY COALESCE(p.caption_sentiment_label, 'unknown')`,
+    [startDate, endDate]
+  );
+
+  // Average caption sentiment per client (only clients with published posts in window)
+  const [sentimentByClient] = await pool.execute(
+    `SELECT c.id, c.name, c.color,
+            AVG(p.caption_sentiment_score) AS avg_score,
+            COUNT(DISTINCT p.id) AS post_count,
+            SUM(CASE WHEN p.caption_sentiment_label = 'positive' THEN 1 ELSE 0 END) AS positive_count,
+            SUM(CASE WHEN p.caption_sentiment_label = 'neutral'  THEN 1 ELSE 0 END) AS neutral_count,
+            SUM(CASE WHEN p.caption_sentiment_label = 'negative' THEN 1 ELSE 0 END) AS negative_count
+     FROM clients c
+     JOIN social_accounts sa ON sa.client_id = c.id
+     JOIN post_targets pt   ON pt.social_account_id = sa.id
+     JOIN posts p           ON pt.post_id = p.id
+     WHERE p.published_at BETWEEN ? AND ?
+     GROUP BY c.id, c.name, c.color
+     ORDER BY post_count DESC, c.name ASC`,
+    [startDate, endDate]
+  );
+
   const t = totals[0] || {};
   return {
     summary: {
@@ -247,6 +276,22 @@ async function getOverviewAnalytics(startDate, endDate) {
       likes: d.likes || 0,
       postsCount: d.posts_count || 0,
     })),
+    sentiment: {
+      distribution: sentimentDist.map(d => ({
+        label: d.label,
+        count: Number(d.cnt) || 0,
+      })),
+      byClient: sentimentByClient.map(c => ({
+        clientId: c.id,
+        clientName: c.name,
+        clientColor: c.color,
+        avgScore: c.avg_score != null ? Number(Number(c.avg_score).toFixed(3)) : 0,
+        postCount: Number(c.post_count) || 0,
+        positive: Number(c.positive_count) || 0,
+        neutral: Number(c.neutral_count) || 0,
+        negative: Number(c.negative_count) || 0,
+      })),
+    },
   };
 }
 

@@ -59,9 +59,22 @@ function PlatformTile({ platform, accounts, onConnect, onDisconnect, onReconnect
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-slate-900 truncate">{account.accountName}</p>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <StatusIcon className={clsx('w-2.5 h-2.5', tokenStatus.color)} />
                     <span className={clsx('text-[10px]', tokenStatus.color)}>{tokenStatus.label}</span>
+                    {account.clientName && (
+                      <span
+                        className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-px rounded-full"
+                        style={{
+                          backgroundColor: `${account.clientColor || '#3b82f6'}1a`,
+                          color: account.clientColor || '#3b82f6',
+                        }}
+                        title={`Client: ${account.clientName}`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: account.clientColor || '#3b82f6' }} />
+                        {account.clientName}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {isAdmin && (

@@ -24,10 +24,12 @@ async function listAccounts(req, res, next) {
     const where = includeInactive ? '1=1' : 'sa.is_active = 1';
     const [rows] = await pool.execute(
       `SELECT sa.id, sa.platform, sa.platform_account_id, sa.account_name, sa.token_expires_at,
-              sa.fb_page_id, sa.profile_picture_url, sa.is_active, sa.connected_by, sa.team_id, sa.created_at,
-              u.first_name, u.last_name
+              sa.fb_page_id, sa.profile_picture_url, sa.is_active, sa.connected_by, sa.team_id, sa.client_id, sa.created_at,
+              u.first_name, u.last_name,
+              c.name AS client_name, c.color AS client_color
        FROM social_accounts sa
        JOIN users u ON sa.connected_by = u.id
+       LEFT JOIN clients c ON sa.client_id = c.id
        WHERE ${where}
        ORDER BY sa.created_at DESC`
     );
@@ -44,6 +46,9 @@ async function listAccounts(req, res, next) {
       connectedBy: r.connected_by,
       connectedByName: `${r.first_name} ${r.last_name}`,
       teamId: r.team_id,
+      clientId: r.client_id,
+      clientName: r.client_name,
+      clientColor: r.client_color,
       createdAt: r.created_at,
       tokenStatus: getTokenStatus(r.token_expires_at),
     }));

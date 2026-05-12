@@ -2,11 +2,19 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getOverviewAnalytics } from '../api/analyticsApi';
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { format, subDays, startOfDay } from 'date-fns';
-import { Eye, Users, Heart, MessageSquare, Share2, MousePointer, TrendingUp, BarChart3 } from 'lucide-react';
+import { Eye, Users, Heart, MessageSquare, Share2, MousePointer, TrendingUp, BarChart3, Smile } from 'lucide-react';
 import clsx from 'clsx';
+import { SENTIMENT_STYLES } from '../utils/sentiment';
+
+const SENTIMENT_COLORS = {
+  positive: '#10b981',
+  neutral: '#94a3b8',
+  negative: '#ef4444',
+  unknown: '#e2e8f0',
+};
 
 const RANGES = [
   { label: '7 days', days: 7 },
@@ -53,6 +61,11 @@ export default function AnalyticsPage() {
   const summary = data?.summary || {};
   const posts = data?.posts || [];
   const daily = data?.daily || [];
+  const sentimentDist = data?.sentiment?.distribution || [];
+  const sentimentByClient = data?.sentiment?.byClient || [];
+  const totalScoredCaptions = sentimentDist
+    .filter(d => d.label !== 'unknown')
+    .reduce((sum, d) => sum + d.count, 0);
 
   return (
     <div>
@@ -143,6 +156,87 @@ export default function AnalyticsPage() {
                     <Bar dataKey="postsCount" fill="#8b5cf6" name="Posts" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Caption sentiment */}
+          {totalScoredCaptions > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              {/* Distribution donut */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Smile className="w-4 h-4 text-emerald-500" />
+                  <h3 className="text-sm font-medium text-gray-700">Caption Tone</h3>
+                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={sentimentDist}
+                      dataKey="count"
+                      nameKey="label"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={2}
+                    >
+                      {sentimentDist.map(d => (
+                        <Cell key={d.label} fill={SENTIMENT_COLORS[d.label] || SENTIMENT_COLORS.unknown} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v, name) => [v, name]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <p className="text-[11px] text-slate-400 text-center mt-1">
+                  {totalScoredCaptions} scored post{totalScoredCaptions === 1 ? '' : 's'}
+                </p>
+              </div>
+
+              {/* By client */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5 lg:col-span-2">
+                <h3 className="text-sm font-medium text-gray-700 mb-4">Caption Tone by Client</h3>
+                {sentimentByClient.length === 0 ? (
+                  <p className="text-sm text-slate-400 italic py-8 text-center">
+                    Assign clients to your social accounts to see this breakdown.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {sentimentByClient.map(c => {
+                      const total = c.positive + c.neutral + c.negative;
+                      const posPct = total > 0 ? (c.positive / total) * 100 : 0;
+                      const neuPct = total > 0 ? (c.neutral  / total) * 100 : 0;
+                      const negPct = total > 0 ? (c.negative / total) * 100 : 0;
+                      const overallLabel =
+                        c.avgScore >= 0.2 ? 'positive' :
+                        c.avgScore <= -0.2 ? 'negative' : 'neutral';
+                      const overallStyle = SENTIMENT_STYLES[overallLabel];
+                      return (
+                        <div key={c.clientId}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: c.clientColor || '#3b82f6' }}
+                              />
+                              <span className="text-sm font-medium text-slate-700 truncate">{c.clientName}</span>
+                              <span className="text-[11px] text-slate-400">
+                                {c.postCount} post{c.postCount === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                            <span className={clsx('text-[11px] font-medium px-2 py-0.5 rounded-full', overallStyle.bg, overallStyle.text)}>
+                              {overallStyle.label} ({c.avgScore.toFixed(2)})
+                            </span>
+                          </div>
+                          <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
+                            {posPct > 0 && <div className="bg-emerald-500" style={{ width: `${posPct}%` }} title={`Positive: ${c.positive}`} />}
+                            {neuPct > 0 && <div className="bg-slate-400" style={{ width: `${neuPct}%` }} title={`Neutral: ${c.neutral}`} />}
+                            {negPct > 0 && <div className="bg-rose-500" style={{ width: `${negPct}%` }} title={`Negative: ${c.negative}`} />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

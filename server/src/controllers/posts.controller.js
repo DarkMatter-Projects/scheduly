@@ -2,7 +2,7 @@ const postService = require('../services/post.service');
 
 async function list(req, res, next) {
   try {
-    const { page, limit, status, teamId, createdBy, search } = req.query;
+    const { page, limit, status, teamId, createdBy, search, clientId, socialAccountId } = req.query;
     const result = await postService.listPosts({
       page: parseInt(page, 10) || 1,
       limit: parseInt(limit, 10) || 20,
@@ -10,6 +10,8 @@ async function list(req, res, next) {
       teamId: teamId ? parseInt(teamId, 10) : undefined,
       createdBy: createdBy ? parseInt(createdBy, 10) : undefined,
       search,
+      clientId: clientId ? parseInt(clientId, 10) : undefined,
+      socialAccountId: socialAccountId ? parseInt(socialAccountId, 10) : undefined,
     });
     res.json(result);
   } catch (err) {
