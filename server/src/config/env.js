@@ -52,6 +52,15 @@ const env = {
     appSecret: process.env.IG_APP_SECRET || process.env.FB_APP_SECRET,
     redirectUri: process.env.IG_REDIRECT_URI || 'http://localhost:3001/api/social/auth/instagram/callback',
   },
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/social/auth/google/callback',
+    adsDeveloperToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+    // Optional MCC login customer (digits only, no dashes). Used when the
+    // OAuth user is a Google Ads manager that owns multiple sub-accounts.
+    adsLoginCustomerId: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+  },
   serverUrl: process.env.SERVER_URL || 'http://localhost:3001',
   encryptionKey: process.env.ENCRYPTION_KEY,
   igPublicBaseUrl: process.env.IG_PUBLIC_BASE_URL || '',

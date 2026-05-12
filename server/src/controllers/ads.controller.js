@@ -1,4 +1,5 @@
 const metaAds = require('../services/meta_ads.service');
+const googleAds = require('../services/google_ads.service');
 
 async function listAccounts(req, res, next) {
   try {
@@ -64,4 +65,90 @@ async function disconnectAccount(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listAccounts, listCampaigns, getOverview, syncAll, syncOne, assignAccountClient, disconnectAccount };
+// ── Google Ads ──
+
+async function listGoogleAccounts(req, res, next) {
+  try {
+    const { clientId } = req.query;
+    const accounts = await googleAds.listAccounts({
+      clientId: clientId ? parseInt(clientId, 10) : undefined,
+    });
+    res.json(accounts);
+  } catch (err) { next(err); }
+}
+
+async function listGooglePendingGrants(req, res, next) {
+  try {
+    const grants = await googleAds.listPendingGrants({ userId: req.user.userId });
+    res.json(grants);
+  } catch (err) { next(err); }
+}
+
+async function getGoogleOverview(req, res, next) {
+  try {
+    const { clientId, days, start, end } = req.query;
+    const data = await googleAds.getOverview({
+      clientId: clientId ? parseInt(clientId, 10) : undefined,
+      days: days ? Math.max(1, Math.min(365, parseInt(days, 10))) : 30,
+      start: start || undefined,
+      end: end || undefined,
+    });
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
+async function syncAllGoogle(req, res, next) {
+  try {
+    const result = await googleAds.syncAll();
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
+async function syncOneGoogle(req, res, next) {
+  try {
+    const result = await googleAds.syncOne(parseInt(req.params.id, 10));
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
+async function discoverGoogleGrant(req, res, next) {
+  try {
+    const result = await googleAds.discoverAccounts(parseInt(req.params.grantId, 10));
+    res.json({ discovered: result.length, accounts: result });
+  } catch (err) {
+    if (err.code === 'NO_DEV_TOKEN') {
+      return res.status(409).json({ error: err.message, code: 'NO_DEV_TOKEN' });
+    }
+    next(err);
+  }
+}
+
+async function assignGoogleAccountClient(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const clientId = req.body?.clientId == null ? null : parseInt(req.body.clientId, 10);
+    await googleAds.assignAccountToClient(id, clientId);
+    res.json({ message: 'Updated' });
+  } catch (err) { next(err); }
+}
+
+async function disconnectGoogleAccount(req, res, next) {
+  try {
+    await googleAds.disconnectAccount(parseInt(req.params.id, 10));
+    res.json({ message: 'Ad account removed' });
+  } catch (err) { next(err); }
+}
+
+async function disconnectGoogleGrant(req, res, next) {
+  try {
+    await googleAds.disconnectGrant(parseInt(req.params.grantId, 10), req.user.userId);
+    res.json({ message: 'Google account disconnected' });
+  } catch (err) { next(err); }
+}
+
+module.exports = {
+  listAccounts, listCampaigns, getOverview, syncAll, syncOne, assignAccountClient, disconnectAccount,
+  listGoogleAccounts, listGooglePendingGrants, getGoogleOverview,
+  syncAllGoogle, syncOneGoogle, discoverGoogleGrant,
+  assignGoogleAccountClient, disconnectGoogleAccount, disconnectGoogleGrant,
+};

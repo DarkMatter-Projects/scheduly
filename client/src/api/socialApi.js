@@ -9,6 +9,9 @@ export const startFacebookAuth = (teamId) =>
 export const startInstagramAuth = (teamId) =>
   api.get('/social/auth/instagram', { params: { teamId } }).then(r => r.data);
 
+export const startGoogleAuth = (teamId) =>
+  api.get('/social/auth/google', { params: { teamId } }).then(r => r.data);
+
 export const disconnectAccount = (id) =>
   api.delete(`/social/accounts/${id}`).then(r => r.data);
 

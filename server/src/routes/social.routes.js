@@ -13,6 +13,8 @@ router.get('/auth/facebook', authenticate, requireRole('admin'), socialControlle
 router.get('/auth/facebook/callback', socialController.oauthCallback); // No auth — redirected from Facebook
 router.get('/auth/instagram', authenticate, requireRole('admin'), socialController.startInstagramOAuth);
 router.get('/auth/instagram/callback', socialController.instagramCallback); // No auth — redirected from Instagram
+router.get('/auth/google', authenticate, requireRole('admin'), socialController.startGoogleOAuth);
+router.get('/auth/google/callback', socialController.googleOAuthCallback);
 router.delete('/accounts/:id', authenticate, requireRole('admin'), socialController.disconnectAccount);
 router.post('/accounts/:id/reconnect', authenticate, requireRole('admin'), socialController.reconnectAccount);
 

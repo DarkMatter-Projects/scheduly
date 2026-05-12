@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS google_ad_accounts (
+  id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  grant_id            INT UNSIGNED NOT NULL,
+  customer_id         VARCHAR(32) NOT NULL,
+  descriptive_name    VARCHAR(255) NULL,
+  currency_code       VARCHAR(8) NULL,
+  time_zone           VARCHAR(64) NULL,
+  manager             TINYINT(1) NOT NULL DEFAULT 0,
+  test_account        TINYINT(1) NOT NULL DEFAULT 0,
+  login_customer_id   VARCHAR(32) NULL,
+  client_id           INT UNSIGNED NULL,
+  team_id             INT UNSIGNED NULL,
+  is_active           TINYINT(1) NOT NULL DEFAULT 1,
+  last_synced_at      DATETIME NULL,
+  sync_error          VARCHAR(500) NULL,
+  created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (grant_id)  REFERENCES google_oauth_grants(id) ON DELETE CASCADE,
+  FOREIGN KEY (team_id)   REFERENCES teams(id) ON DELETE SET NULL,
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+  UNIQUE KEY uq_google_customer (customer_id),
+  INDEX idx_google_ad_accounts_client (client_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

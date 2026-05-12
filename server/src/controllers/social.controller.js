@@ -6,6 +6,7 @@ const fb = require('../config/facebook');
 const ig = require('../config/instagram');
 const facebookService = require('../services/facebook.service');
 const instagramService = require('../services/instagram.service');
+const googleAdsService = require('../services/google_ads.service');
 const { decrypt } = require('../services/token.service');
 const logger = require('../utils/logger');
 
@@ -254,6 +255,76 @@ async function getAccountAvatar(req, res, next) {
   }
 }
 
+async function startGoogleOAuth(req, res, next) {
+  try {
+    const state = crypto.randomBytes(16).toString('hex');
+    pendingStates.set(state, {
+      userId: req.user.userId,
+      teamId: req.query.teamId || null,
+      platform: 'google',
+      timestamp: Date.now(),
+    });
+
+    for (const [key, val] of pendingStates) {
+      if (Date.now() - val.timestamp > 600000) pendingStates.delete(key);
+    }
+
+    const authUrl = googleAdsService.getAuthUrl(state);
+    res.json({ authUrl });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function googleOAuthCallback(req, res, next) {
+  const clientUrl = clientBase();
+  try {
+    const { code, state, error, error_description } = req.query;
+
+    if (error) {
+      logger.warn(`Google OAuth denied: ${error} - ${error_description}`);
+      return res.redirect(`${clientUrl}/ads?error=oauth_denied`);
+    }
+    if (!state || !pendingStates.has(state)) {
+      return res.redirect(`${clientUrl}/ads?error=invalid_state`);
+    }
+
+    const { userId, teamId } = pendingStates.get(state);
+    pendingStates.delete(state);
+
+    const tokens = await googleAdsService.exchangeCodeForToken(code);
+    if (!tokens.refreshToken) {
+      // Happens when the same Google account previously consented and
+      // didn't include prompt=consent. We force it on getAuthUrl, but
+      // surface a clear error if it still ends up missing.
+      logger.warn('Google OAuth: no refresh_token in response — revoke prior grant and retry.');
+      return res.redirect(`${clientUrl}/ads?error=google_no_refresh_token`);
+    }
+    const userInfo = await googleAdsService.fetchUserInfo(tokens.accessToken);
+    const grantId = await googleAdsService.storeGrant({ tokens, userInfo, userId, teamId });
+
+    // Try to discover ad accounts. Without a dev token this will error and we
+    // store the message on the grant; UI surfaces it. Either way, OAuth itself
+    // succeeded so we redirect with a success flag.
+    let discovered = 0;
+    try {
+      const customers = await googleAdsService.discoverAccounts(grantId);
+      discovered = customers.length;
+    } catch (e) {
+      logger.warn(`Google OAuth: account discovery skipped (${e.message})`);
+    }
+
+    logger.info(`Google OAuth: user ${userId} connected ${userInfo.email}, ${discovered} ad account(s) discovered`);
+    return res.redirect(`${clientUrl}/ads?googleConnected=1&adAccounts=${discovered}`);
+  } catch (err) {
+    logger.error('Google OAuth callback error:', {
+      error: err.message,
+      response: err.response?.data,
+    });
+    return res.redirect(`${clientUrl}/ads?error=google_connection_failed`);
+  }
+}
+
 async function disconnectAccount(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
@@ -280,6 +351,8 @@ module.exports = {
   oauthCallback,
   startInstagramOAuth,
   instagramCallback,
+  startGoogleOAuth,
+  googleOAuthCallback,
   disconnectAccount,
   reconnectAccount,
   getAccountAvatar,

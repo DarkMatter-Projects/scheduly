@@ -1,14 +1,21 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { format, subDays, startOfDay } from 'date-fns';
 import {
-  DollarSign, Eye, MousePointer, Target, TrendingUp, RefreshCw, Activity, Building2, AlertTriangle, Trash2,
+  DollarSign, Eye, MousePointer, Target, TrendingUp, RefreshCw, Activity, Building2, AlertTriangle, Trash2, Plus,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { listAdAccounts, listCampaigns, getAdsOverview, syncAllAds, syncAdAccount, assignAdAccountClient, disconnectAdAccount } from '../api/adsApi';
+import {
+  listAdAccounts, listCampaigns, getAdsOverview, syncAllAds, syncAdAccount, assignAdAccountClient, disconnectAdAccount,
+  listGoogleAdAccounts, listGooglePendingGrants, getGoogleAdsOverview,
+  syncAllGoogleAds, syncGoogleAdAccount, discoverGoogleGrant,
+  assignGoogleAdAccountClient, disconnectGoogleAdAccount, disconnectGoogleGrant,
+} from '../api/adsApi';
+import { startGoogleAuth } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
 import { useClientScope } from '../context/ClientContext';
 import { useAuth } from '../context/AuthContext';
@@ -161,6 +168,96 @@ export default function AdsPage() {
 
   const primaryCurrency = accounts.find(a => a.currency)?.currency || 'USD';
 
+  // ── Google Ads ──
+  const { data: googleAccounts = [], isLoading: googleLoading } = useQuery({
+    queryKey: ['googleAdAccounts', activeClientId],
+    queryFn: () => listGoogleAdAccounts(activeClientId || undefined),
+  });
+  const { data: pendingGrants = [] } = useQuery({
+    queryKey: ['googlePendingGrants'],
+    queryFn: listGooglePendingGrants,
+  });
+  const { data: googleOverview } = useQuery({
+    queryKey: ['googleAdsOverview', activeClientId, startDate, endDate],
+    queryFn: () => getGoogleAdsOverview({
+      clientId: activeClientId || undefined,
+      start: startDate,
+      end: endDate,
+    }),
+  });
+
+  const googleSummary = googleOverview?.summary;
+  const googleCurrency = googleAccounts.find(a => a.currency)?.currency || 'USD';
+
+  const invalidateGoogle = () => {
+    queryClient.invalidateQueries({ queryKey: ['googleAdAccounts'] });
+    queryClient.invalidateQueries({ queryKey: ['googlePendingGrants'] });
+    queryClient.invalidateQueries({ queryKey: ['googleAdsOverview'] });
+  };
+
+  const connectGoogleMut = useMutation({
+    mutationFn: () => startGoogleAuth(),
+    onSuccess: (d) => { window.location.href = d.authUrl; },
+    onError: () => toast.error('Failed to start Google OAuth. Check GOOGLE_CLIENT_ID/SECRET on the server.'),
+  });
+  const syncAllGoogleMut = useMutation({
+    mutationFn: syncAllGoogleAds,
+    onSuccess: (r) => { toast.success(`Synced ${r.ok} of ${r.total} Google account(s)`); invalidateGoogle(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Google sync failed'),
+  });
+  const syncGoogleOneMut = useMutation({
+    mutationFn: syncGoogleAdAccount,
+    onSuccess: () => { toast.success('Synced'); invalidateGoogle(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Sync failed'),
+  });
+  const discoverMut = useMutation({
+    mutationFn: discoverGoogleGrant,
+    onSuccess: (r) => { toast.success(`Discovered ${r.discovered} account(s)`); invalidateGoogle(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Discovery failed'),
+  });
+  const assignGoogleClientMut = useMutation({
+    mutationFn: ({ id, clientId }) => assignGoogleAdAccountClient(id, clientId),
+    onSuccess: () => { toast.success('Client updated'); invalidateGoogle(); },
+    onError: () => toast.error('Failed to update client'),
+  });
+  const disconnectGoogleAccMut = useMutation({
+    mutationFn: disconnectGoogleAdAccount,
+    onSuccess: () => { toast.success('Ad account removed'); invalidateGoogle(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove'),
+  });
+  const disconnectGrantMut = useMutation({
+    mutationFn: disconnectGoogleGrant,
+    onSuccess: () => { toast.success('Google account disconnected'); invalidateGoogle(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to disconnect'),
+  });
+
+  // Handle the redirect back from Google OAuth
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const connected = searchParams.get('googleConnected');
+    const adAccountCount = searchParams.get('adAccounts');
+    const error = searchParams.get('error');
+    if (connected) {
+      toast.success(
+        adAccountCount && Number(adAccountCount) > 0
+          ? `Connected Google: ${adAccountCount} ad account(s) discovered`
+          : 'Connected Google. Account discovery skipped — add the developer token to enable sync.'
+      );
+      invalidateGoogle();
+      setSearchParams({});
+    } else if (error) {
+      const messages = {
+        oauth_denied: 'Google authorisation denied',
+        invalid_state: 'Invalid session. Please try again.',
+        google_no_refresh_token: 'Google didn’t return a refresh token. Revoke the prior grant at myaccount.google.com/permissions and try again.',
+        google_connection_failed: 'Google connection failed. Check the server logs.',
+      };
+      toast.error(messages[error] || `Connection failed: ${error}`);
+      setSearchParams({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -169,7 +266,7 @@ export default function AdsPage() {
           <p className="text-sm text-gray-500 mt-1">
             {activeClient
               ? `Paid performance for ${activeClient.name}`
-              : 'Meta Ads campaigns and performance across connected ad accounts'}
+              : 'Paid performance across connected Meta and Google ad accounts'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -216,10 +313,15 @@ export default function AdsPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-1 h-5 bg-blue-600 rounded-full" />
+        <h2 className="text-base font-semibold text-gray-800">Meta Ads</h2>
+      </div>
+
       {accountsLoading ? (
         <div className="text-center py-12 text-gray-400">Loading ad accounts...</div>
       ) : accounts.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center mb-12">
           <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 font-medium">No Meta ad accounts connected</p>
           <p className="text-gray-400 text-sm mt-1">
@@ -428,6 +530,182 @@ export default function AdsPage() {
                         }
                       }}
                       disabled={disconnectMut.isPending}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                      title="Remove ad account"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ─── Google Ads ─────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mt-12 mb-3">
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-5 bg-red-500 rounded-full" />
+          <h2 className="text-base font-semibold text-gray-800">Google Ads</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {canSync && googleAccounts.length > 0 && (
+            <button
+              onClick={() => syncAllGoogleMut.mutate()}
+              disabled={syncAllGoogleMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <RefreshCw className={clsx('w-3.5 h-3.5', syncAllGoogleMut.isPending && 'animate-spin')} />
+              {syncAllGoogleMut.isPending ? 'Syncing...' : 'Sync now'}
+            </button>
+          )}
+          {canRemove && (
+            <button
+              onClick={() => connectGoogleMut.mutate()}
+              disabled={connectGoogleMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Connect Google
+            </button>
+          )}
+        </div>
+      </div>
+
+      {pendingGrants.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 space-y-2">
+          {pendingGrants.map(g => (
+            <div key={g.id} className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-amber-900">{g.googleEmail}</p>
+                <p className="text-xs text-amber-700">
+                  {g.discoverError
+                    ? g.discoverError
+                    : 'Authorised. Account discovery is pending — usually means the Google Ads developer token isn’t configured yet.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {canSync && (
+                  <button
+                    onClick={() => discoverMut.mutate(g.id)}
+                    disabled={discoverMut.isPending}
+                    className="px-3 py-1 text-xs font-medium text-amber-900 bg-white border border-amber-300 rounded-md hover:bg-amber-100"
+                  >
+                    Retry discovery
+                  </button>
+                )}
+                {canRemove && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Disconnect Google for ${g.googleEmail}?`)) disconnectGrantMut.mutate(g.id);
+                    }}
+                    className="p-1.5 text-amber-700 hover:text-rose-600 hover:bg-rose-50 rounded"
+                    title="Disconnect"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {googleLoading ? (
+        <div className="text-center py-12 text-gray-400">Loading Google ad accounts...</div>
+      ) : googleAccounts.length === 0 && pendingGrants.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 font-medium">No Google Ads accounts connected</p>
+          <p className="text-gray-400 text-sm mt-1">
+            Click <span className="font-medium">Connect Google</span> to authorize via OAuth.
+            Sync requires <code className="px-1 bg-slate-100 rounded">GOOGLE_ADS_DEVELOPER_TOKEN</code> on the server.
+          </p>
+        </div>
+      ) : googleAccounts.length > 0 && (
+        <>
+          {googleSummary && googleSummary.spend > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              <StatCard
+                icon={DollarSign}
+                label="Spend"
+                value={formatCurrency(googleSummary.spend, googleCurrency)}
+                color="bg-emerald-500"
+              />
+              <StatCard icon={Eye} label="Impressions" value={formatNumber(googleSummary.impressions)} color="bg-blue-500" />
+              <StatCard
+                icon={MousePointer}
+                label="Clicks"
+                value={formatNumber(googleSummary.clicks)}
+                sublabel={`CTR ${googleSummary.ctr.toFixed(2)}%`}
+                color="bg-cyan-500"
+              />
+              <StatCard
+                icon={Target}
+                label="Conversions"
+                value={formatNumber(googleSummary.conversions)}
+                sublabel={`ROAS ${googleSummary.roas.toFixed(2)}x`}
+                color="bg-violet-500"
+              />
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-medium text-gray-700">Connected Ad Accounts ({googleAccounts.length})</h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {googleAccounts.map(a => (
+                <div key={a.id} className="flex items-center gap-3 px-5 py-3">
+                  <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-red-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{a.name}</p>
+                    <p className="text-[11px] text-gray-400">
+                      {a.customerId}{a.googleEmail ? ` • ${a.googleEmail}` : ''}{a.currency ? ` • ${a.currency}` : ''}
+                      {a.manager && <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">MCC</span>}
+                      {a.testAccount && <span className="ml-2 px-1.5 py-0.5 bg-blue-50 rounded text-blue-600">TEST</span>}
+                      {a.syncError && (
+                        <span className="ml-2 inline-flex items-center gap-1 text-rose-600" title={a.syncError}>
+                          <AlertTriangle className="w-3 h-3" /> sync error
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {canSync && (
+                    <select
+                      value={a.clientId || ''}
+                      onChange={(e) => assignGoogleClientMut.mutate({ id: a.id, clientId: e.target.value || null })}
+                      className="text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white"
+                    >
+                      <option value="">No client</option>
+                      {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  )}
+                  {a.lastSyncedAt && (
+                    <span className="text-[11px] text-gray-400 hidden sm:inline">
+                      Synced {format(new Date(a.lastSyncedAt), 'MMM d HH:mm')}
+                    </span>
+                  )}
+                  {canSync && !a.manager && (
+                    <button
+                      onClick={() => syncGoogleOneMut.mutate(a.id)}
+                      disabled={syncGoogleOneMut.isPending}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                      title="Sync this account"
+                    >
+                      <RefreshCw className={clsx('w-3.5 h-3.5', syncGoogleOneMut.isPending && syncGoogleOneMut.variables === a.id && 'animate-spin')} />
+                    </button>
+                  )}
+                  {canRemove && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`Remove "${a.name}" (${a.customerId})? Historical insights stay.`)) {
+                          disconnectGoogleAccMut.mutate(a.id);
+                        }
+                      }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
                       title="Remove ad account"
                     >
