@@ -9,6 +9,7 @@ import { Unlink, CheckCircle, AlertTriangle, XCircle, Plus, Lock } from 'lucide-
 import clsx from 'clsx';
 import { format } from 'date-fns';
 import { PLATFORMS, PLATFORM_ORDER, getPlatform } from '../utils/platforms';
+import AccountAvatar from '../components/common/AccountAvatar';
 
 const tokenStatusConfig = {
   valid: { label: 'Connected', icon: CheckCircle, color: 'text-emerald-600' },
@@ -53,11 +54,7 @@ function PlatformTile({ platform, accounts, onConnect, onDisconnect, onReconnect
 
             return (
               <div key={account.id} className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50/50">
-                {account.profilePictureUrl ? (
-                  <img src={account.profilePictureUrl} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                ) : (
-                  <div className={clsx('w-7 h-7 rounded-full flex-shrink-0', platform.bgSoft)} />
-                )}
+                <AccountAvatar account={account} size={28} className="flex-shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-slate-900 truncate">{account.accountName}</p>
                   <div className="flex items-center gap-1.5">
@@ -232,17 +229,7 @@ export default function AccountsPage() {
               if (connectedAccount) {
                 return (
                   <div key={key} className="relative group" title={connectedAccount.accountName}>
-                    {connectedAccount.profilePictureUrl ? (
-                      <img
-                        src={connectedAccount.profilePictureUrl}
-                        alt={connectedAccount.accountName}
-                        className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow"
-                      />
-                    ) : (
-                      <div className={clsx('w-11 h-11 rounded-full flex items-center justify-center text-white ring-2 ring-white shadow', platform.bg)}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                    )}
+                    <AccountAvatar account={connectedAccount} size={44} ringClass="ring-2 ring-white shadow" />
                     <div className={clsx(
                       'absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white',
                       platform.bg

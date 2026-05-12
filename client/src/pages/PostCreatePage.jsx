@@ -16,6 +16,7 @@ import {
   ArrowLeftRight, MessageSquare, AlertTriangle, Check, Users,
 } from 'lucide-react';
 import { FacebookIcon, InstagramIcon } from '../components/common/SocialIcons';
+import AccountAvatar from '../components/common/AccountAvatar';
 import { getPlatform } from '../utils/platforms';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -88,16 +89,9 @@ function ProfilePicker({ accounts, clients, selected, onChange }) {
 
         {selectedAccounts.slice(0, 6).map(a => {
           const p = getPlatform(a.platform);
-          const PIcon = p.icon;
           return (
             <div key={a.id} className="relative" title={`${a.accountName} (${p.label})`}>
-              {a.profilePictureUrl ? (
-                <img src={a.profilePictureUrl} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-white shadow-sm" />
-              ) : (
-                <div className={clsx('w-9 h-9 rounded-full flex items-center justify-center text-white ring-2 ring-white shadow-sm', p.bg)}>
-                  <PIcon className="w-4 h-4" />
-                </div>
-              )}
+              <AccountAvatar account={a} size={36} ringClass="ring-2 ring-white shadow-sm" />
               <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center border-2 border-white">
                 <Check className="w-2.5 h-2.5 text-white" />
               </div>
@@ -159,13 +153,7 @@ function ProfilePicker({ accounts, clients, selected, onChange }) {
                           )}
                         >
                           <div className="relative flex-shrink-0">
-                            {account.profilePictureUrl ? (
-                              <img src={account.profilePictureUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
-                            ) : (
-                              <div className={clsx('w-9 h-9 rounded-full flex items-center justify-center text-white', p.bg)}>
-                                <PIcon className="w-4 h-4" />
-                              </div>
-                            )}
+                            <AccountAvatar account={account} size={36} />
                             <div className={clsx('absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-white', p.bg)}>
                               <PIcon className="w-2 h-2 text-white" />
                             </div>

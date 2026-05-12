@@ -1,10 +1,19 @@
 const crypto = require('crypto');
+const axios = require('axios');
 const pool = require('../config/db');
 const env = require('../config/env');
+const fb = require('../config/facebook');
+const ig = require('../config/instagram');
 const facebookService = require('../services/facebook.service');
 const instagramService = require('../services/instagram.service');
 const { decrypt } = require('../services/token.service');
 const logger = require('../utils/logger');
+
+// In-memory cache of fresh profile picture URLs, keyed by social_account.id.
+// Meta CDN URLs expire (the `oe` query param), so we resolve them lazily and
+// cache for ~5 minutes to avoid hammering the Graph API on every page render.
+const avatarCache = new Map();
+const AVATAR_TTL_MS = 5 * 60 * 1000;
 
 // Primary client URL for OAuth redirects back to the frontend.
 // Uses CLIENT_URL if set, otherwise the first origin in CLIENT_URLS, otherwise localhost.
@@ -181,6 +190,60 @@ async function instagramCallback(req, res, next) {
   }
 }
 
+async function getAccountAvatar(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).end();
+
+    const cached = avatarCache.get(id);
+    if (cached && cached.expiresAt > Date.now() && cached.url) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.redirect(302, cached.url);
+    }
+
+    const [rows] = await pool.execute(
+      'SELECT id, platform, platform_account_id, access_token, profile_picture_url FROM social_accounts WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) return res.status(404).end();
+    const account = rows[0];
+
+    let freshUrl = null;
+    try {
+      const token = decrypt(account.access_token);
+      if (account.platform === 'facebook_page') {
+        const { data } = await axios.get(`${fb.FB_GRAPH_URL}/${account.platform_account_id}`, {
+          params: { fields: 'picture.type(large)', access_token: token },
+          timeout: 5000,
+        });
+        freshUrl = data.picture?.data?.url || null;
+      } else if (account.platform === 'instagram_business') {
+        const { data } = await axios.get(`${ig.IG_GRAPH_URL}/${account.platform_account_id}`, {
+          params: { fields: 'profile_picture_url', access_token: token },
+          timeout: 5000,
+        });
+        freshUrl = data.profile_picture_url || null;
+      }
+    } catch (e) {
+      logger.warn(`Avatar fetch failed for account ${id}: ${e.message}`);
+    }
+
+    const url = freshUrl || account.profile_picture_url;
+    if (!url) return res.status(404).end();
+
+    avatarCache.set(id, { url, expiresAt: Date.now() + AVATAR_TTL_MS });
+    if (freshUrl && freshUrl !== account.profile_picture_url) {
+      pool.execute('UPDATE social_accounts SET profile_picture_url = ? WHERE id = ?', [freshUrl, id])
+        .catch((e) => logger.warn(`Avatar URL persist failed: ${e.message}`));
+    }
+
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.redirect(302, url);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function disconnectAccount(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
@@ -209,4 +272,5 @@ module.exports = {
   instagramCallback,
   disconnectAccount,
   reconnectAccount,
+  getAccountAvatar,
 };
