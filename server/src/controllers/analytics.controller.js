@@ -12,11 +12,15 @@ async function getPostAnalytics(req, res, next) {
 
 async function getOverview(req, res, next) {
   try {
-    const { start, end } = req.query;
+    const { start, end, clientId } = req.query;
     if (!start || !end) {
       return res.status(400).json({ error: 'start and end query params are required' });
     }
-    const data = await analyticsService.getOverviewAnalytics(start, end);
+    const data = await analyticsService.getOverviewAnalytics(
+      start,
+      end,
+      clientId ? parseInt(clientId, 10) : null
+    );
     res.json(data);
   } catch (err) {
     next(err);

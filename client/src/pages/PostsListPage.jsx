@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listPosts, deletePost } from '../api/postsApi';
 import { listClients } from '../api/clientsApi';
 import { listAccounts } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
+import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { Plus, Trash2, PenSquare, Search, Film, Image } from 'lucide-react';
@@ -36,6 +37,7 @@ export default function PostsListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { hasRole } = useAuth();
+  const { activeClientId, activeClient } = useClientScope();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [clientFilter, setClientFilter] = useState('');
@@ -46,21 +48,27 @@ export default function PostsListPage() {
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: listClients });
   const { data: accounts = [] } = useQuery({ queryKey: ['socialAccounts'], queryFn: listAccounts });
 
-  // Accounts shown in the dropdown narrow to the selected client (when one is selected)
+  // The active workspace client overrides any local client filter; we hide that filter UI when set.
+  const effectiveClientId = activeClientId || (clientFilter ? Number(clientFilter) : null);
+
+  // Reset paging when scope changes
+  useEffect(() => { setPage(1); setAccountFilter(''); }, [activeClientId]);
+
+  // Accounts shown in the dropdown narrow to the effective client when set
   const accountOptions = useMemo(() => {
     const active = accounts.filter(a => a.isActive);
-    if (!clientFilter) return active;
-    return active.filter(a => String(a.clientId) === clientFilter);
-  }, [accounts, clientFilter]);
+    if (!effectiveClientId) return active;
+    return active.filter(a => a.clientId === effectiveClientId);
+  }, [accounts, effectiveClientId]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['posts', page, statusFilter, search, clientFilter, accountFilter],
+    queryKey: ['posts', page, statusFilter, search, effectiveClientId, accountFilter],
     queryFn: () => listPosts({
       page,
       limit: 15,
       status: statusFilter || undefined,
       search: search || undefined,
-      clientId: clientFilter || undefined,
+      clientId: effectiveClientId || undefined,
       socialAccountId: accountFilter || undefined,
     }),
   });
@@ -86,7 +94,12 @@ export default function PostsListPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Posts</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Posts</h1>
+          {activeClient && (
+            <p className="text-sm text-slate-500 mt-1">Scoped to {activeClient.name}</p>
+          )}
+        </div>
         <Link
           to="/posts/new"
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
@@ -108,16 +121,18 @@ export default function PostsListPage() {
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           />
         </form>
-        <select
-          value={clientFilter}
-          onChange={e => { setClientFilter(e.target.value); setAccountFilter(''); setPage(1); }}
-          className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-        >
-          <option value="">All clients</option>
-          {clients.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        {!activeClientId && (
+          <select
+            value={clientFilter}
+            onChange={e => { setClientFilter(e.target.value); setAccountFilter(''); setPage(1); }}
+            className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value="">All clients</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
         <select
           value={accountFilter}
           onChange={e => { setAccountFilter(e.target.value); setPage(1); }}

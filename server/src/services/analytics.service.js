@@ -160,7 +160,15 @@ async function getPostAnalytics(postId) {
   }));
 }
 
-async function getOverviewAnalytics(startDate, endDate) {
+async function getOverviewAnalytics(startDate, endDate, clientId = null) {
+  // When a clientId is set, we restrict to posts that target any social account
+  // belonging to that client. The join + DISTINCT handles posts with mixed targets.
+  const clientJoin = clientId ? 'JOIN social_accounts sa ON pt.social_account_id = sa.id' : '';
+  const clientWhere = clientId ? 'AND sa.client_id = ?' : '';
+  const baseParams = (extra = []) => clientId
+    ? [startDate, endDate, clientId, ...extra]
+    : [startDate, endDate, ...extra];
+
   const [totals] = await pool.execute(
     `SELECT
        SUM(pa.impressions) AS total_impressions,
@@ -175,8 +183,9 @@ async function getOverviewAnalytics(startDate, endDate) {
      FROM post_analytics pa
      JOIN post_targets pt ON pa.post_target_id = pt.id
      JOIN posts p ON pt.post_id = p.id
-     WHERE p.published_at BETWEEN ? AND ?`,
-    [startDate, endDate]
+     ${clientJoin}
+     WHERE p.published_at BETWEEN ? AND ? ${clientWhere}`,
+    baseParams()
   );
 
   // Get per-post breakdown
@@ -192,10 +201,11 @@ async function getOverviewAnalytics(startDate, endDate) {
      FROM posts p
      JOIN post_targets pt ON p.id = pt.post_id
      JOIN post_analytics pa ON pt.id = pa.post_target_id
-     WHERE p.published_at BETWEEN ? AND ?
+     ${clientJoin}
+     WHERE p.published_at BETWEEN ? AND ? ${clientWhere}
      GROUP BY p.id
      ORDER BY impressions DESC`,
-    [startDate, endDate]
+    baseParams()
   );
 
   // Get daily aggregate for chart
@@ -208,24 +218,38 @@ async function getOverviewAnalytics(startDate, endDate) {
      FROM posts p
      JOIN post_targets pt ON p.id = pt.post_id
      JOIN post_analytics pa ON pt.id = pa.post_target_id
-     WHERE p.published_at BETWEEN ? AND ?
+     ${clientJoin}
+     WHERE p.published_at BETWEEN ? AND ? ${clientWhere}
      GROUP BY DATE(p.published_at)
      ORDER BY date ASC`,
-    [startDate, endDate]
+    baseParams()
   );
 
   // Caption sentiment distribution across published posts in the window
+  // (also scoped by client when set, via post_targets/social_accounts)
+  const sentimentClientFilter = clientId
+    ? `AND EXISTS (
+         SELECT 1 FROM post_targets pt2
+         JOIN social_accounts sa2 ON pt2.social_account_id = sa2.id
+         WHERE pt2.post_id = p.id AND sa2.client_id = ?
+       )`
+    : '';
+  const sentimentParams = clientId ? [startDate, endDate, clientId] : [startDate, endDate];
+
   const [sentimentDist] = await pool.execute(
     `SELECT
        COALESCE(p.caption_sentiment_label, 'unknown') AS label,
        COUNT(*) AS cnt
      FROM posts p
-     WHERE p.published_at BETWEEN ? AND ?
+     WHERE p.published_at BETWEEN ? AND ? ${sentimentClientFilter}
      GROUP BY COALESCE(p.caption_sentiment_label, 'unknown')`,
-    [startDate, endDate]
+    sentimentParams
   );
 
   // Average caption sentiment per client (only clients with published posts in window)
+  const byClientParams = clientId
+    ? [startDate, endDate, clientId]
+    : [startDate, endDate];
   const [sentimentByClient] = await pool.execute(
     `SELECT c.id, c.name, c.color,
             AVG(p.caption_sentiment_score) AS avg_score,
@@ -237,10 +261,10 @@ async function getOverviewAnalytics(startDate, endDate) {
      JOIN social_accounts sa ON sa.client_id = c.id
      JOIN post_targets pt   ON pt.social_account_id = sa.id
      JOIN posts p           ON pt.post_id = p.id
-     WHERE p.published_at BETWEEN ? AND ?
+     WHERE p.published_at BETWEEN ? AND ? ${clientId ? 'AND c.id = ?' : ''}
      GROUP BY c.id, c.name, c.color
      ORDER BY post_count DESC, c.name ASC`,
-    [startDate, endDate]
+    byClientParams
   );
 
   const t = totals[0] || {};

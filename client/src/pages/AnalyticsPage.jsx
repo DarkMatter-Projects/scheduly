@@ -8,6 +8,7 @@ import { format, subDays, startOfDay } from 'date-fns';
 import { Eye, Users, Heart, MessageSquare, Share2, MousePointer, TrendingUp, BarChart3, Smile } from 'lucide-react';
 import clsx from 'clsx';
 import { SENTIMENT_STYLES } from '../utils/sentiment';
+import { useClientScope } from '../context/ClientContext';
 
 const SENTIMENT_COLORS = {
   positive: '#10b981',
@@ -49,13 +50,14 @@ function formatNum(n) {
 
 export default function AnalyticsPage() {
   const [rangeDays, setRangeDays] = useState(30);
+  const { activeClientId, activeClient } = useClientScope();
 
   const end = format(new Date(), 'yyyy-MM-dd');
   const start = format(subDays(startOfDay(new Date()), rangeDays), 'yyyy-MM-dd');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['analytics', 'overview', start, end],
-    queryFn: () => getOverviewAnalytics(start, end),
+    queryKey: ['analytics', 'overview', start, end, activeClientId],
+    queryFn: () => getOverviewAnalytics(start, end, activeClientId || undefined),
   });
 
   const summary = data?.summary || {};
@@ -72,7 +74,11 @@ export default function AnalyticsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-500 text-sm mt-1">Performance metrics for your published posts</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {activeClient
+              ? `Metrics for ${activeClient.name}`
+              : 'Performance metrics for your published posts'}
+          </p>
         </div>
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
           {RANGES.map(r => (

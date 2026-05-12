@@ -6,6 +6,7 @@ import { listMedia, uploadMedia } from '../api/mediaApi';
 import { listAccounts } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
 import { useAuth } from '../context/AuthContext';
+import { useClientScope } from '../context/ClientContext';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
@@ -290,6 +291,7 @@ export default function PostCreatePage() {
     }
   }, [showEmoji]);
 
+  const { activeClientId } = useClientScope();
   const { data: socialAccounts = [] } = useQuery({
     queryKey: ['socialAccounts'],
     queryFn: listAccounts,
@@ -298,7 +300,19 @@ export default function PostCreatePage() {
     queryKey: ['clients'],
     queryFn: listClients,
   });
-  const activeAccounts = socialAccounts.filter(a => a.isActive);
+  // When a client workspace is active, only let users target that client's accounts.
+  const activeAccounts = useMemo(() => {
+    const live = socialAccounts.filter(a => a.isActive);
+    return activeClientId ? live.filter(a => a.clientId === activeClientId) : live;
+  }, [socialAccounts, activeClientId]);
+
+  // When entering with a client active and no selection yet, default to all of that client's accounts.
+  useEffect(() => {
+    if (!activeClientId) return;
+    if (selectedAccountIds.length > 0) return;
+    if (activeAccounts.length === 0) return;
+    setSelectedAccountIds(activeAccounts.map(a => a.id));
+  }, [activeClientId, activeAccounts, selectedAccountIds.length]);
 
   const createMutation = useMutation({
     mutationFn: createPost,

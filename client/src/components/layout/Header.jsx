@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Menu, LogOut, ChevronDown, Search, Bell, Plus } from 'lucide-react';
+import ClientSwitcher from './ClientSwitcher';
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -48,6 +49,8 @@ export default function Header({ onMenuToggle }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <ClientSwitcher />
+
         {/* Search placeholder */}
         <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg text-slate-500 w-64">
           <Search className="w-4 h-4" />

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { getCalendarEvents } from '../api/calendarApi';
 import { updatePost } from '../api/postsApi';
 import { useAuth } from '../context/AuthContext';
+import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
@@ -25,8 +26,15 @@ export default function CalendarPage() {
   const navigate = useNavigate();
   const calendarRef = useRef(null);
   const { hasRole } = useAuth();
+  const { activeClientId, activeClient } = useClientScope();
   const queryClient = useQueryClient();
   const [currentTitle, setCurrentTitle] = useState('');
+
+  // Refetch events when the active client changes
+  useEffect(() => {
+    const api = calendarRef.current?.getApi();
+    if (api) api.refetchEvents();
+  }, [activeClientId]);
 
   const rescheduleMut = useMutation({
     mutationFn: ({ id, scheduledAt }) => updatePost(id, { scheduledAt }),
@@ -94,7 +102,12 @@ export default function CalendarPage() {
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Content Calendar</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Content Calendar</h1>
+          {activeClient && (
+            <p className="text-sm text-slate-500 mt-1">Showing posts for {activeClient.name}</p>
+          )}
+        </div>
         <button
           onClick={() => navigate('/posts/new')}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
@@ -163,7 +176,7 @@ export default function CalendarPage() {
             initialView="dayGridMonth"
             headerToolbar={false}
             events={(fetchInfo, successCallback, failureCallback) => {
-              getCalendarEvents(fetchInfo.startStr, fetchInfo.endStr)
+              getCalendarEvents(fetchInfo.startStr, fetchInfo.endStr, activeClientId || undefined)
                 .then(successCallback)
                 .catch(failureCallback);
             }}

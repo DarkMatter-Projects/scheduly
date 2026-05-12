@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listAccounts, startFacebookAuth, startInstagramAuth, disconnectAccount, reconnectAccount } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
+import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
 import { Unlink, CheckCircle, AlertTriangle, XCircle, Plus, Lock } from 'lucide-react';
 import clsx from 'clsx';
@@ -124,13 +125,20 @@ function PlatformTile({ platform, accounts, onConnect, onDisconnect, onReconnect
 
 export default function AccountsPage() {
   const { hasRole } = useAuth();
+  const { activeClientId, activeClient } = useClientScope();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const { data: accounts = [], isLoading } = useQuery({
+  const { data: allAccounts = [], isLoading } = useQuery({
     queryKey: ['socialAccounts'],
     queryFn: listAccounts,
   });
+
+  // Scope to active client's accounts only (when set)
+  const accounts = useMemo(
+    () => activeClientId ? allAccounts.filter(a => a.clientId === activeClientId) : allAccounts,
+    [allAccounts, activeClientId]
+  );
 
   useEffect(() => {
     const connected = searchParams.get('connected');
@@ -204,7 +212,11 @@ export default function AccountsPage() {
             </span>
           </div>
         </div>
-        <p className="text-sm text-slate-500">Connect your social profiles to start scheduling posts.</p>
+        <p className="text-sm text-slate-500">
+          {activeClient
+            ? `Showing ${activeClient.name}'s connected accounts. Switch to "All clients" in the header to manage every account.`
+            : 'Connect your social profiles to start scheduling posts.'}
+        </p>
       </div>
 
       {/* Current Social Sets (inspired by Later) */}
