@@ -11,7 +11,6 @@ const pageTitles = {
   '/posts/new': 'Create Post',
   '/media': 'Media Library',
   '/analytics': 'Analytics',
-  '/team': 'Team',
   '/accounts': 'Social Accounts',
   '/settings': 'Settings',
 };

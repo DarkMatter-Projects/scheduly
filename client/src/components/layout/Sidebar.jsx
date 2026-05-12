@@ -6,7 +6,6 @@ import {
   PenSquare,
   Image,
   BarChart3,
-  Users,
   Share2,
   Settings,
   FileText,
@@ -24,7 +23,6 @@ const navItems = [
 ];
 
 const secondaryItems = [
-  { to: '/team', icon: Users, label: 'Team' },
   { to: '/clients', icon: FolderClosed, label: 'Clients' },
   { to: '/accounts', icon: Share2, label: 'Accounts' },
 ];
