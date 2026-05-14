@@ -308,6 +308,24 @@ async function getOverview({ clientId, start, end, days = 30 }) {
     params
   );
 
+  const byAccountParams = clientId ? [start, end, clientId] : [start, end];
+  const [byAccountRows] = await pool.execute(
+    `SELECT aa.id AS ad_account_id,
+            COALESCE(SUM(i.spend), 0) AS spend,
+            COALESCE(SUM(i.impressions), 0) AS impressions,
+            COALESCE(SUM(i.reach), 0) AS reach,
+            COALESCE(SUM(i.clicks), 0) AS clicks,
+            COALESCE(SUM(i.conversions), 0) AS conversions,
+            COALESCE(SUM(i.conversion_value), 0) AS conversion_value
+     FROM meta_ad_accounts aa
+     LEFT JOIN meta_ad_insights i
+       ON i.ad_account_id = aa.id AND i.level = 'account'
+       AND i.date_start BETWEEN ? AND ?
+     WHERE aa.is_active = 1 ${clientId ? 'AND aa.client_id = ?' : ''}
+     GROUP BY aa.id`,
+    byAccountParams
+  );
+
   const campaignParams = clientId ? [start, end, clientId] : [start, end];
   const [topCampaigns] = await pool.execute(
     `SELECT camp.id, camp.platform_campaign_id, camp.name, camp.objective, camp.effective_status,
@@ -374,6 +392,15 @@ async function getOverview({ clientId, start, end, days = 30 }) {
         roas: cSpend > 0 ? (Number(c.conversion_value) || 0) / cSpend : 0,
       };
     }),
+    byAccount: byAccountRows.map(r => ({
+      adAccountId: r.ad_account_id,
+      spend: Number(r.spend) || 0,
+      impressions: Number(r.impressions) || 0,
+      reach: Number(r.reach) || 0,
+      clicks: Number(r.clicks) || 0,
+      conversions: Number(r.conversions) || 0,
+      conversionValue: Number(r.conversion_value) || 0,
+    })),
   };
 }
 

@@ -12,10 +12,10 @@ import clsx from 'clsx';
 import {
   listAdAccounts, listCampaigns, getAdsOverview, syncAllAds, syncAdAccount, assignAdAccountClient, disconnectAdAccount,
   listGoogleAdAccounts, listGooglePendingGrants, getGoogleAdsOverview,
-  syncAllGoogleAds, syncGoogleAdAccount, discoverGoogleGrant,
+  syncAllGoogleAds, syncGoogleAdAccount, discoverGoogleGrant, rediscoverAllGoogle,
   assignGoogleAdAccountClient, disconnectGoogleAdAccount, disconnectGoogleGrant,
   listTikTokAdAccounts, listTikTokPendingGrants, getTikTokAdsOverview,
-  syncAllTikTokAds, syncTikTokAdAccount, discoverTikTokGrant,
+  syncAllTikTokAds, syncTikTokAdAccount, discoverTikTokGrant, rediscoverAllTikTok,
   assignTikTokAdAccountClient, disconnectTikTokAdAccount, disconnectTikTokGrant,
 } from '../api/adsApi';
 import { startGoogleAuth, startTikTokAuth } from '../api/socialApi';
@@ -77,6 +77,32 @@ function formatNumber(n) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return Number(n).toLocaleString();
+}
+
+// Compact per-account stats line. Returns null when there's no data so the
+// row stays clean rather than showing "0 spend • 0 imp" everywhere.
+function AccountStats({ stats, currency }) {
+  if (!stats) return null;
+  const hasData = stats.spend > 0 || stats.impressions > 0 || stats.clicks > 0;
+  if (!hasData) {
+    return <span className="text-[11px] text-slate-400 italic">No data in range</span>;
+  }
+  const ctr = stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0;
+  return (
+    <div className="flex items-center gap-3 text-[11px]">
+      <span className="text-slate-700 font-medium">{formatCurrency(stats.spend, currency)}</span>
+      <span className="text-slate-400">•</span>
+      <span className="text-slate-600">{formatNumber(stats.impressions)} imp</span>
+      <span className="text-slate-400">•</span>
+      <span className="text-slate-600">{formatNumber(stats.clicks)} clk</span>
+      {ctr > 0 && (
+        <>
+          <span className="text-slate-400">•</span>
+          <span className="text-slate-500">{ctr.toFixed(2)}% CTR</span>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function AdsPage() {
@@ -168,6 +194,11 @@ export default function AdsPage() {
   const summary = overview?.summary;
   const daily = overview?.daily || [];
   const topCampaigns = overview?.topCampaigns || [];
+  const metaByAccount = useMemo(() => {
+    const m = new Map();
+    for (const r of (overview?.byAccount || [])) m.set(r.adAccountId, r);
+    return m;
+  }, [overview]);
 
   const primaryCurrency = accounts.find(a => a.currency)?.currency || 'USD';
 
@@ -191,6 +222,11 @@ export default function AdsPage() {
 
   const googleSummary = googleOverview?.summary;
   const googleCurrency = googleAccounts.find(a => a.currency)?.currency || 'USD';
+  const googleByAccount = useMemo(() => {
+    const m = new Map();
+    for (const r of (googleOverview?.byAccount || [])) m.set(r.adAccountId, r);
+    return m;
+  }, [googleOverview]);
 
   const invalidateGoogle = () => {
     queryClient.invalidateQueries({ queryKey: ['googleAdAccounts'] });
@@ -233,6 +269,15 @@ export default function AdsPage() {
     onSuccess: () => { toast.success('Google account disconnected'); invalidateGoogle(); },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to disconnect'),
   });
+  const rediscoverGoogleMut = useMutation({
+    mutationFn: rediscoverAllGoogle,
+    onSuccess: (r) => {
+      const summary = `${r.discovered} account(s) found across ${r.succeeded} grant(s)` + (r.failed ? `, ${r.failed} failed` : '');
+      toast.success(`Re-discovery complete: ${summary}`);
+      invalidateGoogle();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Re-discovery failed'),
+  });
 
   // ── TikTok Ads ──
   const { data: tiktokAccounts = [], isLoading: tiktokLoading } = useQuery({
@@ -254,6 +299,11 @@ export default function AdsPage() {
 
   const tiktokSummary = tiktokOverview?.summary;
   const tiktokCurrency = tiktokAccounts.find(a => a.currency)?.currency || 'USD';
+  const tiktokByAccount = useMemo(() => {
+    const m = new Map();
+    for (const r of (tiktokOverview?.byAccount || [])) m.set(r.adAccountId, r);
+    return m;
+  }, [tiktokOverview]);
 
   const invalidateTikTok = () => {
     queryClient.invalidateQueries({ queryKey: ['tiktokAdAccounts'] });
@@ -295,6 +345,15 @@ export default function AdsPage() {
     mutationFn: disconnectTikTokGrant,
     onSuccess: () => { toast.success('TikTok account disconnected'); invalidateTikTok(); },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to disconnect'),
+  });
+  const rediscoverTikTokMut = useMutation({
+    mutationFn: rediscoverAllTikTok,
+    onSuccess: (r) => {
+      const summary = `${r.discovered} advertiser(s) found across ${r.succeeded} grant(s)` + (r.failed ? `, ${r.failed} failed` : '');
+      toast.success(`Re-discovery complete: ${summary}`);
+      invalidateTikTok();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Re-discovery failed'),
   });
 
   // Handle the redirect back from Google OAuth
@@ -577,6 +636,9 @@ export default function AdsPage() {
                         </span>
                       )}
                     </p>
+                    <div className="mt-1">
+                      <AccountStats stats={metaByAccount.get(a.id)} currency={a.currency || primaryCurrency} />
+                    </div>
                   </div>
                   {canSync && (
                     <select
@@ -639,6 +701,17 @@ export default function AdsPage() {
             >
               <RefreshCw className={clsx('w-3.5 h-3.5', syncAllGoogleMut.isPending && 'animate-spin')} />
               {syncAllGoogleMut.isPending ? 'Syncing...' : 'Sync now'}
+            </button>
+          )}
+          {canSync && (googleAccounts.length > 0 || pendingGrants.length > 0) && (
+            <button
+              onClick={() => rediscoverGoogleMut.mutate()}
+              disabled={rediscoverGoogleMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+              title="Re-run discovery on every connected Google grant — fixes accounts with stale login_customer_id"
+            >
+              <RefreshCw className={clsx('w-3.5 h-3.5', rediscoverGoogleMut.isPending && 'animate-spin')} />
+              {rediscoverGoogleMut.isPending ? 'Re-discovering...' : 'Re-discover'}
             </button>
           )}
           {canRemove && (
@@ -759,6 +832,11 @@ export default function AdsPage() {
                         </span>
                       )}
                     </p>
+                    {!a.manager && (
+                      <div className="mt-1">
+                        <AccountStats stats={googleByAccount.get(a.id)} currency={a.currency || googleCurrency} />
+                      </div>
+                    )}
                   </div>
                   {canSync && (
                     <select
@@ -820,6 +898,17 @@ export default function AdsPage() {
             >
               <RefreshCw className={clsx('w-3.5 h-3.5', syncAllTikTokMut.isPending && 'animate-spin')} />
               {syncAllTikTokMut.isPending ? 'Syncing...' : 'Sync now'}
+            </button>
+          )}
+          {canSync && (tiktokAccounts.length > 0 || tiktokPendingGrants.length > 0) && (
+            <button
+              onClick={() => rediscoverTikTokMut.mutate()}
+              disabled={rediscoverTikTokMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+              title="Re-run discovery on every connected TikTok grant"
+            >
+              <RefreshCw className={clsx('w-3.5 h-3.5', rediscoverTikTokMut.isPending && 'animate-spin')} />
+              {rediscoverTikTokMut.isPending ? 'Re-discovering...' : 'Re-discover'}
             </button>
           )}
           {canRemove && (
@@ -937,6 +1026,9 @@ export default function AdsPage() {
                         </span>
                       )}
                     </p>
+                    <div className="mt-1">
+                      <AccountStats stats={tiktokByAccount.get(a.id)} currency={a.currency || tiktokCurrency} />
+                    </div>
                   </div>
                   {canSync && (
                     <select

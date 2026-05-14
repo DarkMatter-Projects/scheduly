@@ -656,6 +656,24 @@ async function getOverview({ clientId, start, end, days = 30 }) {
     campaignParams
   );
 
+  // Per-account breakdown for the same date range (used in the per-row stats)
+  const byAccountParams = clientId ? [start, end, clientId] : [start, end];
+  const [byAccountRows] = await pool.execute(
+    `SELECT a.id AS ad_account_id,
+            COALESCE(SUM(i.spend), 0) AS spend,
+            COALESCE(SUM(i.impressions), 0) AS impressions,
+            COALESCE(SUM(i.clicks), 0) AS clicks,
+            COALESCE(SUM(i.conversions), 0) AS conversions,
+            COALESCE(SUM(i.conversion_value), 0) AS conversion_value
+     FROM google_ad_accounts a
+     LEFT JOIN google_ad_insights i
+       ON i.ad_account_id = a.id AND i.level = 'account'
+       AND i.date_start BETWEEN ? AND ?
+     WHERE a.is_active = 1 ${clientId ? 'AND a.client_id = ?' : ''}
+     GROUP BY a.id`,
+    byAccountParams
+  );
+
   const t = totals[0] || {};
   const spend = Number(t.spend) || 0;
   const conversionValue = Number(t.conversion_value) || 0;
@@ -698,6 +716,14 @@ async function getOverview({ clientId, start, end, days = 30 }) {
         roas: cSpend > 0 ? (Number(c.conversion_value) || 0) / cSpend : 0,
       };
     }),
+    byAccount: byAccountRows.map(r => ({
+      adAccountId: r.ad_account_id,
+      spend: Number(r.spend) || 0,
+      impressions: Number(r.impressions) || 0,
+      clicks: Number(r.clicks) || 0,
+      conversions: Number(r.conversions) || 0,
+      conversionValue: Number(r.conversion_value) || 0,
+    })),
   };
 }
 

@@ -40,6 +40,9 @@ export const syncGoogleAdAccount = (id) =>
 export const discoverGoogleGrant = (grantId) =>
   api.post(`/ads/google/grants/${grantId}/discover`).then(r => r.data);
 
+export const rediscoverAllGoogle = () =>
+  api.post('/ads/google/rediscover-all').then(r => r.data);
+
 export const assignGoogleAdAccountClient = (id, clientId) =>
   api.post(`/ads/google/accounts/${id}/client`, { clientId }).then(r => r.data);
 
@@ -67,6 +70,9 @@ export const syncTikTokAdAccount = (id) =>
 
 export const discoverTikTokGrant = (grantId) =>
   api.post(`/ads/tiktok/grants/${grantId}/discover`).then(r => r.data);
+
+export const rediscoverAllTikTok = () =>
+  api.post('/ads/tiktok/rediscover-all').then(r => r.data);
 
 export const assignTikTokAdAccountClient = (id, clientId) =>
   api.post(`/ads/tiktok/accounts/${id}/client`, { clientId }).then(r => r.data);

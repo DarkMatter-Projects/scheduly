@@ -140,6 +140,32 @@ async function disconnectGoogleAccount(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function rediscoverAllGoogle(req, res, next) {
+  try {
+    // Iterate every active grant for this user and re-run discovery.
+    const pool = require('../config/db');
+    const [grants] = await pool.execute(
+      'SELECT id FROM google_oauth_grants WHERE user_id = ? AND is_active = 1',
+      [req.user.userId]
+    );
+    let totalDiscovered = 0;
+    let succeeded = 0;
+    let failed = 0;
+    const errors = [];
+    for (const g of grants) {
+      try {
+        const found = await googleAds.discoverAccounts(g.id);
+        totalDiscovered += found.length;
+        succeeded++;
+      } catch (e) {
+        failed++;
+        errors.push({ grantId: g.id, message: e.message });
+      }
+    }
+    res.json({ grants: grants.length, succeeded, failed, discovered: totalDiscovered, errors });
+  } catch (err) { next(err); }
+}
+
 async function disconnectGoogleGrant(req, res, next) {
   try {
     await googleAds.disconnectGrant(parseInt(req.params.grantId, 10), req.user.userId);
@@ -216,6 +242,31 @@ async function disconnectTikTokAccount(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function rediscoverAllTikTok(req, res, next) {
+  try {
+    const pool = require('../config/db');
+    const [grants] = await pool.execute(
+      'SELECT id FROM tiktok_oauth_grants WHERE user_id = ? AND is_active = 1',
+      [req.user.userId]
+    );
+    let totalDiscovered = 0;
+    let succeeded = 0;
+    let failed = 0;
+    const errors = [];
+    for (const g of grants) {
+      try {
+        const found = await tiktokAds.discoverAccounts(g.id);
+        totalDiscovered += found.length;
+        succeeded++;
+      } catch (e) {
+        failed++;
+        errors.push({ grantId: g.id, message: e.message });
+      }
+    }
+    res.json({ grants: grants.length, succeeded, failed, discovered: totalDiscovered, errors });
+  } catch (err) { next(err); }
+}
+
 async function disconnectTikTokGrant(req, res, next) {
   try {
     await tiktokAds.disconnectGrant(parseInt(req.params.grantId, 10), req.user.userId);
@@ -226,9 +277,9 @@ async function disconnectTikTokGrant(req, res, next) {
 module.exports = {
   listAccounts, listCampaigns, getOverview, syncAll, syncOne, assignAccountClient, disconnectAccount,
   listGoogleAccounts, listGooglePendingGrants, getGoogleOverview,
-  syncAllGoogle, syncOneGoogle, discoverGoogleGrant,
+  syncAllGoogle, syncOneGoogle, discoverGoogleGrant, rediscoverAllGoogle,
   assignGoogleAccountClient, disconnectGoogleAccount, disconnectGoogleGrant,
   listTikTokAccounts, listTikTokPendingGrants, getTikTokOverview,
-  syncAllTikTok, syncOneTikTok, discoverTikTokGrant,
+  syncAllTikTok, syncOneTikTok, discoverTikTokGrant, rediscoverAllTikTok,
   assignTikTokAccountClient, disconnectTikTokAccount, disconnectTikTokGrant,
 };
