@@ -52,6 +52,12 @@ const env = {
     appSecret: process.env.IG_APP_SECRET || process.env.FB_APP_SECRET,
     redirectUri: process.env.IG_REDIRECT_URI || 'http://localhost:3001/api/social/auth/instagram/callback',
   },
+  tiktok: {
+    appId: process.env.TIKTOK_APP_ID,
+    appSecret: process.env.TIKTOK_APP_SECRET,
+    redirectUri: process.env.TIKTOK_REDIRECT_URI
+      || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/tiktok/callback`,
+  },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,

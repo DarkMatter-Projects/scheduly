@@ -14,8 +14,11 @@ import {
   listGoogleAdAccounts, listGooglePendingGrants, getGoogleAdsOverview,
   syncAllGoogleAds, syncGoogleAdAccount, discoverGoogleGrant,
   assignGoogleAdAccountClient, disconnectGoogleAdAccount, disconnectGoogleGrant,
+  listTikTokAdAccounts, listTikTokPendingGrants, getTikTokAdsOverview,
+  syncAllTikTokAds, syncTikTokAdAccount, discoverTikTokGrant,
+  assignTikTokAdAccountClient, disconnectTikTokAdAccount, disconnectTikTokGrant,
 } from '../api/adsApi';
-import { startGoogleAuth } from '../api/socialApi';
+import { startGoogleAuth, startTikTokAuth } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
 import { useClientScope } from '../context/ClientContext';
 import { useAuth } from '../context/AuthContext';
@@ -231,10 +234,74 @@ export default function AdsPage() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to disconnect'),
   });
 
+  // ── TikTok Ads ──
+  const { data: tiktokAccounts = [], isLoading: tiktokLoading } = useQuery({
+    queryKey: ['tiktokAdAccounts', activeClientId],
+    queryFn: () => listTikTokAdAccounts(activeClientId || undefined),
+  });
+  const { data: tiktokPendingGrants = [] } = useQuery({
+    queryKey: ['tiktokPendingGrants'],
+    queryFn: listTikTokPendingGrants,
+  });
+  const { data: tiktokOverview } = useQuery({
+    queryKey: ['tiktokAdsOverview', activeClientId, startDate, endDate],
+    queryFn: () => getTikTokAdsOverview({
+      clientId: activeClientId || undefined,
+      start: startDate,
+      end: endDate,
+    }),
+  });
+
+  const tiktokSummary = tiktokOverview?.summary;
+  const tiktokCurrency = tiktokAccounts.find(a => a.currency)?.currency || 'USD';
+
+  const invalidateTikTok = () => {
+    queryClient.invalidateQueries({ queryKey: ['tiktokAdAccounts'] });
+    queryClient.invalidateQueries({ queryKey: ['tiktokPendingGrants'] });
+    queryClient.invalidateQueries({ queryKey: ['tiktokAdsOverview'] });
+  };
+
+  const connectTikTokMut = useMutation({
+    mutationFn: () => startTikTokAuth(),
+    onSuccess: (d) => { window.location.href = d.authUrl; },
+    onError: () => toast.error('Failed to start TikTok OAuth. Check TIKTOK_APP_ID/SECRET on the server.'),
+  });
+  const syncAllTikTokMut = useMutation({
+    mutationFn: syncAllTikTokAds,
+    onSuccess: (r) => { toast.success(`Synced ${r.ok} of ${r.total} TikTok account(s)`); invalidateTikTok(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'TikTok sync failed'),
+  });
+  const syncTikTokOneMut = useMutation({
+    mutationFn: syncTikTokAdAccount,
+    onSuccess: () => { toast.success('Synced'); invalidateTikTok(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Sync failed'),
+  });
+  const discoverTikTokMut = useMutation({
+    mutationFn: discoverTikTokGrant,
+    onSuccess: (r) => { toast.success(`Discovered ${r.discovered} advertiser(s)`); invalidateTikTok(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Discovery failed'),
+  });
+  const assignTikTokClientMut = useMutation({
+    mutationFn: ({ id, clientId }) => assignTikTokAdAccountClient(id, clientId),
+    onSuccess: () => { toast.success('Client updated'); invalidateTikTok(); },
+    onError: () => toast.error('Failed to update client'),
+  });
+  const disconnectTikTokAccMut = useMutation({
+    mutationFn: disconnectTikTokAdAccount,
+    onSuccess: () => { toast.success('Ad account removed'); invalidateTikTok(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove'),
+  });
+  const disconnectTikTokGrantMut = useMutation({
+    mutationFn: disconnectTikTokGrant,
+    onSuccess: () => { toast.success('TikTok account disconnected'); invalidateTikTok(); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to disconnect'),
+  });
+
   // Handle the redirect back from Google OAuth
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     const connected = searchParams.get('googleConnected');
+    const tiktokConnected = searchParams.get('tiktokConnected');
     const adAccountCount = searchParams.get('adAccounts');
     const error = searchParams.get('error');
     if (connected) {
@@ -245,12 +312,21 @@ export default function AdsPage() {
       );
       invalidateGoogle();
       setSearchParams({});
+    } else if (tiktokConnected) {
+      toast.success(
+        adAccountCount && Number(adAccountCount) > 0
+          ? `Connected TikTok: ${adAccountCount} advertiser(s) discovered`
+          : 'Connected TikTok. No advertisers discovered — check that the OAuth user has access to an ad account.'
+      );
+      invalidateTikTok();
+      setSearchParams({});
     } else if (error) {
       const messages = {
-        oauth_denied: 'Google authorisation denied',
+        oauth_denied: 'OAuth authorisation denied',
         invalid_state: 'Invalid session. Please try again.',
         google_no_refresh_token: 'Google didn’t return a refresh token. Revoke the prior grant at myaccount.google.com/permissions and try again.',
         google_connection_failed: 'Google connection failed. Check the server logs.',
+        tiktok_connection_failed: 'TikTok connection failed. Check the server logs.',
       };
       toast.error(messages[error] || `Connection failed: ${error}`);
       setSearchParams({});
@@ -704,6 +780,179 @@ export default function AdsPage() {
                       onClick={() => {
                         if (confirm(`Remove "${a.name}" (${a.customerId})? Historical insights stay.`)) {
                           disconnectGoogleAccMut.mutate(a.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                      title="Remove ad account"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ─── TikTok Ads ─────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mt-12 mb-3">
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-5 bg-slate-900 rounded-full" />
+          <h2 className="text-base font-semibold text-gray-800">TikTok Ads</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {canSync && tiktokAccounts.length > 0 && (
+            <button
+              onClick={() => syncAllTikTokMut.mutate()}
+              disabled={syncAllTikTokMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <RefreshCw className={clsx('w-3.5 h-3.5', syncAllTikTokMut.isPending && 'animate-spin')} />
+              {syncAllTikTokMut.isPending ? 'Syncing...' : 'Sync now'}
+            </button>
+          )}
+          {canRemove && (
+            <button
+              onClick={() => connectTikTokMut.mutate()}
+              disabled={connectTikTokMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Connect TikTok
+            </button>
+          )}
+        </div>
+      </div>
+
+      {tiktokPendingGrants.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 space-y-2">
+          {tiktokPendingGrants.map(g => (
+            <div key={g.id} className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-amber-900">{g.displayName || `TikTok user ${g.tiktokUserId}`}</p>
+                <p className="text-xs text-amber-700">
+                  {g.discoverError || 'Authorised. No advertisers discovered yet — try Retry discovery.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {canSync && (
+                  <button
+                    onClick={() => discoverTikTokMut.mutate(g.id)}
+                    disabled={discoverTikTokMut.isPending}
+                    className="px-3 py-1 text-xs font-medium text-amber-900 bg-white border border-amber-300 rounded-md hover:bg-amber-100"
+                  >
+                    Retry discovery
+                  </button>
+                )}
+                {canRemove && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Disconnect TikTok ${g.displayName || g.tiktokUserId}?`)) disconnectTikTokGrantMut.mutate(g.id);
+                    }}
+                    className="p-1.5 text-amber-700 hover:text-rose-600 hover:bg-rose-50 rounded"
+                    title="Disconnect"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tiktokLoading ? (
+        <div className="text-center py-12 text-gray-400">Loading TikTok ad accounts...</div>
+      ) : tiktokAccounts.length === 0 && tiktokPendingGrants.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 font-medium">No TikTok Ads accounts connected</p>
+          <p className="text-gray-400 text-sm mt-1">
+            Click <span className="font-medium">Connect TikTok</span> to authorize via OAuth.
+            Sandbox returns mock data; production needs app review.
+          </p>
+        </div>
+      ) : tiktokAccounts.length > 0 && (
+        <>
+          {tiktokSummary && tiktokSummary.spend > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              <StatCard
+                icon={DollarSign}
+                label="Spend"
+                value={formatCurrency(tiktokSummary.spend, tiktokCurrency)}
+                color="bg-emerald-500"
+              />
+              <StatCard icon={Eye} label="Impressions" value={formatNumber(tiktokSummary.impressions)} color="bg-blue-500" />
+              <StatCard
+                icon={MousePointer}
+                label="Clicks"
+                value={formatNumber(tiktokSummary.clicks)}
+                sublabel={`CTR ${tiktokSummary.ctr.toFixed(2)}%`}
+                color="bg-cyan-500"
+              />
+              <StatCard
+                icon={Target}
+                label="Conversions"
+                value={formatNumber(tiktokSummary.conversions)}
+                sublabel={`ROAS ${tiktokSummary.roas.toFixed(2)}x`}
+                color="bg-violet-500"
+              />
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-medium text-gray-700">Connected Ad Accounts ({tiktokAccounts.length})</h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {tiktokAccounts.map(a => (
+                <div key={a.id} className="flex items-center gap-3 px-5 py-3">
+                  <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{a.name}</p>
+                    <p className="text-[11px] text-gray-400">
+                      {a.advertiserId}{a.currency ? ` • ${a.currency}` : ''}
+                      {a.isSandbox && <span className="ml-2 px-1.5 py-0.5 bg-blue-50 rounded text-blue-600">SANDBOX</span>}
+                      {a.syncError && (
+                        <span className="ml-2 inline-flex items-center gap-1 text-rose-600" title={a.syncError}>
+                          <AlertTriangle className="w-3 h-3" /> sync error
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {canSync && (
+                    <select
+                      value={a.clientId || ''}
+                      onChange={(e) => assignTikTokClientMut.mutate({ id: a.id, clientId: e.target.value || null })}
+                      className="text-xs px-2 py-1.5 rounded-lg border border-slate-200 bg-white"
+                    >
+                      <option value="">No client</option>
+                      {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  )}
+                  {a.lastSyncedAt && (
+                    <span className="text-[11px] text-gray-400 hidden sm:inline">
+                      Synced {format(new Date(a.lastSyncedAt), 'MMM d HH:mm')}
+                    </span>
+                  )}
+                  {canSync && (
+                    <button
+                      onClick={() => syncTikTokOneMut.mutate(a.id)}
+                      disabled={syncTikTokOneMut.isPending}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                      title="Sync this advertiser"
+                    >
+                      <RefreshCw className={clsx('w-3.5 h-3.5', syncTikTokOneMut.isPending && syncTikTokOneMut.variables === a.id && 'animate-spin')} />
+                    </button>
+                  )}
+                  {canRemove && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`Remove "${a.name}" (${a.advertiserId})? Historical insights stay.`)) {
+                          disconnectTikTokAccMut.mutate(a.id);
                         }
                       }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"

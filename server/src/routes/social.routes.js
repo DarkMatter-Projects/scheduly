@@ -15,6 +15,8 @@ router.get('/auth/instagram', authenticate, requireRole('admin'), socialControll
 router.get('/auth/instagram/callback', socialController.instagramCallback); // No auth — redirected from Instagram
 router.get('/auth/google', authenticate, requireRole('admin'), socialController.startGoogleOAuth);
 router.get('/auth/google/callback', socialController.googleOAuthCallback);
+router.get('/auth/tiktok', authenticate, requireRole('admin'), socialController.startTikTokOAuth);
+router.get('/auth/tiktok/callback', socialController.tiktokOAuthCallback);
 router.delete('/accounts/:id', authenticate, requireRole('admin'), socialController.disconnectAccount);
 router.post('/accounts/:id/reconnect', authenticate, requireRole('admin'), socialController.reconnectAccount);
 router.post('/accounts/:id/import-history', authenticate, requireRole('admin', 'manager'), socialController.importHistory);

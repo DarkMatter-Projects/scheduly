@@ -8,6 +8,7 @@ const facebookService = require('../services/facebook.service');
 const instagramService = require('../services/instagram.service');
 const instagramImportService = require('../services/instagram_import.service');
 const googleAdsService = require('../services/google_ads.service');
+const tiktokAdsService = require('../services/tiktok_ads.service');
 const { decrypt } = require('../services/token.service');
 const logger = require('../utils/logger');
 
@@ -346,6 +347,67 @@ async function reconnectAccount(req, res, next) {
   }
 }
 
+async function startTikTokOAuth(req, res, next) {
+  try {
+    const state = crypto.randomBytes(16).toString('hex');
+    pendingStates.set(state, {
+      userId: req.user.userId,
+      teamId: req.query.teamId || null,
+      platform: 'tiktok',
+      timestamp: Date.now(),
+    });
+    for (const [key, val] of pendingStates) {
+      if (Date.now() - val.timestamp > 600000) pendingStates.delete(key);
+    }
+    const authUrl = tiktokAdsService.getAuthUrl(state);
+    res.json({ authUrl });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function tiktokOAuthCallback(req, res, next) {
+  const clientUrl = clientBase();
+  try {
+    // TikTok returns ?code or ?auth_code depending on the version of the
+    // portal endpoint. Accept both.
+    const code = req.query.code || req.query.auth_code;
+    const state = req.query.state;
+    const error = req.query.error || req.query.error_code;
+    const errorDesc = req.query.error_description || req.query.error_message;
+
+    if (error) {
+      logger.warn(`TikTok OAuth denied: ${error} - ${errorDesc}`);
+      return res.redirect(`${clientUrl}/ads?error=oauth_denied`);
+    }
+    if (!state || !pendingStates.has(state)) {
+      return res.redirect(`${clientUrl}/ads?error=invalid_state`);
+    }
+    const { userId, teamId } = pendingStates.get(state);
+    pendingStates.delete(state);
+
+    const tokens = await tiktokAdsService.exchangeCodeForToken(code);
+    const { grantId } = await tiktokAdsService.storeGrant({ tokens, userId, teamId });
+
+    let discovered = 0;
+    try {
+      const advertisers = await tiktokAdsService.discoverAccounts(grantId);
+      discovered = advertisers.length;
+    } catch (e) {
+      logger.warn(`TikTok OAuth: account discovery skipped (${e.message})`);
+    }
+
+    logger.info(`TikTok OAuth: user ${userId} connected, ${discovered} advertiser(s) discovered`);
+    return res.redirect(`${clientUrl}/ads?tiktokConnected=1&adAccounts=${discovered}`);
+  } catch (err) {
+    logger.error('TikTok OAuth callback error:', {
+      error: err.message,
+      response: err.response?.data,
+    });
+    return res.redirect(`${clientUrl}/ads?error=tiktok_connection_failed`);
+  }
+}
+
 async function importHistory(req, res, next) {
   try {
     const accountId = parseInt(req.params.id, 10);
@@ -364,6 +426,8 @@ module.exports = {
   instagramCallback,
   startGoogleOAuth,
   googleOAuthCallback,
+  startTikTokOAuth,
+  tiktokOAuthCallback,
   disconnectAccount,
   reconnectAccount,
   getAccountAvatar,

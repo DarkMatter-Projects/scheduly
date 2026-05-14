@@ -48,3 +48,31 @@ export const disconnectGoogleAdAccount = (id) =>
 
 export const disconnectGoogleGrant = (grantId) =>
   api.delete(`/ads/google/grants/${grantId}`).then(r => r.data);
+
+// ── TikTok Ads ──
+export const listTikTokAdAccounts = (clientId) =>
+  api.get('/ads/tiktok/accounts', { params: { clientId } }).then(r => r.data);
+
+export const listTikTokPendingGrants = () =>
+  api.get('/ads/tiktok/pending-grants').then(r => r.data);
+
+export const getTikTokAdsOverview = (params) =>
+  api.get('/ads/tiktok/overview', { params }).then(r => r.data);
+
+export const syncAllTikTokAds = () =>
+  api.post('/ads/tiktok/sync').then(r => r.data);
+
+export const syncTikTokAdAccount = (id) =>
+  api.post(`/ads/tiktok/accounts/${id}/sync`).then(r => r.data);
+
+export const discoverTikTokGrant = (grantId) =>
+  api.post(`/ads/tiktok/grants/${grantId}/discover`).then(r => r.data);
+
+export const assignTikTokAdAccountClient = (id, clientId) =>
+  api.post(`/ads/tiktok/accounts/${id}/client`, { clientId }).then(r => r.data);
+
+export const disconnectTikTokAdAccount = (id) =>
+  api.delete(`/ads/tiktok/accounts/${id}`).then(r => r.data);
+
+export const disconnectTikTokGrant = (grantId) =>
+  api.delete(`/ads/tiktok/grants/${grantId}`).then(r => r.data);

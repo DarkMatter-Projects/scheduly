@@ -26,4 +26,16 @@ router.post('/google/accounts/:id/client', authenticate, requireRole('admin', 'm
 router.delete('/google/accounts/:id', authenticate, requireRole('admin'), adsController.disconnectGoogleAccount);
 router.delete('/google/grants/:grantId', authenticate, requireRole('admin'), adsController.disconnectGoogleGrant);
 
+// ── TikTok Ads ──
+router.get('/tiktok/accounts', authenticate, adsController.listTikTokAccounts);
+router.get('/tiktok/pending-grants', authenticate, adsController.listTikTokPendingGrants);
+router.get('/tiktok/overview', authenticate, adsController.getTikTokOverview);
+
+router.post('/tiktok/sync', authenticate, requireRole('admin', 'manager'), adsController.syncAllTikTok);
+router.post('/tiktok/accounts/:id/sync', authenticate, requireRole('admin', 'manager'), adsController.syncOneTikTok);
+router.post('/tiktok/grants/:grantId/discover', authenticate, requireRole('admin', 'manager'), adsController.discoverTikTokGrant);
+router.post('/tiktok/accounts/:id/client', authenticate, requireRole('admin', 'manager'), adsController.assignTikTokAccountClient);
+router.delete('/tiktok/accounts/:id', authenticate, requireRole('admin'), adsController.disconnectTikTokAccount);
+router.delete('/tiktok/grants/:grantId', authenticate, requireRole('admin'), adsController.disconnectTikTokGrant);
+
 module.exports = router;

@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS tiktok_ad_accounts (
+  id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  grant_id            INT UNSIGNED NOT NULL,
+  advertiser_id       VARCHAR(32) NOT NULL,
+  advertiser_name     VARCHAR(255) NULL,
+  currency            VARCHAR(8) NULL,
+  timezone            VARCHAR(64) NULL,
+  status              VARCHAR(32) NULL,
+  is_sandbox          TINYINT(1) NOT NULL DEFAULT 0,
+  client_id           INT UNSIGNED NULL,
+  team_id             INT UNSIGNED NULL,
+  is_active           TINYINT(1) NOT NULL DEFAULT 1,
+  last_synced_at      DATETIME NULL,
+  sync_error          VARCHAR(500) NULL,
+  created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (grant_id)  REFERENCES tiktok_oauth_grants(id) ON DELETE CASCADE,
+  FOREIGN KEY (team_id)   REFERENCES teams(id) ON DELETE SET NULL,
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+  UNIQUE KEY uq_tiktok_advertiser (advertiser_id),
+  INDEX idx_tiktok_ad_accounts_client (client_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

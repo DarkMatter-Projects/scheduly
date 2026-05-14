@@ -1,5 +1,6 @@
 const metaAds = require('../services/meta_ads.service');
 const googleAds = require('../services/google_ads.service');
+const tiktokAds = require('../services/tiktok_ads.service');
 const logger = require('../utils/logger');
 
 async function runAdsSyncJob() {
@@ -23,6 +24,17 @@ async function runAdsSyncJob() {
     }
   } catch (err) {
     logger.error('Google ads sync: fatal error', { error: err.message });
+  }
+
+  try {
+    const t = await tiktokAds.syncAll();
+    if (t.total > 0) {
+      logger.info(`TikTok ads sync: ${t.ok} success, ${t.failed} failed (of ${t.total})`);
+    } else {
+      logger.debug('TikTok ads sync: no ad accounts connected');
+    }
+  } catch (err) {
+    logger.error('TikTok ads sync: fatal error', { error: err.message });
   }
 }
 
