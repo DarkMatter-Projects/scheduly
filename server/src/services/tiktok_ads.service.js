@@ -21,7 +21,7 @@ function getAuthUrl(state) {
 async function exchangeCodeForToken(code) {
   // TikTok's token endpoint takes JSON, not form-encoded.
   const { data } = await axios.post(
-    `${tt.API_BASE}/oauth2/access_token/`,
+    `${tt.OAUTH_API_BASE}/oauth2/access_token/`,
     {
       app_id: tt.appId,
       secret: tt.appSecret,
@@ -54,7 +54,7 @@ async function fetchUserInfo(accessToken) {
   // open_id returned by the token exchange instead. This helper exists for
   // parity with Google but is best-effort.
   try {
-    const { data } = await axios.get(`${tt.API_BASE}/user/info/`, {
+    const { data } = await axios.get(`${tt.OAUTH_API_BASE}/user/info/`, {
       headers: { 'Access-Token': accessToken },
       timeout: 10000,
     });
@@ -128,7 +128,7 @@ async function listAdvertisers(accessToken, advertiserIds) {
     secret: tt.appSecret,
   };
   const { data } = await axios.get(
-    `${tt.API_BASE}/oauth2/advertiser/get/`,
+    `${tt.OAUTH_API_BASE}/oauth2/advertiser/get/`,
     { params, headers: ttHeaders(accessToken), timeout: 15000 }
   );
   if (data.code !== 0) {
@@ -143,7 +143,7 @@ async function listAdvertisers(accessToken, advertiserIds) {
 async function describeAdvertiser(accessToken, advertiserId) {
   const params = { advertiser_ids: JSON.stringify([advertiserId]) };
   const { data } = await axios.get(
-    `${tt.API_BASE}/advertiser/info/`,
+    `${tt.DATA_API_BASE}/advertiser/info/`,
     { params, headers: ttHeaders(accessToken), timeout: 15000 }
   );
   if (data.code !== 0) {
@@ -219,7 +219,7 @@ async function getAccessTokenForGrant(grant) {
 
   const refreshPlain = decrypt(grant.refresh_token);
   const { data } = await axios.post(
-    `${tt.API_BASE}/oauth2/refresh_token/`,
+    `${tt.OAUTH_API_BASE}/oauth2/refresh_token/`,
     { app_id: tt.appId, secret: tt.appSecret, refresh_token: refreshPlain },
     { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
   );
@@ -259,7 +259,7 @@ async function syncAccount(accountRow) {
   let campaignResp;
   try {
     campaignResp = await axios.get(
-      `${tt.API_BASE}/campaign/get/`,
+      `${tt.DATA_API_BASE}/campaign/get/`,
       {
         params: {
           advertiser_id: advertiserId,
@@ -344,7 +344,7 @@ async function syncAccount(accountRow) {
   let insightResp;
   try {
     insightResp = await axios.get(
-      `${tt.API_BASE}/report/integrated/get/`,
+      `${tt.DATA_API_BASE}/report/integrated/get/`,
       {
         params: {
           advertiser_id: advertiserId,
