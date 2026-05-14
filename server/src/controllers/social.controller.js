@@ -6,6 +6,7 @@ const fb = require('../config/facebook');
 const ig = require('../config/instagram');
 const facebookService = require('../services/facebook.service');
 const instagramService = require('../services/instagram.service');
+const instagramImportService = require('../services/instagram_import.service');
 const googleAdsService = require('../services/google_ads.service');
 const { decrypt } = require('../services/token.service');
 const logger = require('../utils/logger');
@@ -345,6 +346,16 @@ async function reconnectAccount(req, res, next) {
   }
 }
 
+async function importHistory(req, res, next) {
+  try {
+    const accountId = parseInt(req.params.id, 10);
+    const result = await instagramImportService.importHistory(accountId, req.user.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   listAccounts,
   startOAuth,
@@ -356,4 +367,5 @@ module.exports = {
   disconnectAccount,
   reconnectAccount,
   getAccountAvatar,
+  importHistory,
 };

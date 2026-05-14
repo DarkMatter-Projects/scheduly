@@ -17,3 +17,6 @@ export const disconnectAccount = (id) =>
 
 export const reconnectAccount = (id) =>
   api.post(`/social/accounts/${id}/reconnect`).then(r => r.data);
+
+export const importHistory = (id) =>
+  api.post(`/social/accounts/${id}/import-history`, undefined, { timeout: 600000 }).then(r => r.data);

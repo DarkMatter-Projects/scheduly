@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listAccounts, startFacebookAuth, startInstagramAuth, disconnectAccount, reconnectAccount } from '../api/socialApi';
+import { listAccounts, startFacebookAuth, startInstagramAuth, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
-import { Unlink, CheckCircle, AlertTriangle, XCircle, Plus, Lock } from 'lucide-react';
+import { Unlink, CheckCircle, AlertTriangle, XCircle, Plus, Lock, Download } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
 import { PLATFORMS, PLATFORM_ORDER, getPlatform } from '../utils/platforms';
@@ -17,7 +17,7 @@ const tokenStatusConfig = {
   expired: { label: 'Expired', icon: XCircle, color: 'text-rose-600' },
 };
 
-function PlatformTile({ platform, accounts, onConnect, onDisconnect, onReconnect, isAdmin }) {
+function PlatformTile({ platform, accounts, onConnect, onDisconnect, onReconnect, onImport, importingId, isAdmin }) {
   const Icon = platform.icon;
   const platformAccounts = accounts.filter(a => a.platform === platform.key);
   const hasAccounts = platformAccounts.length > 0;
@@ -75,6 +75,16 @@ function PlatformTile({ platform, accounts, onConnect, onDisconnect, onReconnect
                     )}
                   </div>
                 </div>
+                {isAdmin && platform.key === 'instagram_business' && (
+                  <button
+                    onClick={() => onImport(account)}
+                    disabled={importingId === account.id}
+                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-wait"
+                    title="Import historical posts from Instagram"
+                  >
+                    <Download className={clsx('w-3.5 h-3.5', importingId === account.id && 'animate-pulse')} />
+                  </button>
+                )}
                 {isAdmin && (
                   <button
                     onClick={() => { if (confirm(`Remove ${account.accountName}? You'll need to reconnect to use it again.`)) onDisconnect(account.id); }}
@@ -184,6 +194,31 @@ export default function AccountsPage() {
     },
   });
 
+  const importMut = useMutation({
+    mutationFn: importHistory,
+    onSuccess: (result, accountId) => {
+      const account = allAccounts.find(a => a.id === accountId);
+      const summary = `${result.created} new, ${result.updated} existing, ${result.withInsights} with insights`;
+      if (result.errors.length > 0) {
+        toast(`Imported ${result.fetched} from ${account?.accountName || 'account'} — ${summary} (${result.errors.length} errors)`,
+          { duration: 6000, icon: '⚠️' });
+      } else {
+        toast.success(`Imported ${result.fetched} posts from ${account?.accountName || 'account'} — ${summary}`,
+          { duration: 5000 });
+      }
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || err.message || 'Import failed', { duration: 6000 });
+    },
+  });
+
+  const handleImport = (account) => {
+    if (!confirm(`Import all historical posts from ${account.accountName}? This may take a few minutes for large accounts.`)) return;
+    toast(`Starting import from ${account.accountName}…`, { icon: '⏳' });
+    importMut.mutate(account.id);
+  };
+
   const handleConnect = (platform) => {
     if (platform.connectVia === 'facebook') {
       connectFacebookMutation.mutate();
@@ -272,6 +307,8 @@ export default function AccountsPage() {
                 onConnect={handleConnect}
                 onDisconnect={(id) => disconnectMut.mutate(id)}
                 onReconnect={(id) => reconnectMut.mutate(id)}
+                onImport={handleImport}
+                importingId={importMut.isPending ? importMut.variables : null}
                 isAdmin={isAdmin}
               />
             ))}

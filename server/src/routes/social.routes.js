@@ -17,5 +17,6 @@ router.get('/auth/google', authenticate, requireRole('admin'), socialController.
 router.get('/auth/google/callback', socialController.googleOAuthCallback);
 router.delete('/accounts/:id', authenticate, requireRole('admin'), socialController.disconnectAccount);
 router.post('/accounts/:id/reconnect', authenticate, requireRole('admin'), socialController.reconnectAccount);
+router.post('/accounts/:id/import-history', authenticate, requireRole('admin', 'manager'), socialController.importHistory);
 
 module.exports = router;
