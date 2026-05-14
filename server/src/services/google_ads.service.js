@@ -212,41 +212,80 @@ async function discoverAccounts(grantId) {
     [grantId]
   );
 
-  // Describe each customer to grab name/currency. Some accounts may be MCC
-  // managers — store them but they typically don't have spend themselves.
+  // Describe each customer to grab name/currency. The trick: an account may
+  // be either (a) directly accessible — describe with no login-customer-id,
+  // or (b) MCC-managed — describe with login-customer-id set to the MCC.
+  // Sending the wrong header gets you 400/403. We try direct first, then
+  // fall back to the configured MCC. We persist whichever path worked so
+  // syncAccount uses the same one later.
+  const mccId = google.adsLoginCustomerId || null;
   const discovered = [];
+  const failures = [];
+
   for (const cid of customerIds) {
+    let desc = null;
+    let usedLoginCustomerId = null;
+
+    // Pass 1: try without login-customer-id (works for direct access + MCCs themselves)
     try {
-      const desc = await describeCustomer(accessToken, cid, google.adsLoginCustomerId || null);
-      if (!desc) continue;
-      await pool.execute(
-        `INSERT INTO google_ad_accounts
-           (grant_id, customer_id, descriptive_name, currency_code, time_zone, manager, test_account, login_customer_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           grant_id = VALUES(grant_id),
-           descriptive_name = VALUES(descriptive_name),
-           currency_code = VALUES(currency_code),
-           time_zone = VALUES(time_zone),
-           manager = VALUES(manager),
-           test_account = VALUES(test_account),
-           is_active = 1`,
-        [
-          grantId,
-          String(desc.id || cid),
-          desc.descriptiveName || null,
-          desc.currencyCode || null,
-          desc.timeZone || null,
-          desc.manager ? 1 : 0,
-          desc.testAccount ? 1 : 0,
-          google.adsLoginCustomerId || null,
-        ]
-      );
-      discovered.push({ customerId: String(desc.id || cid), name: desc.descriptiveName });
-    } catch (e) {
-      const msg = e.response?.data?.error?.message || e.message;
-      logger.warn(`Google Ads: describe customer ${cid} failed: ${msg}`);
+      desc = await describeCustomer(accessToken, cid, null);
+    } catch (e1) {
+      const status1 = e1.response?.status;
+      // Only retry with MCC if (a) MCC is configured, (b) it's not the same id,
+      // and (c) the error suggests a permission/manager issue (400/403).
+      if (mccId && String(mccId) !== String(cid) && (status1 === 400 || status1 === 403)) {
+        try {
+          desc = await describeCustomer(accessToken, cid, mccId);
+          usedLoginCustomerId = mccId;
+        } catch (e2) {
+          const msg2 = e2.response?.data?.error?.message || e2.message;
+          failures.push({ customerId: cid, message: msg2 });
+          logger.warn(`Google Ads: describe customer ${cid} failed (with MCC ${mccId}): ${msg2}`);
+          continue;
+        }
+      } else {
+        const msg1 = e1.response?.data?.error?.message || e1.message;
+        failures.push({ customerId: cid, message: msg1 });
+        logger.warn(`Google Ads: describe customer ${cid} failed: ${msg1}`);
+        continue;
+      }
     }
+
+    if (!desc) continue;
+
+    await pool.execute(
+      `INSERT INTO google_ad_accounts
+         (grant_id, customer_id, descriptive_name, currency_code, time_zone, manager, test_account, login_customer_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         grant_id = VALUES(grant_id),
+         descriptive_name = VALUES(descriptive_name),
+         currency_code = VALUES(currency_code),
+         time_zone = VALUES(time_zone),
+         manager = VALUES(manager),
+         test_account = VALUES(test_account),
+         login_customer_id = VALUES(login_customer_id),
+         is_active = 1`,
+      [
+        grantId,
+        String(desc.id || cid),
+        desc.descriptiveName || null,
+        desc.currencyCode || null,
+        desc.timeZone || null,
+        desc.manager ? 1 : 0,
+        desc.testAccount ? 1 : 0,
+        usedLoginCustomerId,
+      ]
+    );
+    discovered.push({ customerId: String(desc.id || cid), name: desc.descriptiveName });
+  }
+
+  if (failures.length > 0 && discovered.length === 0) {
+    // Surface the first failure on the grant so the UI shows something useful.
+    await pool.execute(
+      'UPDATE google_oauth_grants SET last_discover_error = ? WHERE id = ?',
+      [`All ${failures.length} customer(s) failed describe — first: ${failures[0].message}`.slice(0, 500), grantId]
+    );
   }
 
   return discovered;
@@ -268,7 +307,11 @@ async function syncAccount(accountRow) {
   const grant = grantRows[0];
   const accessToken = await getAccessTokenForGrant(grant);
   const customerId = accountRow.customer_id;
-  const loginCustomerId = accountRow.login_customer_id || google.adsLoginCustomerId || null;
+  // login_customer_id is stored per-account during discovery: NULL for
+  // direct-access accounts, the MCC id for accounts only reachable via a
+  // manager. Don't OR-fallback to the env MCC — that re-introduces the
+  // 400 errors we just fixed for accounts the user has direct access to.
+  const loginCustomerId = accountRow.login_customer_id || null;
   const headers = adsApiHeaders(accessToken, loginCustomerId);
 
   // Skip syncing manager accounts — they don't have own spend.
