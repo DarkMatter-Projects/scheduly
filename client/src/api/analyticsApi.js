@@ -8,3 +8,6 @@ export const getPostAnalytics = (postId) =>
 
 export const fetchInsights = (postTargetId) =>
   api.post(`/analytics/fetch/${postTargetId}`).then(r => r.data);
+
+export const refreshPostInsights = (postId) =>
+  api.post(`/analytics/posts/${postId}/refresh`).then(r => r.data);

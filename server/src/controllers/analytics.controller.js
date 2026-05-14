@@ -37,4 +37,14 @@ async function fetchInsights(req, res, next) {
   }
 }
 
-module.exports = { getPostAnalytics, getOverview, fetchInsights };
+async function refreshPost(req, res, next) {
+  try {
+    const postId = parseInt(req.params.postId, 10);
+    const result = await analyticsService.refreshPostInsights(postId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getPostAnalytics, getOverview, fetchInsights, refreshPost };

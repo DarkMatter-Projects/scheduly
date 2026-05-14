@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { getOverviewAnalytics } from '../api/analyticsApi';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getOverviewAnalytics, refreshPostInsights } from '../api/analyticsApi';
 import { getAdsOverview } from '../api/adsApi';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { format, subDays, startOfDay } from 'date-fns';
-import { Eye, Users, Heart, MessageSquare, Share2, MousePointer, TrendingUp, BarChart3, Smile, DollarSign, Target, Megaphone, ArrowRight } from 'lucide-react';
+import { Eye, Users, Heart, MessageSquare, Share2, MousePointer, TrendingUp, BarChart3, Smile, DollarSign, Target, Megaphone, ArrowRight, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
+import toast from 'react-hot-toast';
 import { SENTIMENT_STYLES } from '../utils/sentiment';
 import { useClientScope } from '../context/ClientContext';
+import { useAuth } from '../context/AuthContext';
 
 const SENTIMENT_COLORS = {
   positive: '#10b981',
@@ -52,8 +54,29 @@ function formatNum(n) {
 
 export default function AnalyticsPage() {
   const { activeClientId, activeClient } = useClientScope();
+  const { hasRole } = useAuth();
+  const queryClient = useQueryClient();
+  const canRefresh = hasRole('admin', 'manager');
   const [end, setEnd] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [start, setStart] = useState(() => format(subDays(startOfDay(new Date()), 30), 'yyyy-MM-dd'));
+
+  const refreshMutation = useMutation({
+    mutationFn: refreshPostInsights,
+    onSuccess: (result) => {
+      if (result.failed === 0) {
+        toast.success(`Refreshed ${result.success} target${result.success === 1 ? '' : 's'}`);
+      } else if (result.success === 0) {
+        toast.error(result.errors[0]?.message || 'Refresh failed');
+      } else {
+        toast(`${result.success} updated, ${result.failed} failed: ${result.errors[0]?.message || ''}`,
+          { icon: 'warning' });
+      }
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || err.message || 'Refresh failed');
+    },
+  });
 
   const applyPreset = (days) => {
     const e = new Date();
@@ -330,6 +353,7 @@ export default function AnalyticsPage() {
                       <th className="text-right text-xs font-medium text-gray-500 uppercase px-3 py-3">Comments</th>
                       <th className="text-right text-xs font-medium text-gray-500 uppercase px-3 py-3">Shares</th>
                       <th className="text-right text-xs font-medium text-gray-500 uppercase px-5 py-3">Engagement</th>
+                      {canRefresh && <th className="px-3 py-3 w-10"></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -369,6 +393,21 @@ export default function AnalyticsPage() {
                             {post.engagementRate.toFixed(1)}%
                           </span>
                         </td>
+                        {canRefresh && (
+                          <td className="px-3 py-3 text-right">
+                            <button
+                              onClick={() => refreshMutation.mutate(post.id)}
+                              disabled={refreshMutation.isPending && refreshMutation.variables === post.id}
+                              title="Refresh analytics for this post"
+                              className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-wait transition"
+                            >
+                              <RefreshCw className={clsx(
+                                'w-3.5 h-3.5',
+                                refreshMutation.isPending && refreshMutation.variables === post.id && 'animate-spin'
+                              )} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

@@ -19,17 +19,14 @@ async function fetchInsightsForTarget(postTargetId) {
 
   const target = rows[0];
   const token = decrypt(target.access_token);
-  let metrics = {};
+  let metrics;
 
-  try {
-    if (target.platform === 'facebook_page') {
-      metrics = await fetchFacebookInsights(target.platform_post_id, token);
-    } else if (target.platform === 'instagram_business') {
-      metrics = await fetchInstagramInsights(target.platform_post_id, token);
-    }
-  } catch (err) {
-    logger.error(`Failed to fetch insights for target ${postTargetId}: ${err.message}`);
-    throw err;
+  if (target.platform === 'facebook_page') {
+    metrics = await fetchFacebookInsights(target.platform_post_id, token);
+  } else if (target.platform === 'instagram_business') {
+    metrics = await fetchInstagramInsights(target.platform_post_id, token);
+  } else {
+    throw new Error(`Unsupported platform: ${target.platform}`);
   }
 
   // Store in database
@@ -83,13 +80,14 @@ async function fetchFacebookInsights(postId, token) {
     return metrics;
   } catch (err) {
     const apiError = err.response?.data?.error;
-    logger.error(`Facebook insights error: ${apiError?.message || err.message}`, {
+    const msg = apiError?.message || err.message;
+    logger.error(`Facebook insights error: ${msg}`, {
       code: apiError?.code,
       subcode: apiError?.error_subcode,
       type: apiError?.type,
       postId,
     });
-    return {};
+    throw Object.assign(new Error(`Facebook: ${msg}`), { code: apiError?.code });
   }
 }
 
@@ -123,13 +121,38 @@ async function fetchInstagramInsights(mediaId, token) {
     return metrics;
   } catch (err) {
     const apiError = err.response?.data?.error;
-    logger.error(`Instagram insights error: ${apiError?.message || err.message}`, {
+    const msg = apiError?.message || err.message;
+    logger.error(`Instagram insights error: ${msg}`, {
       code: apiError?.code,
       subcode: apiError?.error_subcode,
       mediaId,
     });
-    return {};
+    throw Object.assign(new Error(`Instagram: ${msg}`), { code: apiError?.code });
   }
+}
+
+async function refreshPostInsights(postId) {
+  const [targets] = await pool.execute(
+    `SELECT id FROM post_targets
+     WHERE post_id = ? AND status = 'published' AND platform_post_id IS NOT NULL`,
+    [postId]
+  );
+
+  if (targets.length === 0) {
+    throw Object.assign(new Error('Post has no published targets to refresh'), { status: 404 });
+  }
+
+  const result = { success: 0, failed: 0, errors: [] };
+  for (const t of targets) {
+    try {
+      await fetchInsightsForTarget(t.id);
+      result.success++;
+    } catch (err) {
+      result.failed++;
+      result.errors.push({ targetId: t.id, message: err.message });
+    }
+  }
+  return result;
 }
 
 async function getPostAnalytics(postId) {
@@ -319,4 +342,4 @@ async function getOverviewAnalytics(startDate, endDate, clientId = null) {
   };
 }
 
-module.exports = { fetchInsightsForTarget, getPostAnalytics, getOverviewAnalytics };
+module.exports = { fetchInsightsForTarget, refreshPostInsights, getPostAnalytics, getOverviewAnalytics };
