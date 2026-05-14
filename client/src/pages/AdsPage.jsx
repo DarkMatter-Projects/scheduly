@@ -566,6 +566,11 @@ export default function AdsPage() {
                     <p className="text-sm font-medium text-gray-900 truncate">{a.name}</p>
                     <p className="text-[11px] text-gray-400">
                       {a.platformAccountId}{a.businessName ? ` • ${a.businessName}` : ''}{a.currency ? ` • ${a.currency}` : ''}
+                      {!a.clientId && (
+                        <span className="ml-2 px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-medium">
+                          Unassigned
+                        </span>
+                      )}
                       {a.accountStatus !== 1 && a.accountStatus != null && (
                         <span className="ml-2 inline-flex items-center gap-1 text-rose-600">
                           <AlertTriangle className="w-3 h-3" /> status {a.accountStatus}
@@ -741,6 +746,11 @@ export default function AdsPage() {
                     <p className="text-sm font-medium text-gray-900 truncate">{a.name}</p>
                     <p className="text-[11px] text-gray-400">
                       {a.customerId}{a.googleEmail ? ` • ${a.googleEmail}` : ''}{a.currency ? ` • ${a.currency}` : ''}
+                      {!a.clientId && !a.manager && (
+                        <span className="ml-2 px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-medium">
+                          Unassigned
+                        </span>
+                      )}
                       {a.manager && <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">MCC</span>}
                       {a.testAccount && <span className="ml-2 px-1.5 py-0.5 bg-blue-50 rounded text-blue-600">TEST</span>}
                       {a.syncError && (
@@ -915,6 +925,11 @@ export default function AdsPage() {
                     <p className="text-sm font-medium text-gray-900 truncate">{a.name}</p>
                     <p className="text-[11px] text-gray-400">
                       {a.advertiserId}{a.currency ? ` • ${a.currency}` : ''}
+                      {!a.clientId && (
+                        <span className="ml-2 px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-medium">
+                          Unassigned
+                        </span>
+                      )}
                       {a.isSandbox && <span className="ml-2 px-1.5 py-0.5 bg-blue-50 rounded text-blue-600">SANDBOX</span>}
                       {a.syncError && (
                         <span className="ml-2 inline-flex items-center gap-1 text-rose-600" title={a.syncError}>

@@ -238,7 +238,10 @@ async function listAccounts({ clientId }) {
   const params = [];
   let where = 'aa.is_active = 1';
   if (clientId) {
-    where += ' AND aa.client_id = ?';
+    // Show accounts assigned to this client AND unassigned ones, so users
+    // can see and triage newly-discovered accounts without needing to
+    // switch to "All clients" first.
+    where += ' AND (aa.client_id = ? OR aa.client_id IS NULL)';
     params.push(clientId);
   }
   const [rows] = await pool.execute(

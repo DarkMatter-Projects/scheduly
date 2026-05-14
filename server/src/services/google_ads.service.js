@@ -539,7 +539,11 @@ async function syncOne(adAccountId) {
 async function listAccounts({ clientId }) {
   const params = [];
   let where = 'a.is_active = 1';
-  if (clientId) { where += ' AND a.client_id = ?'; params.push(clientId); }
+  if (clientId) {
+    // Include unassigned accounts so they're visible for triage.
+    where += ' AND (a.client_id = ? OR a.client_id IS NULL)';
+    params.push(clientId);
+  }
 
   const [rows] = await pool.execute(
     `SELECT a.id, a.customer_id, a.descriptive_name, a.currency_code, a.time_zone,
