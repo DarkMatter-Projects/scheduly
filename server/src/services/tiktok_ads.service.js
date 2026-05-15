@@ -120,9 +120,9 @@ function ttHeaders(accessToken) {
   };
 }
 
-async function listAdvertisers(accessToken, advertiserIds) {
+async function listAdvertisers(accessToken) {
   // TikTok requires app_id + secret for /advertiser/get/, plus the access
-  // token. Pass advertiser_ids if returned from token exchange to filter.
+  // token. Returns every advertiser the granted user can act on.
   const params = {
     app_id: tt.appId,
     secret: tt.appSecret,
@@ -336,9 +336,14 @@ async function syncAccount(accountRow) {
     return { campaigns: 0 };
   }
 
+  // Conservative metric set that works on every TikTok advertiser regardless
+  // of conversion-tracking setup. total_conversion_value / total_purchase_value
+  // require Pixel or Events API tracking — without it, the API rejects the
+  // whole request with "Invalid metric fields". We set conversion_value = 0
+  // (and roas will compute as null) when the customer doesn't track value.
   const metrics = [
     'spend', 'impressions', 'clicks', 'ctr', 'cpc', 'cpm',
-    'conversion', 'total_conversion_value', 'video_play_actions',
+    'conversion', 'video_play_actions',
   ];
 
   let insightResp;
