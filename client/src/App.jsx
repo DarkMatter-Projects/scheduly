@@ -19,6 +19,8 @@ import ClientsPage from './pages/ClientsPage';
 import SettingsPage from './pages/SettingsPage';
 import PostsListPage from './pages/PostsListPage';
 import PostEditPage from './pages/PostEditPage';
+import TermsPage from './pages/TermsPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +40,9 @@ function App() {
             <BrowserRouter>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              {/* Public legal pages — needed for TikTok/Meta app review */}
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppShell />}>
                   <Route path="/" element={<DashboardPage />} />
