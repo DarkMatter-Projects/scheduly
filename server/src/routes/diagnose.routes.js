@@ -5,6 +5,7 @@ const requireRole = require('../middleware/rbac');
 const pool = require('../config/db');
 const { decrypt } = require('../services/token.service');
 const googleConfig = require('../config/google');
+const tiktokLoginConfig = require('../config/tiktok_login');
 
 const router = Router();
 
@@ -19,6 +20,22 @@ router.get('/google-config', authenticate, requireRole('admin'), (req, res) => {
     devTokenSet: !!googleConfig.adsDeveloperToken,
     redirectUri: googleConfig.redirectUri,
     scopes: googleConfig.GOOGLE_SCOPES,
+  });
+});
+
+// Same idea for TikTok Login Kit — helps when OAuth bounces with
+// "client_key" errors. Reveals only safe-to-show fields.
+router.get('/tiktok-login-config', authenticate, requireRole('admin'), (req, res) => {
+  const k = tiktokLoginConfig.clientKey;
+  res.json({
+    clientKeySet: !!k,
+    clientKeyLength: k ? k.length : 0,
+    clientKeyPrefix: k ? k.slice(0, 4) : null,
+    clientKeySuffix: k ? k.slice(-4) : null,
+    clientSecretSet: !!tiktokLoginConfig.clientSecret,
+    redirectUri: tiktokLoginConfig.redirectUri,
+    scopes: tiktokLoginConfig.TIKTOK_SCOPES,
+    authorizeUrl: tiktokLoginConfig.TIKTOK_AUTHORIZE_URL,
   });
 });
 
