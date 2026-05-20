@@ -9,6 +9,7 @@ const instagramService = require('../services/instagram.service');
 const instagramImportService = require('../services/instagram_import.service');
 const googleAdsService = require('../services/google_ads.service');
 const tiktokAdsService = require('../services/tiktok_ads.service');
+const tiktokPostingService = require('../services/tiktok_posting.service');
 const { decrypt } = require('../services/token.service');
 const logger = require('../utils/logger');
 
@@ -327,6 +328,55 @@ async function googleOAuthCallback(req, res, next) {
   }
 }
 
+// TikTok Login Kit (organic posting) — separate from TikTok Ads OAuth below.
+async function startTiktokLoginOAuth(req, res, next) {
+  try {
+    const state = crypto.randomBytes(16).toString('hex');
+    pendingStates.set(state, {
+      userId: req.user.userId,
+      teamId: req.query.teamId || null,
+      platform: 'tiktok_login',
+      timestamp: Date.now(),
+    });
+    for (const [key, val] of pendingStates) {
+      if (Date.now() - val.timestamp > 600000) pendingStates.delete(key);
+    }
+    const authUrl = tiktokPostingService.getAuthUrl(state);
+    res.json({ authUrl });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function tiktokLoginCallback(req, res, next) {
+  const clientUrl = clientBase();
+  try {
+    const { code, state, error, error_description } = req.query;
+    if (error) {
+      logger.warn(`TikTok Login OAuth denied: ${error} - ${error_description}`);
+      return res.redirect(`${clientUrl}/accounts?error=oauth_denied`);
+    }
+    if (!state || !pendingStates.has(state)) {
+      return res.redirect(`${clientUrl}/accounts?error=invalid_state`);
+    }
+    const { userId, teamId } = pendingStates.get(state);
+    pendingStates.delete(state);
+
+    const tokens = await tiktokPostingService.exchangeCodeForToken(code);
+    const userInfo = await tiktokPostingService.fetchUserInfo(tokens.accessToken);
+    await tiktokPostingService.storeAccount({ tokens, userInfo, userId, teamId });
+
+    logger.info(`TikTok Login OAuth: user ${userId} connected ${userInfo.username || tokens.openId}`);
+    return res.redirect(`${clientUrl}/accounts?connected=1`);
+  } catch (err) {
+    logger.error('TikTok Login OAuth callback error:', {
+      error: err.message,
+      response: err.response?.data,
+    });
+    return res.redirect(`${clientUrl}/accounts?error=tiktok_login_failed`);
+  }
+}
+
 async function disconnectAccount(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
@@ -428,6 +478,8 @@ module.exports = {
   googleOAuthCallback,
   startTikTokOAuth,
   tiktokOAuthCallback,
+  startTiktokLoginOAuth,
+  tiktokLoginCallback,
   disconnectAccount,
   reconnectAccount,
   getAccountAvatar,

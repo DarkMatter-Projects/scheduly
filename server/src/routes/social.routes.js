@@ -17,6 +17,9 @@ router.get('/auth/google', authenticate, requireRole('admin'), socialController.
 router.get('/auth/google/callback', socialController.googleOAuthCallback);
 router.get('/auth/tiktok', authenticate, requireRole('admin'), socialController.startTikTokOAuth);
 router.get('/auth/tiktok/callback', socialController.tiktokOAuthCallback);
+// TikTok Login Kit (organic posting) — separate app from TikTok Ads above.
+router.get('/auth/tiktok-login', authenticate, requireRole('admin'), socialController.startTiktokLoginOAuth);
+router.get('/auth/tiktok-login/callback', socialController.tiktokLoginCallback);
 router.delete('/accounts/:id', authenticate, requireRole('admin'), socialController.disconnectAccount);
 router.post('/accounts/:id/reconnect', authenticate, requireRole('admin'), socialController.reconnectAccount);
 router.post('/accounts/:id/import-history', authenticate, requireRole('admin', 'manager'), socialController.importHistory);

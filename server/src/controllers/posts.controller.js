@@ -30,7 +30,11 @@ async function get(req, res, next) {
 
 async function create(req, res, next) {
   try {
-    const { title, content, postType, teamId, mediaIds, targetAccountIds } = req.body;
+    const {
+      title, content, postType, teamId, mediaIds, targetAccountIds,
+      tiktokPostMode, tiktokPrivacyLevel,
+      tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
+    } = req.body;
     if (!content) {
       return res.status(400).json({ error: 'Content is required' });
     }
@@ -42,6 +46,11 @@ async function create(req, res, next) {
       teamId,
       mediaIds,
       targetAccountIds,
+      tiktokPostMode,
+      tiktokPrivacyLevel,
+      tiktokDisableComment,
+      tiktokDisableDuet,
+      tiktokDisableStitch,
     });
     res.status(201).json(post);
   } catch (err) {

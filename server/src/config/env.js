@@ -58,6 +58,14 @@ const env = {
     redirectUri: process.env.TIKTOK_REDIRECT_URI
       || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/tiktok/callback`,
   },
+  // TikTok for Developers (Login Kit + Content Posting API) — separate app
+  // from the TikTok for Business app used for the Marketing API above.
+  tiktokLogin: {
+    clientKey: process.env.TIKTOK_LOGIN_CLIENT_KEY,
+    clientSecret: process.env.TIKTOK_LOGIN_CLIENT_SECRET,
+    redirectUri: process.env.TIKTOK_LOGIN_REDIRECT_URI
+      || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/tiktok-login/callback`,
+  },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,

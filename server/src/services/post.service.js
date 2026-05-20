@@ -11,12 +11,28 @@ function toMysqlDatetime(value) {
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-async function createPost({ title, content, postType, createdBy, teamId, mediaIds, targetAccountIds }) {
+async function createPost({
+  title, content, postType, createdBy, teamId, mediaIds, targetAccountIds,
+  tiktokPostMode, tiktokPrivacyLevel,
+  tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
+}) {
   const s = sentiment.analyze(content);
   const [result] = await pool.execute(
-    `INSERT INTO posts (title, content, caption_sentiment_score, caption_sentiment_label, post_type, status, created_by, team_id)
-     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)`,
-    [title || null, content, s.comparative, s.label, postType || 'text', createdBy, teamId || null]
+    `INSERT INTO posts
+       (title, content, caption_sentiment_score, caption_sentiment_label,
+        post_type, status, created_by, team_id,
+        tiktok_post_mode, tiktok_privacy_level,
+        tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      title || null, content, s.comparative, s.label,
+      postType || 'text', createdBy, teamId || null,
+      tiktokPostMode || 'INBOX',
+      tiktokPrivacyLevel || 'SELF_ONLY',
+      tiktokDisableDuet ? 1 : 0,
+      tiktokDisableStitch ? 1 : 0,
+      tiktokDisableComment ? 1 : 0,
+    ]
   );
 
   const postId = result.insertId;

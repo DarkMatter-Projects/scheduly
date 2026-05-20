@@ -258,6 +258,11 @@ export default function PostCreatePage() {
   const [content, setContent] = useState('');
   const [attachedMedia, setAttachedMedia] = useState([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState([]);
+  const [tiktokPostMode, setTiktokPostMode] = useState('INBOX');
+  const [tiktokPrivacyLevel, setTiktokPrivacyLevel] = useState('SELF_ONLY');
+  const [tiktokDisableComment, setTiktokDisableComment] = useState(false);
+  const [tiktokDisableDuet, setTiktokDisableDuet] = useState(false);
+  const [tiktokDisableStitch, setTiktokDisableStitch] = useState(false);
   const [autoPublish, setAutoPublish] = useState(true);
   const [scheduleDate, setScheduleDate] = useState(() => {
     const d = new Date();
@@ -354,6 +359,11 @@ export default function PostCreatePage() {
         content,
         mediaIds: attachedMedia.map(m => m.id),
         targetAccountIds: selectedAccountIds,
+        tiktokPostMode,
+        tiktokPrivacyLevel,
+        tiktokDisableComment,
+        tiktokDisableDuet,
+        tiktokDisableStitch,
       });
 
       if (autoPublish) {
@@ -379,6 +389,11 @@ export default function PostCreatePage() {
         content,
         mediaIds: attachedMedia.map(m => m.id),
         targetAccountIds: selectedAccountIds,
+        tiktokPostMode,
+        tiktokPrivacyLevel,
+        tiktokDisableComment,
+        tiktokDisableDuet,
+        tiktokDisableStitch,
       });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       toast.success('Saved as draft');
@@ -394,6 +409,7 @@ export default function PostCreatePage() {
   const isVideo = firstMedia?.mimeType?.startsWith('video/');
   const charCount = content.length;
   const selectedAccounts = activeAccounts.filter(a => selectedAccountIds.includes(a.id));
+  const hasTiktokTarget = selectedAccounts.some(a => a.platform === 'tiktok');
   // Use the strictest applicable limit (Instagram) when any selected target is IG
   const anyIG = selectedAccounts.some(a => a.platform === 'instagram_business');
   const limit = anyIG || selectedAccounts.length === 0 ? IG_LIMIT : FB_LIMIT;
@@ -606,6 +622,95 @@ export default function PostCreatePage() {
                 </div>
               </div>
             </div>
+
+            {/* TikTok-specific options — only when a TikTok target is selected */}
+            {hasTiktokTarget && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">TikTok options</h4>
+                  <span className="text-[10px] text-slate-400">Applied to all TikTok targets</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Post mode</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTiktokPostMode('INBOX')}
+                      className={clsx(
+                        'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                        tiktokPostMode === 'INBOX'
+                          ? 'border-blue-300 bg-blue-50 text-blue-900'
+                          : 'border-slate-200 bg-white text-slate-700'
+                      )}
+                    >
+                      <div className="font-semibold">Send to inbox</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">User finishes posting in the TikTok app</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTiktokPostMode('DIRECT_POST')}
+                      className={clsx(
+                        'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                        tiktokPostMode === 'DIRECT_POST'
+                          ? 'border-blue-300 bg-blue-50 text-blue-900'
+                          : 'border-slate-200 bg-white text-slate-700'
+                      )}
+                    >
+                      <div className="font-semibold">Publish directly</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Scheduly posts it for you (needs app review)</div>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Who can see this</label>
+                  <select
+                    value={tiktokPrivacyLevel}
+                    onChange={e => setTiktokPrivacyLevel(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white"
+                  >
+                    <option value="SELF_ONLY">Only me (required for sandbox apps)</option>
+                    <option value="MUTUAL_FOLLOW_FRIENDS">Mutual followers</option>
+                    <option value="FOLLOWER_OF_CREATOR">Followers</option>
+                    <option value="PUBLIC_TO_EVERYONE">Public</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Un-reviewed TikTok apps can only post privately — TikTok will reject anything else.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tiktokDisableComment}
+                      onChange={e => setTiktokDisableComment(e.target.checked)}
+                      className="rounded border-slate-300"
+                    />
+                    Disable comments
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tiktokDisableDuet}
+                      onChange={e => setTiktokDisableDuet(e.target.checked)}
+                      className="rounded border-slate-300"
+                    />
+                    Disable duet
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tiktokDisableStitch}
+                      onChange={e => setTiktokDisableStitch(e.target.checked)}
+                      className="rounded border-slate-300"
+                    />
+                    Disable stitch
+                  </label>
+                </div>
+              </div>
+            )}
 
             {/* Internal title */}
             <details className="pt-2">

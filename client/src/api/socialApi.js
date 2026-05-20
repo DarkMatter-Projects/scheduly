@@ -12,6 +12,9 @@ export const startInstagramAuth = (teamId) =>
 export const startGoogleAuth = (teamId) =>
   api.get('/social/auth/google', { params: { teamId } }).then(r => r.data);
 
+export const startTiktokLoginAuth = (teamId) =>
+  api.get('/social/auth/tiktok-login', { params: { teamId } }).then(r => r.data);
+
 export const startTikTokAuth = (teamId) =>
   api.get('/social/auth/tiktok', { params: { teamId } }).then(r => r.data);
 

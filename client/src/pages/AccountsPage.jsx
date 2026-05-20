@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listAccounts, startFacebookAuth, startInstagramAuth, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
+import { listAccounts, startFacebookAuth, startInstagramAuth, startTiktokLoginAuth, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
@@ -178,6 +178,12 @@ export default function AccountsPage() {
     onError: () => toast.error('Failed to start Instagram connection. Check Instagram App settings.'),
   });
 
+  const connectTiktokMutation = useMutation({
+    mutationFn: () => startTiktokLoginAuth(),
+    onSuccess: (data) => { window.location.href = data.authUrl; },
+    onError: () => toast.error('Failed to start TikTok connection. Check TIKTOK_LOGIN_* env vars.'),
+  });
+
   const disconnectMut = useMutation({
     mutationFn: disconnectAccount,
     onSuccess: () => {
@@ -224,6 +230,8 @@ export default function AccountsPage() {
       connectFacebookMutation.mutate();
     } else if (platform.connectVia === 'instagram') {
       connectInstagramMutation.mutate();
+    } else if (platform.connectVia === 'tiktok_login') {
+      connectTiktokMutation.mutate();
     } else {
       toast(`${platform.label} integration coming soon!`, { icon: '🚀' });
     }

@@ -56,8 +56,8 @@ export const PLATFORMS = {
     bg: 'bg-slate-900',
     bgSoft: 'bg-slate-100',
     text: 'text-slate-900',
-    available: false,
-    connectVia: 'tiktok',
+    available: true,
+    connectVia: 'tiktok_login',
   },
   linkedin: {
     key: 'linkedin',

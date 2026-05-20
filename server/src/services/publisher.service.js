@@ -1,12 +1,19 @@
 const pool = require('../config/db');
 const { publishToPage } = require('./facebook.service');
 const { publishToInstagram } = require('./instagram.service');
+const { publishToTikTok } = require('./tiktok_posting.service');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 
 async function publishPost(postId) {
-  // Get post with media
-  const [postRows] = await pool.execute('SELECT * FROM posts WHERE id = ?', [postId]);
+  // Get post with media + TikTok-specific options
+  const [postRows] = await pool.execute(
+    `SELECT id, content,
+            tiktok_post_mode, tiktok_privacy_level,
+            tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment
+       FROM posts WHERE id = ?`,
+    [postId]
+  );
   if (postRows.length === 0) throw new Error('Post not found');
   const post = postRows[0];
 
@@ -28,7 +35,8 @@ async function publishPost(postId) {
 
   // Get targets
   const [targets] = await pool.execute(
-    `SELECT pt.id, pt.social_account_id, sa.platform, sa.platform_account_id, sa.access_token
+    `SELECT pt.id, pt.social_account_id, sa.id AS social_account_row_id,
+            sa.platform, sa.platform_account_id, sa.access_token
      FROM post_targets pt
      JOIN social_accounts sa ON pt.social_account_id = sa.id
      WHERE pt.post_id = ? AND pt.status = 'pending'`,
@@ -62,6 +70,25 @@ async function publishPost(postId) {
           mediaFiles,
           publicBaseUrl
         );
+      } else if (target.platform === 'tiktok') {
+        // TikTok returns a publish_id, not a platform post id — the post
+        // finishes processing async on TikTok's side. We store the publish_id
+        // in platform_post_id and a status checker can resolve the final
+        // post URL later.
+        platformPostId = await publishToTikTok(
+          target.social_account_row_id,
+          post.content,
+          mediaFiles,
+          {
+            mode: post.tiktok_post_mode || 'INBOX',
+            privacyLevel: post.tiktok_privacy_level || 'SELF_ONLY',
+            disableDuet: !!post.tiktok_disable_duet,
+            disableStitch: !!post.tiktok_disable_stitch,
+            disableComment: !!post.tiktok_disable_comment,
+          }
+        );
+      } else {
+        throw new Error(`Unsupported platform: ${target.platform}`);
       }
 
       await pool.execute(
