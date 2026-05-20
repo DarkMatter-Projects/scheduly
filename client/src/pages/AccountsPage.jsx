@@ -160,8 +160,11 @@ export default function AccountsPage() {
         oauth_denied: 'Authorization was denied',
         invalid_state: 'Invalid session. Please try again.',
         connection_failed: 'Failed to connect accounts. Please try again.',
+        tiktok_login_failed: 'TikTok connection failed',
       };
-      toast.error(messages[error] || 'Connection failed');
+      const detail = searchParams.get('detail');
+      const base = messages[error] || 'Connection failed';
+      toast.error(detail ? `${base}: ${detail}` : base, { duration: 8000 });
       setSearchParams({});
     }
   }, [searchParams]);

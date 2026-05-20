@@ -369,11 +369,18 @@ async function tiktokLoginCallback(req, res, next) {
     logger.info(`TikTok Login OAuth: user ${userId} connected ${userInfo.username || tokens.openId}`);
     return res.redirect(`${clientUrl}/accounts?connected=1`);
   } catch (err) {
+    // Surface the actual reason in the redirect so the UI can show it.
+    // TikTok's error body (when present) is the most informative.
+    const apiBody = err.response?.data;
+    const detail = (apiBody && typeof apiBody === 'object'
+      ? apiBody.error?.message || apiBody.error_description || JSON.stringify(apiBody).slice(0, 200)
+      : null) || err.message || 'Unknown error';
     logger.error('TikTok Login OAuth callback error:', {
-      error: err.message,
-      response: err.response?.data,
+      message: err.message,
+      response: apiBody,
     });
-    return res.redirect(`${clientUrl}/accounts?error=tiktok_login_failed`);
+    const enc = encodeURIComponent(detail.slice(0, 300));
+    return res.redirect(`${clientUrl}/accounts?error=tiktok_login_failed&detail=${enc}`);
   }
 }
 
