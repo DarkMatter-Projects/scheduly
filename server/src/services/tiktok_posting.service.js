@@ -67,7 +67,9 @@ async function refreshAccessToken(refreshTokenPlain) {
 }
 
 async function fetchUserInfo(accessToken) {
-  const fields = 'open_id,union_id,avatar_url,display_name,username';
+  // Stay within user.info.basic — `username` requires user.info.profile and
+  // would 401 with scope_not_authorized when we don't request that scope.
+  const fields = 'open_id,union_id,avatar_url,display_name';
   const { data } = await axios.get(`${tt.TIKTOK_API_BASE}/user/info/?fields=${fields}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     timeout: 10000,
@@ -82,9 +84,9 @@ async function fetchUserInfo(accessToken) {
 async function storeAccount({ tokens, userInfo, userId, teamId }) {
   const accessExpires = tokens.expiresIn ? new Date(Date.now() + tokens.expiresIn * 1000) : null;
   const refreshExpires = tokens.refreshExpiresIn ? new Date(Date.now() + tokens.refreshExpiresIn * 1000) : null;
-  const accountName = userInfo.username
-    ? `@${userInfo.username}`
-    : userInfo.display_name || `TikTok ${tokens.openId.slice(0, 8)}`;
+  // display_name is what user.info.basic returns; username would need profile scope.
+  const accountName = userInfo.display_name
+    || `TikTok ${tokens.openId.slice(0, 8)}`;
 
   await pool.execute(
     `INSERT INTO social_accounts
