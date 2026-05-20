@@ -258,9 +258,12 @@ async function publishPhotos(accessToken, caption, mediaFiles, publicBaseUrl, op
   const photoUrls = mediaFiles.map(m => publicMediaUrl(m, publicBaseUrl));
   const endpoint = `${tt.TIKTOK_API_BASE}/post/publish/content/init/`;
 
-  // For INBOX mode the body still includes source_info with post_mode=MEDIA_UPLOAD;
-  // TikTok will send it to the user's drafts and they finish in-app.
+  // For photo content, TikTok wants media_type + post_mode at the top level
+  // of the body — NOT inside source_info. Posting them inside source_info
+  // returns "Invalid media_type or post_mode" with code=invalid_params.
   const body = {
+    media_type: 'PHOTO',
+    post_mode: opts.mode === 'INBOX' ? 'MEDIA_UPLOAD' : 'DIRECT_POST',
     post_info: {
       title: caption || '',
       privacy_level: opts.privacyLevel,
@@ -271,8 +274,6 @@ async function publishPhotos(accessToken, caption, mediaFiles, publicBaseUrl, op
       source: 'PULL_FROM_URL',
       photo_cover_index: 0,
       photo_images: photoUrls,
-      post_mode: opts.mode === 'INBOX' ? 'MEDIA_UPLOAD' : 'DIRECT_POST',
-      media_type: 'PHOTO',
     },
   };
 
