@@ -1,12 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ClientProvider } from './context/ClientContext';
 import { ToastProvider } from './context/ToastContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import RoleGate from './components/auth/RoleGate';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
 import DashboardPage from './pages/DashboardPage';
 import CalendarPage from './pages/CalendarPage';
 import PostCreatePage from './pages/PostCreatePage';
@@ -31,6 +32,16 @@ const queryClient = new QueryClient({
   },
 });
 
+// Decides what to show at `/`:
+//   - Logged-out visitors (incl. TikTok reviewers) → public landing page
+//   - Authenticated users → bounce straight to their dashboard
+function HomeDispatcher() {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return null;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  return <LandingPage />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -39,13 +50,14 @@ function App() {
           <ToastProvider>
             <BrowserRouter>
             <Routes>
+              <Route path="/" element={<HomeDispatcher />} />
               <Route path="/login" element={<LoginPage />} />
               {/* Public legal pages — needed for TikTok/Meta app review */}
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppShell />}>
-                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/posts" element={<PostsListPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/posts/new" element={<PostCreatePage />} />
@@ -61,6 +73,7 @@ function App() {
                   </Route>
                 </Route>
               </Route>
+              {/* Fallback: send unknown routes to the landing page, not the dashboard */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             </BrowserRouter>

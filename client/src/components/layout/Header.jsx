@@ -5,7 +5,7 @@ import { Menu, LogOut, ChevronDown, Search, Bell, Plus } from 'lucide-react';
 import ClientSwitcher from './ClientSwitcher';
 
 const pageTitles = {
-  '/': 'Dashboard',
+  '/dashboard': 'Dashboard',
   '/posts': 'Posts',
   '/calendar': 'Calendar',
   '/posts/new': 'Create Post',

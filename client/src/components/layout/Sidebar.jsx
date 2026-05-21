@@ -15,7 +15,7 @@ import {
 import clsx from 'clsx';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/posts', icon: FileText, label: 'Posts' },
   { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
   { to: '/posts/new', icon: PenSquare, label: 'New Post', highlight: true },
@@ -75,7 +75,7 @@ export default function Sidebar({ open, onClose }) {
           </div>
           <div className="space-y-0.5 mb-6">
             {navItems.map(({ to, icon: Icon, label, highlight }) => (
-              <NavLink key={to} to={to} end={to === '/'} onClick={onClose} className={linkClass}>
+              <NavLink key={to} to={to} end={to === '/dashboard'} onClick={onClose} className={linkClass}>
                 {({ isActive }) => (
                   <>
                     <Icon className={clsx('w-4 h-4', highlight && !isActive && 'text-blue-400')} />

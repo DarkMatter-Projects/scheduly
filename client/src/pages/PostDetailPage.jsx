@@ -121,7 +121,7 @@ export default function PostDetailPage() {
 
   const deleteMut = useMutation({
     mutationFn: () => deletePost(id),
-    onSuccess: () => { toast.success('Post deleted'); navigate('/'); },
+    onSuccess: () => { toast.success('Post deleted'); navigate('/posts'); },
     onError: () => toast.error('Failed to delete'),
   });
 
