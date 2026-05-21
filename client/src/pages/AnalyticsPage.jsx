@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { SENTIMENT_STYLES } from '../utils/sentiment';
 import { useClientScope } from '../context/ClientContext';
 import { useAuth } from '../context/AuthContext';
+import KpiCard from '../components/common/KpiCard';
 
 const SENTIMENT_COLORS = {
   positive: '#10b981',
@@ -99,8 +100,18 @@ export default function AnalyticsPage() {
   });
 
   const summary = data?.summary || {};
+  const priorSummary = data?.priorSummary || {};
   const posts = data?.posts || [];
   const daily = data?.daily || [];
+
+  // Pre-build sparkline arrays per metric so each KPI card can render its own
+  // mini-trend without recomputing on every render.
+  const spark = (key) => daily.map(d => ({ date: d.date, value: Number(d[key]) || 0 }));
+  const sparkImpressions = spark('impressions');
+  const sparkReach = spark('reach');
+  const sparkLikes = spark('likes');
+  const fmtNum = (n) => Number(n || 0).toLocaleString();
+  const fmtPct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
   const sentimentDist = data?.sentiment?.distribution || [];
   const sentimentByClient = data?.sentiment?.byClient || [];
   const totalScoredCaptions = sentimentDist
@@ -155,19 +166,75 @@ export default function AnalyticsPage() {
         <div className="text-center py-12 text-gray-400">Loading analytics...</div>
       ) : (
         <>
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <StatCard icon={Eye} label="Impressions" value={summary.totalImpressions} color="bg-blue-500" />
-            <StatCard icon={Users} label="Reach" value={summary.totalReach} color="bg-blue-500" />
-            <StatCard icon={Heart} label="Likes" value={summary.totalLikes} color="bg-pink-500" />
-            <StatCard icon={TrendingUp} label="Avg Engagement" value={`${summary.avgEngagementRate?.toFixed(1) || 0}%`} color="bg-emerald-500" />
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-            <StatCard icon={MessageSquare} label="Comments" value={summary.totalComments} color="bg-amber-500" />
-            <StatCard icon={Share2} label="Shares" value={summary.totalShares} color="bg-purple-500" />
-            <StatCard icon={MousePointer} label="Clicks" value={summary.totalClicks} color="bg-cyan-500" />
-            <StatCard icon={BarChart3} label="Posts" value={summary.totalPosts} color="bg-gray-500" />
+          {/* KPI grid — wetility-style cards with delta vs prior period + sparkline */}
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 mb-8">
+            <KpiCard
+              label="Impressions"
+              value={fmtNum(summary.totalImpressions)}
+              current={summary.totalImpressions}
+              prior={priorSummary.totalImpressions}
+              priorValue={fmtNum(priorSummary.totalImpressions)}
+              sparkData={sparkImpressions}
+              sparkColor="#3b82f6"
+            />
+            <KpiCard
+              label="Reach"
+              value={fmtNum(summary.totalReach)}
+              current={summary.totalReach}
+              prior={priorSummary.totalReach}
+              priorValue={fmtNum(priorSummary.totalReach)}
+              sparkData={sparkReach}
+              sparkColor="#6366f1"
+            />
+            <KpiCard
+              label="Likes"
+              value={fmtNum(summary.totalLikes)}
+              current={summary.totalLikes}
+              prior={priorSummary.totalLikes}
+              priorValue={fmtNum(priorSummary.totalLikes)}
+              sparkData={sparkLikes}
+              sparkColor="#ec4899"
+            />
+            <KpiCard
+              label="Avg engagement"
+              value={fmtPct(summary.avgEngagementRate)}
+              current={summary.avgEngagementRate}
+              prior={priorSummary.avgEngagementRate}
+              priorValue={fmtPct(priorSummary.avgEngagementRate)}
+              sparkColor="#10b981"
+            />
+            <KpiCard
+              label="Comments"
+              value={fmtNum(summary.totalComments)}
+              current={summary.totalComments}
+              prior={priorSummary.totalComments}
+              priorValue={fmtNum(priorSummary.totalComments)}
+              sparkColor="#f59e0b"
+            />
+            <KpiCard
+              label="Shares"
+              value={fmtNum(summary.totalShares)}
+              current={summary.totalShares}
+              prior={priorSummary.totalShares}
+              priorValue={fmtNum(priorSummary.totalShares)}
+              sparkColor="#8b5cf6"
+            />
+            <KpiCard
+              label="Clicks"
+              value={fmtNum(summary.totalClicks)}
+              current={summary.totalClicks}
+              prior={priorSummary.totalClicks}
+              priorValue={fmtNum(priorSummary.totalClicks)}
+              sparkColor="#06b6d4"
+            />
+            <KpiCard
+              label="Posts"
+              value={fmtNum(summary.totalPosts)}
+              current={summary.totalPosts}
+              prior={priorSummary.totalPosts}
+              priorValue={fmtNum(priorSummary.totalPosts)}
+              sparkColor="#64748b"
+            />
           </div>
 
           {/* Charts */}
@@ -224,6 +291,7 @@ export default function AnalyticsPage() {
           {/* Paid media summary */}
           {paidOverview && paidOverview.summary.spend > 0 && (() => {
             const s = paidOverview.summary;
+            const p = paidOverview.priorSummary || {};
             const fmt = (n) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : Number(n || 0).toLocaleString();
             const money = (n) => `$${Number(n || 0).toFixed(2)}`;
             return (
@@ -237,12 +305,12 @@ export default function AnalyticsPage() {
                     View Ads <ArrowRight className="w-3 h-3" />
                   </Link>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-                  <StatCard icon={DollarSign} label="Spend" value={money(s.spend)} color="bg-emerald-500" />
-                  <StatCard icon={Eye} label="Impressions" value={fmt(s.impressions)} color="bg-blue-500" />
-                  <StatCard icon={MousePointer} label="Clicks" value={fmt(s.clicks)} color="bg-cyan-500" />
-                  <StatCard icon={Target} label="Conversions" value={fmt(s.conversions)} color="bg-violet-500" />
-                  <StatCard icon={TrendingUp} label="ROAS" value={`${(s.roas || 0).toFixed(2)}x`} color="bg-amber-500" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <KpiCard label="Spend" value={money(s.spend)} current={s.spend} prior={p.spend} priorValue={money(p.spend)} sparkColor="#10b981" />
+                  <KpiCard label="Impressions" value={fmt(s.impressions)} current={s.impressions} prior={p.impressions} priorValue={fmt(p.impressions)} sparkColor="#3b82f6" />
+                  <KpiCard label="Clicks" value={fmt(s.clicks)} current={s.clicks} prior={p.clicks} priorValue={fmt(p.clicks)} sparkColor="#06b6d4" />
+                  <KpiCard label="Conversions" value={fmt(s.conversions)} current={s.conversions} prior={p.conversions} priorValue={fmt(p.conversions)} sparkColor="#8b5cf6" />
+                  <KpiCard label="ROAS" value={`${(s.roas || 0).toFixed(2)}x`} current={s.roas} prior={p.roas} priorValue={`${(p.roas || 0).toFixed(2)}x`} sparkColor="#f59e0b" />
                 </div>
               </div>
             );

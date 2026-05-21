@@ -276,21 +276,42 @@ async function getOverview({ clientId, start, end, days = 30 }) {
     params.push(clientId);
   }
 
-  const [totals] = await pool.execute(
-    `SELECT
-       COALESCE(SUM(i.spend), 0) AS spend,
-       COALESCE(SUM(i.impressions), 0) AS impressions,
-       COALESCE(SUM(i.reach), 0) AS reach,
-       COALESCE(SUM(i.clicks), 0) AS clicks,
-       COALESCE(SUM(i.conversions), 0) AS conversions,
-       COALESCE(SUM(i.conversion_value), 0) AS conversion_value
-     FROM meta_ad_insights i
-     ${scopeJoin}
-     WHERE i.level = 'account'
-       AND i.date_start BETWEEN ? AND ?
-       ${scopeWhere}`,
-    params
-  );
+  // Same window length immediately before [start, end], used for delta cards.
+  function priorRange() {
+    const s = new Date(start);
+    const e = new Date(end);
+    const days = Math.round((e - s) / 86400000) + 1;
+    const priorEnd = new Date(s.getTime() - 86400000);
+    const priorStart = new Date(priorEnd.getTime() - (days - 1) * 86400000);
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    return { priorStart: fmt(priorStart), priorEnd: fmt(priorEnd) };
+  }
+  const { priorStart, priorEnd } = priorRange();
+
+  async function totalsFor(s, e) {
+    const p = clientId ? [s, e, clientId] : [s, e];
+    const [rows] = await pool.execute(
+      `SELECT
+         COALESCE(SUM(i.spend), 0) AS spend,
+         COALESCE(SUM(i.impressions), 0) AS impressions,
+         COALESCE(SUM(i.reach), 0) AS reach,
+         COALESCE(SUM(i.clicks), 0) AS clicks,
+         COALESCE(SUM(i.conversions), 0) AS conversions,
+         COALESCE(SUM(i.conversion_value), 0) AS conversion_value
+       FROM meta_ad_insights i
+       ${scopeJoin}
+       WHERE i.level = 'account'
+         AND i.date_start BETWEEN ? AND ?
+         ${scopeWhere}`,
+      p
+    );
+    return rows[0] || {};
+  }
+  const [curTotalsRow, priorTotalsRow] = await Promise.all([
+    totalsFor(start, end),
+    totalsFor(priorStart, priorEnd),
+  ]);
+  const totals = [curTotalsRow];
 
   const [daily] = await pool.execute(
     `SELECT i.date_start AS date,
@@ -346,22 +367,28 @@ async function getOverview({ clientId, start, end, days = 30 }) {
     campaignParams
   );
 
-  const t = totals[0] || {};
-  const spend = Number(t.spend) || 0;
-  const conversionValue = Number(t.conversion_value) || 0;
-  return {
-    summary: {
+  const shapeSummary = (r) => {
+    const spend = Number(r.spend) || 0;
+    const impressions = Number(r.impressions) || 0;
+    const clicks = Number(r.clicks) || 0;
+    const conversionValue = Number(r.conversion_value) || 0;
+    return {
       spend,
-      impressions: Number(t.impressions) || 0,
-      reach: Number(t.reach) || 0,
-      clicks: Number(t.clicks) || 0,
-      conversions: Number(t.conversions) || 0,
+      impressions,
+      reach: Number(r.reach) || 0,
+      clicks,
+      conversions: Number(r.conversions) || 0,
       conversionValue,
-      ctr: t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0,
-      cpc: t.clicks > 0 ? spend / t.clicks : 0,
-      cpm: t.impressions > 0 ? (spend / t.impressions) * 1000 : 0,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      cpc: clicks > 0 ? spend / clicks : 0,
+      cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
       roas: spend > 0 ? conversionValue / spend : 0,
-    },
+    };
+  };
+  return {
+    summary: shapeSummary(totals[0] || {}),
+    priorSummary: shapeSummary(priorTotalsRow || {}),
+    priorRange: { start: priorStart, end: priorEnd },
     daily: daily.map(d => ({
       date: d.date,
       spend: Number(d.spend) || 0,

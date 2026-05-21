@@ -183,33 +183,58 @@ async function getPostAnalytics(postId) {
   }));
 }
 
+// Same length window immediately before [startDate, endDate]. Used for the
+// "vs prior period" deltas on the analytics overview cards.
+function computePriorRange(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const days = Math.round((end - start) / 86400000) + 1;
+  const priorEnd = new Date(start.getTime() - 86400000);
+  const priorStart = new Date(priorEnd.getTime() - (days - 1) * 86400000);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  return { priorStart: fmt(priorStart), priorEnd: fmt(priorEnd) };
+}
+
 async function getOverviewAnalytics(startDate, endDate, clientId = null) {
   // When a clientId is set, we restrict to posts that target any social account
   // belonging to that client. The join + DISTINCT handles posts with mixed targets.
   const clientJoin = clientId ? 'JOIN social_accounts sa ON pt.social_account_id = sa.id' : '';
   const clientWhere = clientId ? 'AND sa.client_id = ?' : '';
+  const paramsFor = (s, e) => clientId ? [s, e, clientId] : [s, e];
   const baseParams = (extra = []) => clientId
     ? [startDate, endDate, clientId, ...extra]
     : [startDate, endDate, ...extra];
 
-  const [totals] = await pool.execute(
-    `SELECT
-       SUM(pa.impressions) AS total_impressions,
-       SUM(pa.reach) AS total_reach,
-       SUM(pa.likes) AS total_likes,
-       SUM(pa.comments_count) AS total_comments,
-       SUM(pa.shares) AS total_shares,
-       SUM(pa.saves) AS total_saves,
-       SUM(pa.clicks) AS total_clicks,
-       AVG(pa.engagement_rate) AS avg_engagement_rate,
-       COUNT(DISTINCT pt.post_id) AS total_posts
-     FROM post_analytics pa
-     JOIN post_targets pt ON pa.post_target_id = pt.id
-     JOIN posts p ON pt.post_id = p.id
-     ${clientJoin}
-     WHERE p.published_at BETWEEN ? AND ? ${clientWhere}`,
-    baseParams()
-  );
+  // Re-used for both the current period and the prior comparison period.
+  async function totalsFor(s, e) {
+    const [rows] = await pool.execute(
+      `SELECT
+         SUM(pa.impressions) AS total_impressions,
+         SUM(pa.reach) AS total_reach,
+         SUM(pa.likes) AS total_likes,
+         SUM(pa.comments_count) AS total_comments,
+         SUM(pa.shares) AS total_shares,
+         SUM(pa.saves) AS total_saves,
+         SUM(pa.clicks) AS total_clicks,
+         AVG(pa.engagement_rate) AS avg_engagement_rate,
+         COUNT(DISTINCT pt.post_id) AS total_posts
+       FROM post_analytics pa
+       JOIN post_targets pt ON pa.post_target_id = pt.id
+       JOIN posts p ON pt.post_id = p.id
+       ${clientJoin}
+       WHERE p.published_at BETWEEN ? AND ? ${clientWhere}`,
+      paramsFor(s, e)
+    );
+    return rows[0] || {};
+  }
+
+  const { priorStart, priorEnd } = computePriorRange(startDate, endDate);
+  const [curTotalsRow, priorTotalsRow] = await Promise.all([
+    totalsFor(startDate, endDate),
+    totalsFor(priorStart, priorEnd),
+  ]);
+  // Keep `totals[0]` shape for the existing code below.
+  const totals = [curTotalsRow];
 
   // Get per-post breakdown
   const [postBreakdown] = await pool.execute(
@@ -291,18 +316,22 @@ async function getOverviewAnalytics(startDate, endDate, clientId = null) {
   );
 
   const t = totals[0] || {};
+  const p = priorTotalsRow || {};
+  const shapeSummary = (r) => ({
+    totalImpressions: Number(r.total_impressions) || 0,
+    totalReach: Number(r.total_reach) || 0,
+    totalLikes: Number(r.total_likes) || 0,
+    totalComments: Number(r.total_comments) || 0,
+    totalShares: Number(r.total_shares) || 0,
+    totalSaves: Number(r.total_saves) || 0,
+    totalClicks: Number(r.total_clicks) || 0,
+    avgEngagementRate: parseFloat(r.avg_engagement_rate) || 0,
+    totalPosts: Number(r.total_posts) || 0,
+  });
   return {
-    summary: {
-      totalImpressions: t.total_impressions || 0,
-      totalReach: t.total_reach || 0,
-      totalLikes: t.total_likes || 0,
-      totalComments: t.total_comments || 0,
-      totalShares: t.total_shares || 0,
-      totalSaves: t.total_saves || 0,
-      totalClicks: t.total_clicks || 0,
-      avgEngagementRate: parseFloat(t.avg_engagement_rate) || 0,
-      totalPosts: t.total_posts || 0,
-    },
+    summary: shapeSummary(t),
+    priorSummary: shapeSummary(p),
+    priorRange: { start: priorStart, end: priorEnd },
     posts: postBreakdown.map(p => ({
       id: p.id,
       title: p.title || p.content?.substring(0, 50),

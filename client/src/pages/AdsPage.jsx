@@ -23,6 +23,7 @@ import { listClients } from '../api/clientsApi';
 import { useClientScope } from '../context/ClientContext';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import KpiCard from '../components/common/KpiCard';
 
 const RANGES = [
   { label: '7 days', days: 7 },
@@ -468,90 +469,70 @@ export default function AdsPage() {
           {/* Summary cards */}
           {overviewLoading ? (
             <div className="text-center py-12 text-gray-400">Loading metrics...</div>
-          ) : summary && (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                <StatCard
-                  icon={DollarSign}
-                  label="Spend"
-                  value={formatCurrency(summary.spend, primaryCurrency)}
-                  color="bg-emerald-500"
-                />
-                <StatCard
-                  icon={Eye}
-                  label="Impressions"
-                  value={formatNumber(summary.impressions)}
-                  color="bg-blue-500"
-                />
-                <StatCard
-                  icon={MousePointer}
-                  label="Clicks"
-                  value={formatNumber(summary.clicks)}
-                  sublabel={`CTR ${summary.ctr.toFixed(2)}%`}
-                  color="bg-cyan-500"
-                />
-                <StatCard
-                  icon={Target}
-                  label="Conversions"
-                  value={formatNumber(summary.conversions)}
-                  sublabel={`Value ${formatCurrency(summary.conversionValue, primaryCurrency)}`}
-                  color="bg-violet-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-                <StatCard icon={TrendingUp} label="ROAS" value={`${summary.roas.toFixed(2)}x`} color="bg-amber-500" />
-                <StatCard icon={DollarSign} label="CPC" value={formatCurrency(summary.cpc, primaryCurrency)} color="bg-pink-500" />
-                <StatCard icon={DollarSign} label="CPM" value={formatCurrency(summary.cpm, primaryCurrency)} color="bg-rose-500" />
-                <StatCard icon={Activity} label="Reach" value={formatNumber(summary.reach)} color="bg-indigo-500" />
-              </div>
-
-              {/* Spend chart */}
-              {daily.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <h3 className="text-sm font-medium text-gray-700 mb-4">Daily Spend</h3>
-                    <ResponsiveContainer width="100%" height={240}>
-                      <BarChart data={daily}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis
-                          dataKey="date"
-                          tickFormatter={(v) => format(new Date(v), 'MMM d')}
-                          tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        />
-                        <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                        <Tooltip
-                          labelFormatter={(v) => format(new Date(v), 'MMM d, yyyy')}
-                          formatter={(v) => [formatCurrency(v, primaryCurrency), 'Spend']}
-                        />
-                        <Bar dataKey="spend" fill="#10b981" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <h3 className="text-sm font-medium text-gray-700 mb-4">Clicks & Impressions</h3>
-                    <ResponsiveContainer width="100%" height={240}>
-                      <LineChart data={daily}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis
-                          dataKey="date"
-                          tickFormatter={(v) => format(new Date(v), 'MMM d')}
-                          tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        />
-                        <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={formatNumber} />
-                        <Tooltip
-                          labelFormatter={(v) => format(new Date(v), 'MMM d, yyyy')}
-                          formatter={(v, name) => [Number(v).toLocaleString(), name]}
-                        />
-                        <Legend />
-                        <Line type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} />
-                        <Line type="monotone" dataKey="clicks" stroke="#06b6d4" strokeWidth={2} dot={{ r: 2 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+          ) : summary && (() => {
+            const p = overview?.priorSummary || {};
+            const dailySpark = (key) => (daily || []).map(d => ({ date: d.date, value: Number(d[key]) || 0 }));
+            return (
+              <>
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 mb-8">
+                  <KpiCard label="Spend" value={formatCurrency(summary.spend, primaryCurrency)} current={summary.spend} prior={p.spend} priorValue={formatCurrency(p.spend, primaryCurrency)} sparkData={dailySpark('spend')} sparkColor="#10b981" />
+                  <KpiCard label="Impressions" value={formatNumber(summary.impressions)} current={summary.impressions} prior={p.impressions} priorValue={formatNumber(p.impressions)} sparkData={dailySpark('impressions')} sparkColor="#3b82f6" />
+                  <KpiCard label="Clicks" value={formatNumber(summary.clicks)} current={summary.clicks} prior={p.clicks} priorValue={formatNumber(p.clicks)} sparkData={dailySpark('clicks')} sparkColor="#06b6d4" caption={`CTR ${summary.ctr.toFixed(2)}%`} />
+                  <KpiCard label="Conversions" value={formatNumber(summary.conversions)} current={summary.conversions} prior={p.conversions} priorValue={formatNumber(p.conversions)} sparkColor="#8b5cf6" caption={`Value ${formatCurrency(summary.conversionValue, primaryCurrency)}`} />
+                  <KpiCard label="ROAS" value={`${summary.roas.toFixed(2)}x`} current={summary.roas} prior={p.roas} priorValue={`${(p.roas || 0).toFixed(2)}x`} sparkColor="#f59e0b" />
+                  <KpiCard label="CPC" value={formatCurrency(summary.cpc, primaryCurrency)} current={summary.cpc} prior={p.cpc} priorValue={formatCurrency(p.cpc, primaryCurrency)} sparkColor="#ec4899" invertDelta />
+                  <KpiCard label="CPM" value={formatCurrency(summary.cpm, primaryCurrency)} current={summary.cpm} prior={p.cpm} priorValue={formatCurrency(p.cpm, primaryCurrency)} sparkColor="#f43f5e" invertDelta />
+                  <KpiCard label="Reach" value={formatNumber(summary.reach)} current={summary.reach} prior={p.reach} priorValue={formatNumber(p.reach)} sparkColor="#6366f1" />
                 </div>
-              )}
-            </>
-          )}
+
+                {/* Spend chart */}
+                {daily.length > 0 && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div className="bg-white rounded-xl border border-gray-200 p-5">
+                      <h3 className="text-sm font-medium text-gray-700 mb-4">Daily Spend</h3>
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={daily}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="date"
+                            tickFormatter={(v) => format(new Date(v), 'MMM d')}
+                            tick={{ fontSize: 11, fill: '#94a3b8' }}
+                          />
+                          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                          <Tooltip
+                            labelFormatter={(v) => format(new Date(v), 'MMM d, yyyy')}
+                            formatter={(v) => [formatCurrency(v, primaryCurrency), 'Spend']}
+                          />
+                          <Bar dataKey="spend" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="bg-white rounded-xl border border-gray-200 p-5">
+                      <h3 className="text-sm font-medium text-gray-700 mb-4">Clicks & Impressions</h3>
+                      <ResponsiveContainer width="100%" height={240}>
+                        <LineChart data={daily}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="date"
+                            tickFormatter={(v) => format(new Date(v), 'MMM d')}
+                            tick={{ fontSize: 11, fill: '#94a3b8' }}
+                          />
+                          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={formatNumber} />
+                          <Tooltip
+                            labelFormatter={(v) => format(new Date(v), 'MMM d, yyyy')}
+                            formatter={(v, name) => [Number(v).toLocaleString(), name]}
+                          />
+                          <Legend />
+                          <Line type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} />
+                          <Line type="monotone" dataKey="clicks" stroke="#06b6d4" strokeWidth={2} dot={{ r: 2 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Top campaigns */}
           {topCampaigns.length > 0 && (
@@ -779,31 +760,17 @@ export default function AdsPage() {
         </div>
       ) : googleAccounts.length > 0 && (
         <>
-          {googleSummary && googleSummary.spend > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-              <StatCard
-                icon={DollarSign}
-                label="Spend"
-                value={formatCurrency(googleSummary.spend, googleCurrency)}
-                color="bg-emerald-500"
-              />
-              <StatCard icon={Eye} label="Impressions" value={formatNumber(googleSummary.impressions)} color="bg-blue-500" />
-              <StatCard
-                icon={MousePointer}
-                label="Clicks"
-                value={formatNumber(googleSummary.clicks)}
-                sublabel={`CTR ${googleSummary.ctr.toFixed(2)}%`}
-                color="bg-cyan-500"
-              />
-              <StatCard
-                icon={Target}
-                label="Conversions"
-                value={formatNumber(googleSummary.conversions)}
-                sublabel={`ROAS ${googleSummary.roas.toFixed(2)}x`}
-                color="bg-violet-500"
-              />
-            </div>
-          )}
+          {googleSummary && googleSummary.spend > 0 && (() => {
+            const gp = googleOverview?.priorSummary || {};
+            return (
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-4">
+                <KpiCard label="Spend" value={formatCurrency(googleSummary.spend, googleCurrency)} current={googleSummary.spend} prior={gp.spend} priorValue={formatCurrency(gp.spend, googleCurrency)} sparkColor="#10b981" />
+                <KpiCard label="Impressions" value={formatNumber(googleSummary.impressions)} current={googleSummary.impressions} prior={gp.impressions} priorValue={formatNumber(gp.impressions)} sparkColor="#3b82f6" />
+                <KpiCard label="Clicks" value={formatNumber(googleSummary.clicks)} current={googleSummary.clicks} prior={gp.clicks} priorValue={formatNumber(gp.clicks)} sparkColor="#06b6d4" caption={`CTR ${googleSummary.ctr.toFixed(2)}%`} />
+                <KpiCard label="Conversions" value={formatNumber(googleSummary.conversions)} current={googleSummary.conversions} prior={gp.conversions} priorValue={formatNumber(gp.conversions)} sparkColor="#8b5cf6" caption={`ROAS ${googleSummary.roas.toFixed(2)}x`} />
+              </div>
+            );
+          })()}
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100">
@@ -974,31 +941,17 @@ export default function AdsPage() {
         </div>
       ) : tiktokAccounts.length > 0 && (
         <>
-          {tiktokSummary && tiktokSummary.spend > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-              <StatCard
-                icon={DollarSign}
-                label="Spend"
-                value={formatCurrency(tiktokSummary.spend, tiktokCurrency)}
-                color="bg-emerald-500"
-              />
-              <StatCard icon={Eye} label="Impressions" value={formatNumber(tiktokSummary.impressions)} color="bg-blue-500" />
-              <StatCard
-                icon={MousePointer}
-                label="Clicks"
-                value={formatNumber(tiktokSummary.clicks)}
-                sublabel={`CTR ${tiktokSummary.ctr.toFixed(2)}%`}
-                color="bg-cyan-500"
-              />
-              <StatCard
-                icon={Target}
-                label="Conversions"
-                value={formatNumber(tiktokSummary.conversions)}
-                sublabel={`ROAS ${tiktokSummary.roas.toFixed(2)}x`}
-                color="bg-violet-500"
-              />
-            </div>
-          )}
+          {tiktokSummary && tiktokSummary.spend > 0 && (() => {
+            const tp = tiktokOverview?.priorSummary || {};
+            return (
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-4">
+                <KpiCard label="Spend" value={formatCurrency(tiktokSummary.spend, tiktokCurrency)} current={tiktokSummary.spend} prior={tp.spend} priorValue={formatCurrency(tp.spend, tiktokCurrency)} sparkColor="#10b981" />
+                <KpiCard label="Impressions" value={formatNumber(tiktokSummary.impressions)} current={tiktokSummary.impressions} prior={tp.impressions} priorValue={formatNumber(tp.impressions)} sparkColor="#3b82f6" />
+                <KpiCard label="Clicks" value={formatNumber(tiktokSummary.clicks)} current={tiktokSummary.clicks} prior={tp.clicks} priorValue={formatNumber(tp.clicks)} sparkColor="#06b6d4" caption={`CTR ${tiktokSummary.ctr.toFixed(2)}%`} />
+                <KpiCard label="Conversions" value={formatNumber(tiktokSummary.conversions)} current={tiktokSummary.conversions} prior={tp.conversions} priorValue={formatNumber(tp.conversions)} sparkColor="#8b5cf6" caption={`ROAS ${tiktokSummary.roas.toFixed(2)}x`} />
+              </div>
+            );
+          })()}
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100">
