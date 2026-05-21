@@ -12,6 +12,7 @@ import {
   FolderClosed,
   Megaphone,
   LayoutGrid,
+  MessageCircle,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -23,6 +24,7 @@ const navItems = [
   { to: '/media', icon: Image, label: 'Library' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/dashboards', icon: LayoutGrid, label: 'Dashboards' },
+  { to: '/engage', icon: MessageCircle, label: 'Engage' },
   { to: '/ads', icon: Megaphone, label: 'Ads' },
 ];
 

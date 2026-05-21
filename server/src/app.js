@@ -20,6 +20,7 @@ const activityRoutes = require('./routes/activity.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const adsRoutes = require('./routes/ads.routes');
 const dashboardsRoutes = require('./routes/dashboards.routes');
+const engageRoutes = require('./routes/engage.routes');
 const diagnoseRoutes = require('./routes/diagnose.routes');
 
 const app = express();
@@ -84,6 +85,7 @@ app.use('/api/activity', activityRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api/dashboards', dashboardsRoutes);
+app.use('/api/engage', engageRoutes);
 app.use('/api/diagnose', diagnoseRoutes);
 
 // Error handler

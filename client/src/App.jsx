@@ -25,6 +25,7 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import DashboardsListPage from './pages/DashboardsListPage';
 import DashboardBuilderPage from './pages/DashboardBuilderPage';
 import SharedDashboardPage from './pages/SharedDashboardPage';
+import EngagePage from './pages/EngagePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,6 +74,7 @@ function App() {
                   <Route path="/ads" element={<AdsPage />} />
                   <Route path="/dashboards" element={<DashboardsListPage />} />
                   <Route path="/dashboards/:id" element={<DashboardBuilderPage />} />
+                  <Route path="/engage" element={<EngagePage />} />
                   <Route path="/accounts" element={<AccountsPage />} />
                   <Route path="/clients" element={<ClientsPage />} />
                   <Route element={<RoleGate allowed={['admin']} />}>

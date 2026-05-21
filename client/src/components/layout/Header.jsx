@@ -13,6 +13,7 @@ const pageTitles = {
   '/analytics': 'Analytics',
   '/ads': 'Ads',
   '/dashboards': 'Dashboards',
+  '/engage': 'Engage',
   '/accounts': 'Social Accounts',
   '/settings': 'Settings',
 };
