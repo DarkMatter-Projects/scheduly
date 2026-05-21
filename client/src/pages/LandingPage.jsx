@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
   CalendarDays, BarChart3, Megaphone, FolderClosed, Users, CheckCircle2,
-  Sparkles, Image as ImageIcon, ShieldCheck, ArrowRight,
+  Sparkles, Image as ImageIcon, ShieldCheck, ArrowRight, MessageCircle, LayoutGrid,
 } from 'lucide-react';
 import { FacebookIcon, InstagramIcon, TiktokIcon, LinkedinIcon, YoutubeIcon } from '../components/common/SocialIcons';
 
@@ -156,6 +156,18 @@ export default function LandingPage() {
               title="Caption tone scoring"
               body="Every caption is scored for tone as you write so you catch off-brand drafts before they ship."
             />
+            <Feature
+              icon={MessageCircle}
+              color="bg-teal-100 text-teal-700"
+              title="Unified inbox"
+              body="Every comment and DM across Facebook, Instagram, and TikTok in one place. Reply, assign, snooze, and tag — without switching apps."
+            />
+            <Feature
+              icon={LayoutGrid}
+              color="bg-fuchsia-100 text-fuchsia-700"
+              title="Shareable dashboards"
+              body="Build custom dashboards from a library of widgets and share a read-only public link with your client — no login required for them."
+            />
           </div>
         </div>
       </section>
@@ -193,11 +205,12 @@ export default function LandingPage() {
               Built by an agency that got tired of approval threads, spreadsheets, and screenshots of analytics.
             </p>
           </div>
-          <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <ol className="grid sm:grid-cols-2 lg:grid-cols-5 gap-6">
             <Step n={1} title="Draft" body="Compose the caption with live tone scoring. Pick the profiles to publish to." />
             <Step n={2} title="Approve" body="Manager reviews drafts in one queue. Comments thread under each post." />
             <Step n={3} title="Schedule" body="Drop the approved post on the calendar. Re-arrange by dragging." />
-            <Step n={4} title="Report" body="Once it&apos;s live, organic and paid metrics flow back into the same view, scoped per client." />
+            <Step n={4} title="Engage" body="Comments and DMs land in the unified inbox the moment they happen — reply right there." />
+            <Step n={5} title="Report" body="Organic and paid metrics flow back into shareable dashboards, scoped per client." />
           </ol>
         </div>
       </section>
