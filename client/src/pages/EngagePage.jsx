@@ -581,8 +581,11 @@ function ThreadRow({ thread, selected, checked, onClick, onToggleCheck }) {
             </span>
           )}
           {thread.status === 'snoozed' && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-50 text-amber-700">
-              Snoozed
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-50 text-amber-700"
+              title={thread.snoozeUntil ? `Reopens ${new Date(thread.snoozeUntil).toLocaleString()}` : 'Manually snoozed'}
+            >
+              Snoozed{thread.snoozeUntil ? ` · ${formatRelative(thread.snoozeUntil)}` : ''}
             </span>
           )}
           {thread.assigneeName && (
