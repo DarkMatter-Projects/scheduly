@@ -7,6 +7,7 @@ import { ToastProvider } from './context/ToastContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import RoleGate from './components/auth/RoleGate';
 import AppShell from './components/layout/AppShell';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Eager — these are on the critical path for first paint (auth + landing).
 import LoginPage from './pages/LoginPage';
@@ -62,6 +63,7 @@ function RouteFallback() {
 
 function App() {
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ClientProvider>
@@ -106,6 +108,7 @@ function App() {
         </ClientProvider>
       </AuthProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
