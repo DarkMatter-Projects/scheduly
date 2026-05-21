@@ -4,26 +4,39 @@ const { metric, metricFamily } = require('./dashboard_metrics');
 // Resolve the two ends of a comparison window. If the dashboard is configured
 // with a relative range like '30d', we compute it relative to "now"; if the
 // dashboard has explicit range_start/end we use those.
+//
+// Returns dates with explicit times so the SQL BETWEEN clause includes the
+// full end-day (otherwise '2026-05-21' is read as 00:00:00 and posts later
+// in the day are missed).
 function resolveRange(dashboard) {
   const today = new Date();
-  const fmt = (d) => d.toISOString().slice(0, 10);
+  const fmtDate = (d) => d.toISOString().slice(0, 10);
 
-  let end, start;
+  let endDay, startDay;
   if (dashboard.range_start && dashboard.range_end) {
-    start = String(dashboard.range_start).slice(0, 10);
-    end = String(dashboard.range_end).slice(0, 10);
+    startDay = String(dashboard.range_start).slice(0, 10);
+    endDay = String(dashboard.range_end).slice(0, 10);
   } else {
     const days = { '7d': 7, '14d': 14, '30d': 30, '90d': 90 }[dashboard.default_range] || 30;
-    end = fmt(today);
-    start = fmt(new Date(today.getTime() - (days - 1) * 86400000));
+    endDay = fmtDate(today);
+    startDay = fmtDate(new Date(today.getTime() - (days - 1) * 86400000));
   }
   // Same-length prior window immediately before [start, end].
-  const sDate = new Date(start);
-  const eDate = new Date(end);
+  const sDate = new Date(startDay);
+  const eDate = new Date(endDay);
   const span = Math.round((eDate - sDate) / 86400000) + 1;
-  const priorEnd = fmt(new Date(sDate.getTime() - 86400000));
-  const priorStart = fmt(new Date(sDate.getTime() - span * 86400000));
-  return { start, end, priorStart, priorEnd };
+  const priorEndDay = fmtDate(new Date(sDate.getTime() - 86400000));
+  const priorStartDay = fmtDate(new Date(sDate.getTime() - span * 86400000));
+
+  // Expand to full-day datetimes so BETWEEN matches DATETIME columns correctly.
+  return {
+    start:      `${startDay} 00:00:00`,
+    end:        `${endDay} 23:59:59`,
+    priorStart: `${priorStartDay} 00:00:00`,
+    priorEnd:   `${priorEndDay} 23:59:59`,
+    // Keep date-only versions for UIs that want them.
+    startDay, endDay, priorStartDay, priorEndDay,
+  };
 }
 
 // Pull totals for a metric across the supplied channel ids (or all of the
