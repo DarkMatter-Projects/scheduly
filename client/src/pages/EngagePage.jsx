@@ -36,6 +36,9 @@ export default function EngagePage() {
   const [feed, setFeed] = useState('all');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
+  const [platformFilter, setPlatformFilter] = useState(null);   // null = all
+  const [sourceTypeFilter, setSourceTypeFilter] = useState(null);
+  const [sentimentFilter, setSentimentFilter] = useState(null);
 
   const { data: counts } = useQuery({
     queryKey: ['engage-counts', activeClientId],
@@ -44,11 +47,14 @@ export default function EngagePage() {
   });
 
   const { data: threads = [], isLoading: threadsLoading, refetch: refetchThreads } = useQuery({
-    queryKey: ['engage-threads', feed, activeClientId, search],
+    queryKey: ['engage-threads', feed, activeClientId, search, platformFilter, sourceTypeFilter, sentimentFilter],
     queryFn: () => listThreads({
       feed,
       clientId: activeClientId || undefined,
       search: search || undefined,
+      platform: platformFilter || undefined,
+      sourceType: sourceTypeFilter || undefined,
+      sentiment: sentimentFilter || undefined,
     }),
     refetchInterval: 30000,
   });
@@ -108,6 +114,12 @@ export default function EngagePage() {
         feed={feed}
         search={search}
         setSearch={setSearch}
+        platformFilter={platformFilter}
+        setPlatformFilter={setPlatformFilter}
+        sourceTypeFilter={sourceTypeFilter}
+        setSourceTypeFilter={setSourceTypeFilter}
+        sentimentFilter={sentimentFilter}
+        setSentimentFilter={setSentimentFilter}
       />
 
       <ConversationPane
@@ -211,7 +223,11 @@ function SidebarFeeds({ feed, setFeed, counts }) {
 
 // ── Middle: Thread list ──────────────────────────────────────────────────────
 
-function ThreadList({ threads, loading, selectedId, onSelect, onRefresh, refreshing, feed, search, setSearch }) {
+function ThreadList({
+  threads, loading, selectedId, onSelect, onRefresh, refreshing, feed, search, setSearch,
+  platformFilter, setPlatformFilter, sourceTypeFilter, setSourceTypeFilter,
+  sentimentFilter, setSentimentFilter,
+}) {
   return (
     <div className="w-[360px] border-r border-slate-200 flex flex-col flex-shrink-0">
       <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between">
@@ -228,6 +244,14 @@ function ThreadList({ threads, loading, selectedId, onSelect, onRefresh, refresh
           <RefreshCw className={clsx('w-3.5 h-3.5', refreshing && 'animate-spin')} />
         </button>
       </div>
+      <FilterChipRows
+        platformFilter={platformFilter}
+        setPlatformFilter={setPlatformFilter}
+        sourceTypeFilter={sourceTypeFilter}
+        setSourceTypeFilter={setSourceTypeFilter}
+        sentimentFilter={sentimentFilter}
+        setSentimentFilter={setSentimentFilter}
+      />
       <div className="px-3 py-2 border-b border-slate-100 bg-white">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -256,6 +280,65 @@ function ThreadList({ threads, loading, selectedId, onSelect, onRefresh, refresh
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+function FilterChipRows({
+  platformFilter, setPlatformFilter,
+  sourceTypeFilter, setSourceTypeFilter,
+  sentimentFilter, setSentimentFilter,
+}) {
+  const platformChips = [
+    { key: null, label: 'All' },
+    { key: 'facebook_page', label: 'Facebook' },
+    { key: 'instagram_business', label: 'Instagram' },
+    { key: 'tiktok', label: 'TikTok' },
+  ];
+  const typeChips = [
+    { key: null, label: 'All types' },
+    { key: 'comment', label: 'Comments' },
+    { key: 'dm', label: 'DMs' },
+  ];
+  const sentimentChips = [
+    { key: null, label: 'Any sentiment' },
+    { key: 'positive', label: 'Positive', tone: 'emerald' },
+    { key: 'neutral',  label: 'Neutral',  tone: 'slate' },
+    { key: 'negative', label: 'Negative', tone: 'rose' },
+  ];
+
+  return (
+    <div className="px-3 py-2 border-b border-slate-100 bg-white space-y-1.5">
+      <ChipRow chips={platformChips} value={platformFilter} onChange={setPlatformFilter} />
+      <ChipRow chips={typeChips} value={sourceTypeFilter} onChange={setSourceTypeFilter} />
+      <ChipRow chips={sentimentChips} value={sentimentFilter} onChange={setSentimentFilter} />
+    </div>
+  );
+}
+
+function ChipRow({ chips, value, onChange }) {
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+      {chips.map(c => {
+        const active = value === c.key;
+        const toneClass = !active && c.tone
+          ? c.tone === 'emerald' ? 'text-emerald-700' : c.tone === 'rose' ? 'text-rose-700' : 'text-slate-700'
+          : '';
+        return (
+          <button
+            key={String(c.key)}
+            onClick={() => onChange(c.key)}
+            className={clsx(
+              'flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition',
+              active
+                ? 'bg-blue-600 text-white border-blue-600'
+                : `bg-white border-slate-200 ${toneClass || 'text-slate-600'} hover:border-slate-300`
+            )}
+          >
+            {c.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -8,12 +8,13 @@ const sentiment = require('./sentiment.service');
 //   platform:    one of facebook_page | instagram_business | tiktok
 //   sourceType:  comment | dm | mention
 //   clientId:    scope to a single client (via social_accounts.client_id)
-async function listThreads({ userId, feed = 'all', platform, sourceType, clientId, search, limit = 100 }) {
+async function listThreads({ userId, feed = 'all', platform, sourceType, sentiment, clientId, search, limit = 100 }) {
   let where = '1=1';
   const params = [];
 
   if (platform)   { where += ' AND t.platform = ?';      params.push(platform); }
   if (sourceType) { where += ' AND t.source_type = ?';   params.push(sourceType); }
+  if (sentiment)  { where += ' AND t.sentiment = ?';     params.push(sentiment); }
 
   if (feed === 'unread')          { where += ' AND t.unread_count > 0'; }
   else if (feed === 'open')       { where += " AND t.status = 'open'"; }
