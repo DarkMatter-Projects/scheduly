@@ -47,7 +47,8 @@ async function listThreads({ userId, feed = 'all', platform, sourceType, sentime
   const [rows] = await pool.execute(
     `SELECT t.*, sa.account_name AS account_account_name, sa.platform AS account_platform,
             c.id AS client_id_resolved, c.name AS client_name, c.color AS client_color,
-            u.first_name, u.last_name
+            u.first_name, u.last_name,
+            (SELECT COUNT(*) FROM engage_notes n WHERE n.thread_id = t.id) AS notes_count
      FROM engage_threads t
      JOIN social_accounts sa ON t.social_account_id = sa.id
      LEFT JOIN clients c ON sa.client_id = c.id
@@ -344,6 +345,7 @@ function formatThread(r) {
     clientId: r.client_id,
     clientName: r.client_name,
     clientColor: r.client_color,
+    notesCount: Number(r.notes_count) || 0,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

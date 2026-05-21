@@ -590,6 +590,17 @@ function ThreadRow({ thread, selected, checked, onClick, onToggleCheck }) {
               @{thread.assigneeName.split(' ')[0]}
             </span>
           )}
+          {thread.notesCount > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700"
+              title={`${thread.notesCount} internal note${thread.notesCount === 1 ? '' : 's'}`}
+            >
+              <svg className="w-2.5 h-2.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M3 2.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-11zM5 5h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/>
+              </svg>
+              {thread.notesCount}
+            </span>
+          )}
         </div>
       )}
     </div>
