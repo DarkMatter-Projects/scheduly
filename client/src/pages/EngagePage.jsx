@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -35,13 +36,27 @@ export default function EngagePage() {
   const canReply  = hasRole('admin', 'manager', 'editor');
   const canAssign = hasRole('admin', 'manager');
 
-  const [feed, setFeed] = useState('all');
-  const [search, setSearch] = useState('');
+  // Filters live in the URL so they survive reload + are shareable. We read
+  // the initial values from search params; subsequent updates write back.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [feed, setFeed] = useState(() => searchParams.get('feed') || 'all');
+  const [search, setSearch] = useState(() => searchParams.get('q') || '');
   const [selectedId, setSelectedId] = useState(null);
-  const [platformFilter, setPlatformFilter] = useState(null);   // null = all
-  const [sourceTypeFilter, setSourceTypeFilter] = useState(null);
-  const [sentimentFilter, setSentimentFilter] = useState(null);
+  const [platformFilter, setPlatformFilter] = useState(() => searchParams.get('platform'));
+  const [sourceTypeFilter, setSourceTypeFilter] = useState(() => searchParams.get('type'));
+  const [sentimentFilter, setSentimentFilter] = useState(() => searchParams.get('sentiment'));
   const [checkedIds, setCheckedIds] = useState(() => new Set());
+
+  // Write filter state back to the URL when it changes.
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (feed && feed !== 'all') next.set('feed', feed);
+    if (search) next.set('q', search);
+    if (platformFilter) next.set('platform', platformFilter);
+    if (sourceTypeFilter) next.set('type', sourceTypeFilter);
+    if (sentimentFilter) next.set('sentiment', sentimentFilter);
+    setSearchParams(next, { replace: true });
+  }, [feed, search, platformFilter, sourceTypeFilter, sentimentFilter, setSearchParams]);
 
   const { data: counts } = useQuery({
     queryKey: ['engage-counts', activeClientId],
