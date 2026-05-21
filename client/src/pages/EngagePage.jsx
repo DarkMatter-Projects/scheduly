@@ -3,13 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
   Search, Inbox, MessageSquare, AtSign, Hash, Send, RefreshCw, Clock,
-  CheckCircle, ChevronDown, MoreHorizontal, X,
+  CheckCircle, ChevronDown, MoreHorizontal, X, UserPlus, EyeOff,
 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import {
   listThreads, getThreadCounts, getThread, markThreadRead, setThreadStatus,
   assignThread, replyToThread, addThreadNote, deleteThreadNote, refreshEngageInbox,
+  bulkUpdateThreads,
 } from '../api/engageApi';
 import { listUsers } from '../api/usersApi';
 import { useAuth } from '../context/AuthContext';
@@ -40,6 +41,7 @@ export default function EngagePage() {
   const [platformFilter, setPlatformFilter] = useState(null);   // null = all
   const [sourceTypeFilter, setSourceTypeFilter] = useState(null);
   const [sentimentFilter, setSentimentFilter] = useState(null);
+  const [checkedIds, setCheckedIds] = useState(() => new Set());
 
   const { data: counts } = useQuery({
     queryKey: ['engage-counts', activeClientId],
@@ -95,6 +97,25 @@ export default function EngagePage() {
     },
   });
 
+  const bulkMut = useMutation({
+    mutationFn: ({ ids, action }) => bulkUpdateThreads({ threadIds: ids, action }),
+    onSuccess: (data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
+      queryClient.invalidateQueries({ queryKey: ['engage-counts'] });
+      setCheckedIds(new Set());
+      toast.success(`${data.affected} thread${data.affected === 1 ? '' : 's'} updated`);
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Bulk update failed'),
+  });
+
+  const toggleChecked = (id) => {
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   // Marking-read fires automatically when a thread is selected and it has unread items.
   const selectThread = (t) => {
     setSelectedId(t.id);
@@ -121,6 +142,12 @@ export default function EngagePage() {
         setSourceTypeFilter={setSourceTypeFilter}
         sentimentFilter={sentimentFilter}
         setSentimentFilter={setSentimentFilter}
+        checkedIds={checkedIds}
+        toggleChecked={toggleChecked}
+        clearChecked={() => setCheckedIds(new Set())}
+        selectAllVisible={() => setCheckedIds(new Set(threads.map(t => t.id)))}
+        onBulk={(action) => bulkMut.mutate({ ids: [...checkedIds], action })}
+        bulkPending={bulkMut.isPending}
       />
 
       <ConversationPane
@@ -228,7 +255,9 @@ function ThreadList({
   threads, loading, selectedId, onSelect, onRefresh, refreshing, feed, search, setSearch,
   platformFilter, setPlatformFilter, sourceTypeFilter, setSourceTypeFilter,
   sentimentFilter, setSentimentFilter,
+  checkedIds, toggleChecked, clearChecked, selectAllVisible, onBulk, bulkPending,
 }) {
+  const hasSelection = checkedIds && checkedIds.size > 0;
   return (
     <div className="w-[360px] border-r border-slate-200 flex flex-col flex-shrink-0">
       <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between">
@@ -264,6 +293,23 @@ function ThreadList({
           />
         </div>
       </div>
+      {hasSelection && (
+        <div className="px-3 py-2 border-b border-slate-100 bg-blue-50/70 flex items-center gap-1 flex-wrap">
+          <span className="text-[11px] font-semibold text-blue-900 mr-1">
+            {checkedIds.size} selected
+          </span>
+          <BulkButton onClick={() => onBulk('mark_read')}     disabled={bulkPending} icon={EyeOff}      label="Mark read" />
+          <BulkButton onClick={() => onBulk('close')}         disabled={bulkPending} icon={CheckCircle} label="Close" />
+          <BulkButton onClick={() => onBulk('snooze')}        disabled={bulkPending} icon={Clock}       label="Snooze" />
+          <BulkButton onClick={() => onBulk('assign_self')}   disabled={bulkPending} icon={UserPlus}    label="Assign me" />
+          <button
+            onClick={clearChecked}
+            className="ml-auto text-[11px] font-medium text-slate-600 hover:text-slate-800 underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-8 text-center text-xs text-slate-400">Loading…</div>
@@ -276,12 +322,45 @@ function ThreadList({
             </p>
           </div>
         ) : (
-          threads.map(t => (
-            <ThreadRow key={t.id} thread={t} selected={t.id === selectedId} onClick={() => onSelect(t)} />
-          ))
+          <>
+            <div className="px-4 py-1.5 border-b border-slate-100 bg-white">
+              <button
+                onClick={() => {
+                  if (checkedIds.size === threads.length) clearChecked();
+                  else selectAllVisible();
+                }}
+                className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-800"
+              >
+                {checkedIds.size === threads.length && threads.length > 0 ? 'Clear selection' : 'Select all visible'}
+              </button>
+            </div>
+            {threads.map(t => (
+              <ThreadRow
+                key={t.id}
+                thread={t}
+                selected={t.id === selectedId}
+                checked={checkedIds.has(t.id)}
+                onClick={() => onSelect(t)}
+                onToggleCheck={() => toggleChecked(t.id)}
+              />
+            ))}
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+function BulkButton({ onClick, disabled, icon: Icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-blue-900 bg-white border border-blue-200 rounded hover:bg-blue-100 disabled:opacity-50"
+    >
+      <Icon className="w-3 h-3" />
+      {label}
+    </button>
   );
 }
 
@@ -344,20 +423,34 @@ function ChipRow({ chips, value, onChange }) {
   );
 }
 
-function ThreadRow({ thread, selected, onClick }) {
+function ThreadRow({ thread, selected, checked, onClick, onToggleCheck }) {
   const p = getPlatform(thread.platform);
   const Icon = p?.icon;
   const sentimentStyle = thread.sentiment ? SENTIMENT_STYLES[thread.sentiment] : null;
   return (
-    <button
+    <div
+      role="button"
       onClick={onClick}
       className={clsx(
-        'w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition',
-        selected && 'bg-blue-50/40'
+        'group relative w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition cursor-pointer',
+        selected && 'bg-blue-50/40',
+        checked && 'bg-blue-50/30'
       )}
     >
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2 min-w-0">
+          <span
+            onClick={(e) => { e.stopPropagation(); onToggleCheck && onToggleCheck(); }}
+            className={clsx(
+              'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition',
+              checked
+                ? 'bg-blue-600 border-blue-600'
+                : 'border-slate-300 bg-white opacity-0 group-hover:opacity-100'
+            )}
+            title={checked ? 'Unselect' : 'Select'}
+          >
+            {checked && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 10" fill="none"><path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </span>
           <div className="relative flex-shrink-0">
             <div className="w-8 h-8 rounded-full bg-slate-200" />
             {Icon && (
@@ -390,7 +483,7 @@ function ThreadRow({ thread, selected, onClick }) {
           </span>
         </div>
       )}
-    </button>
+    </div>
   );
 }
 

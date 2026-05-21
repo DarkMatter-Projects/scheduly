@@ -148,6 +148,52 @@ async function assignThread(threadId, assigneeUserId) {
   );
 }
 
+// Apply one action across a list of threads in a single SQL pass per action.
+// Returns the number of rows affected.
+async function bulkUpdate({ threadIds, action, userId }) {
+  if (!Array.isArray(threadIds) || threadIds.length === 0) return 0;
+  const ids = threadIds.map(Number).filter(n => Number.isFinite(n));
+  if (ids.length === 0) return 0;
+  const placeholders = ids.map(() => '?').join(',');
+
+  switch (action) {
+    case 'close': {
+      const [r] = await pool.execute(
+        `UPDATE engage_threads SET status = 'closed' WHERE id IN (${placeholders})`, ids);
+      return r.affectedRows;
+    }
+    case 'open': {
+      const [r] = await pool.execute(
+        `UPDATE engage_threads SET status = 'open' WHERE id IN (${placeholders})`, ids);
+      return r.affectedRows;
+    }
+    case 'snooze': {
+      const [r] = await pool.execute(
+        `UPDATE engage_threads SET status = 'snoozed' WHERE id IN (${placeholders})`, ids);
+      return r.affectedRows;
+    }
+    case 'mark_read': {
+      await pool.execute(
+        `UPDATE engage_messages SET is_read = 1 WHERE thread_id IN (${placeholders}) AND is_read = 0`, ids);
+      const [r] = await pool.execute(
+        `UPDATE engage_threads SET unread_count = 0 WHERE id IN (${placeholders})`, ids);
+      return r.affectedRows;
+    }
+    case 'assign_self': {
+      const [r] = await pool.execute(
+        `UPDATE engage_threads SET assigned_to = ? WHERE id IN (${placeholders})`, [userId, ...ids]);
+      return r.affectedRows;
+    }
+    case 'unassign': {
+      const [r] = await pool.execute(
+        `UPDATE engage_threads SET assigned_to = NULL WHERE id IN (${placeholders})`, ids);
+      return r.affectedRows;
+    }
+    default:
+      throw Object.assign(new Error(`Unknown bulk action: ${action}`), { status: 400 });
+  }
+}
+
 // ── Messages: incoming (used by ingestion) + outgoing (replies) ──────────────
 
 // Upsert an incoming item. Used by the platform-specific ingestion services.
@@ -335,6 +381,7 @@ module.exports = {
   markRead,
   setStatus,
   assignThread,
+  bulkUpdate,
   upsertIncomingMessage,
   recordOutgoingMessage,
   upsertThread,

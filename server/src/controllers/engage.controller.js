@@ -132,6 +132,20 @@ async function reply(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function bulk(req, res, next) {
+  try {
+    const { threadIds, action } = req.body || {};
+    if (!Array.isArray(threadIds) || threadIds.length === 0) {
+      return res.status(400).json({ error: 'threadIds required' });
+    }
+    if (!action) return res.status(400).json({ error: 'action required' });
+    const affected = await engage.bulkUpdate({
+      threadIds, action, userId: req.user.userId,
+    });
+    res.json({ affected });
+  } catch (err) { next(err); }
+}
+
 async function refresh(req, res, next) {
   try {
     const COOLDOWN_MS = 30 * 1000;
@@ -189,7 +203,7 @@ async function deleteTemplate(req, res, next) {
 }
 
 module.exports = {
-  listThreads, counts, getThread, markRead, setStatus, assign,
+  listThreads, counts, getThread, markRead, setStatus, assign, bulk,
   addNote, deleteNote, reply, refresh,
   listTemplates, createTemplate, updateTemplate, deleteTemplate,
 };

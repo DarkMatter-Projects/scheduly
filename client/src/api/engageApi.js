@@ -30,6 +30,9 @@ export const deleteThreadNote = (noteId) =>
 export const refreshEngageInbox = () =>
   api.post('/engage/refresh').then(r => r.data);
 
+export const bulkUpdateThreads = ({ threadIds, action }) =>
+  api.post('/engage/threads/bulk', { threadIds, action }).then(r => r.data);
+
 export const listReplyTemplates = () =>
   api.get('/engage/templates').then(r => r.data);
 
