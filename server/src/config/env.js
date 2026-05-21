@@ -46,6 +46,9 @@ const env = {
     appId: process.env.FB_APP_ID,
     appSecret: process.env.FB_APP_SECRET,
     redirectUri: process.env.FB_REDIRECT_URI,
+    // The token we hand to Meta when subscribing our webhook. Meta echoes it
+    // back on the verification GET so we can prove the endpoint is ours.
+    webhookVerifyToken: process.env.FB_WEBHOOK_VERIFY_TOKEN,
   },
   instagram: {
     appId: process.env.IG_APP_ID || process.env.FB_APP_ID,

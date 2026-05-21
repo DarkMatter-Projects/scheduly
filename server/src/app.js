@@ -22,6 +22,7 @@ const adsRoutes = require('./routes/ads.routes');
 const dashboardsRoutes = require('./routes/dashboards.routes');
 const engageRoutes = require('./routes/engage.routes');
 const diagnoseRoutes = require('./routes/diagnose.routes');
+const webhooksRoutes = require('./routes/webhooks.routes');
 
 const app = express();
 
@@ -50,6 +51,10 @@ app.use(cors({
   },
   credentials: true,
 }));
+
+// Webhooks must be mounted BEFORE express.json() so we get the raw body for
+// Meta's HMAC signature check. The route uses express.raw() internally.
+app.use('/api/webhooks', webhooksRoutes);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

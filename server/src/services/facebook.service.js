@@ -4,6 +4,7 @@ const fb = require('../config/facebook');
 const env = require('../config/env');
 const { encrypt, decrypt } = require('./token.service');
 const storage = require('./storage.service');
+const webhooks = require('./meta_webhook.service');
 const logger = require('../utils/logger');
 
 // Build a public URL Meta can fetch. With R2 configured storage.publicUrlFor()
@@ -86,6 +87,10 @@ async function fetchPagesAndInstagram(userAccessToken, userId, teamId) {
     );
 
     accounts.push({ platform: 'facebook_page', id: page.id, name: page.name });
+
+    // Subscribe this page to feed + messages webhooks so the Engage inbox gets
+    // real-time events. Best-effort — failure here doesn't block connect.
+    await webhooks.subscribePageToWebhooks(page.id, page.access_token);
 
     // Check for linked Instagram Business account
     try {
