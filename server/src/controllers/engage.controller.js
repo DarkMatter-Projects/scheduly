@@ -3,6 +3,7 @@ const engage = require('../services/engage.service');
 const metaEngage = require('../services/meta_engage.service');
 const tiktokEngage = require('../services/tiktok_engage.service');
 const templates = require('../services/engage_templates.service');
+const activity = require('../services/activity.service');
 const { runEngageIngestJob } = require('../jobs/engageIngestJob');
 const logger = require('../utils/logger');
 
@@ -55,18 +56,23 @@ async function markRead(req, res, next) {
 
 async function setStatus(req, res, next) {
   try {
-    await engage.setStatus(parseInt(req.params.id, 10), req.body?.status);
+    const threadId = parseInt(req.params.id, 10);
+    const status = req.body?.status;
+    await engage.setStatus(threadId, status);
+    activity.log(req.user.userId, 'engage.thread_status_changed', 'engage_thread', threadId, { status })
+      .catch(() => {});
     res.json({ message: 'Status updated' });
   } catch (err) { next(err); }
 }
 
 async function assign(req, res, next) {
   try {
+    const threadId = parseInt(req.params.id, 10);
     const { userId } = req.body;
-    await engage.assignThread(
-      parseInt(req.params.id, 10),
-      userId ? parseInt(userId, 10) : null
-    );
+    const assigneeId = userId ? parseInt(userId, 10) : null;
+    await engage.assignThread(threadId, assigneeId);
+    activity.log(req.user.userId, 'engage.thread_assigned', 'engage_thread', threadId, { assigneeId })
+      .catch(() => {});
     res.json({ message: 'Assigned' });
   } catch (err) { next(err); }
 }
@@ -128,6 +134,9 @@ async function reply(req, res, next) {
     });
 
     if (errorMessage) return res.status(502).json({ error: errorMessage });
+
+    activity.log(req.user.userId, 'engage.reply_sent', 'engage_thread', threadId, { platform: thread.platform })
+      .catch(() => {});
     res.status(201).json({ message: 'Reply sent', platformMessageId });
   } catch (err) { next(err); }
 }

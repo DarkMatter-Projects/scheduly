@@ -85,6 +85,9 @@ export default function DashboardPage() {
     'post.published': 'published a post',
     'post.publish_failed': 'failed to publish',
     'comment.added': 'commented',
+    'engage.reply_sent': 'replied to a conversation',
+    'engage.thread_status_changed': 'changed thread status',
+    'engage.thread_assigned': 'assigned a conversation',
   };
 
   const hour = new Date().getHours();
