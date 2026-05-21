@@ -59,8 +59,9 @@ async function setStatus(req, res, next) {
   try {
     const threadId = parseInt(req.params.id, 10);
     const status = req.body?.status;
-    await engage.setStatus(threadId, status);
-    activity.log(req.user.userId, 'engage.thread_status_changed', 'engage_thread', threadId, { status })
+    const snoozeUntil = req.body?.snoozeUntil || null;
+    await engage.setStatus(threadId, status, snoozeUntil);
+    activity.log(req.user.userId, 'engage.thread_status_changed', 'engage_thread', threadId, { status, snoozeUntil })
       .catch(() => {});
     res.json({ message: 'Status updated' });
   } catch (err) { next(err); }

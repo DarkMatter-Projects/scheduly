@@ -12,8 +12,8 @@ export const getThread = (id) =>
 export const markThreadRead = (id) =>
   api.post(`/engage/threads/${id}/read`).then(r => r.data);
 
-export const setThreadStatus = (id, status) =>
-  api.post(`/engage/threads/${id}/status`, { status }).then(r => r.data);
+export const setThreadStatus = (id, status, opts = {}) =>
+  api.post(`/engage/threads/${id}/status`, { status, snoozeUntil: opts.snoozeUntil || null }).then(r => r.data);
 
 export const assignThread = (id, userId) =>
   api.post(`/engage/threads/${id}/assign`, { userId }).then(r => r.data);

@@ -250,9 +250,9 @@ export default function EngagePage() {
             toast.success(uid ? 'Assigned' : 'Unassigned');
           });
         }}
-        onStatus={(status) => {
+        onStatus={(status, snoozeUntil) => {
           if (!selectedId) return;
-          return setThreadStatus(selectedId, status).then(() => {
+          return setThreadStatus(selectedId, status, { snoozeUntil }).then(() => {
             queryClient.invalidateQueries({ queryKey: ['engage-thread', selectedId] });
             queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
             queryClient.invalidateQueries({ queryKey: ['engage-counts'] });
@@ -810,13 +810,48 @@ function DetailsPanel({ thread, currentUserId, canAssign, onAssign, onStatus, on
         <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Status</p>
         <select
           value={thread.status}
-          onChange={(e) => onStatus(e.target.value)}
+          onChange={(e) => {
+            const status = e.target.value;
+            // Snoozing without a duration is allowed (manual reopen), but
+            // default to 24h so the thread doesn't get stuck.
+            const snoozeUntil = status === 'snoozed'
+              ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+              : null;
+            onStatus(status, snoozeUntil);
+          }}
           className="w-full text-xs px-2 py-1.5 rounded border border-slate-200 bg-white"
         >
           <option value="open">Open</option>
           <option value="closed">Closed</option>
           <option value="snoozed">Snoozed</option>
         </select>
+        {thread.status === 'snoozed' && (
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1">Reopen in</p>
+            <div className="flex flex-wrap gap-1">
+              {[
+                { label: '1h',  ms: 1 * 60 * 60 * 1000 },
+                { label: '3h',  ms: 3 * 60 * 60 * 1000 },
+                { label: '1d',  ms: 24 * 60 * 60 * 1000 },
+                { label: '3d',  ms: 3 * 24 * 60 * 60 * 1000 },
+                { label: '1w',  ms: 7 * 24 * 60 * 60 * 1000 },
+              ].map(({ label, ms }) => (
+                <button
+                  key={label}
+                  onClick={() => onStatus('snoozed', new Date(Date.now() + ms).toISOString())}
+                  className="px-2 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {thread.snoozeUntil && (
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                Reopens {new Date(thread.snoozeUntil).toLocaleString()}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {canAssign && (

@@ -140,11 +140,29 @@ async function markRead(threadId) {
   );
 }
 
-async function setStatus(threadId, status) {
+async function setStatus(threadId, status, snoozeUntil = null) {
   if (!['open', 'closed', 'snoozed'].includes(status)) {
     throw Object.assign(new Error('Invalid status'), { status: 400 });
   }
-  await pool.execute('UPDATE engage_threads SET status = ? WHERE id = ?', [status, threadId]);
+  // snooze_until only meaningful when status === 'snoozed'; clear it otherwise
+  // so a thread doesn't accidentally auto-reopen after being closed.
+  const snooze = status === 'snoozed' && snoozeUntil ? new Date(snoozeUntil) : null;
+  await pool.execute(
+    'UPDATE engage_threads SET status = ?, snooze_until = ? WHERE id = ?',
+    [status, snooze, threadId]
+  );
+}
+
+// Promote any snoozed threads whose window has passed back to 'open'. Run
+// from the engage ingest cron so snoozes auto-expire without per-thread
+// scheduling.
+async function wakeExpiredSnoozes() {
+  const [result] = await pool.execute(
+    `UPDATE engage_threads
+       SET status = 'open', snooze_until = NULL
+     WHERE status = 'snoozed' AND snooze_until IS NOT NULL AND snooze_until <= NOW()`
+  );
+  return result.affectedRows || 0;
 }
 
 async function assignThread(threadId, assigneeUserId) {
@@ -345,6 +363,7 @@ function formatThread(r) {
     clientId: r.client_id,
     clientName: r.client_name,
     clientColor: r.client_color,
+    snoozeUntil: r.snooze_until,
     notesCount: Number(r.notes_count) || 0,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -397,4 +416,5 @@ module.exports = {
   upsertThread,
   addNote,
   deleteNote,
+  wakeExpiredSnoozes,
 };

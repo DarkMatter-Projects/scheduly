@@ -1,10 +1,15 @@
 const pool = require('../config/db');
 const meta = require('../services/meta_engage.service');
 const tiktok = require('../services/tiktok_engage.service');
+const engage = require('../services/engage.service');
 const logger = require('../utils/logger');
 
 async function runEngageIngestJob() {
   try {
+    // Wake snoozed threads whose snooze window has passed.
+    const woken = await engage.wakeExpiredSnoozes();
+    if (woken > 0) logger.info(`Engage: woke ${woken} snoozed thread(s)`);
+
     const [accounts] = await pool.execute(
       `SELECT * FROM social_accounts
        WHERE is_active = 1
