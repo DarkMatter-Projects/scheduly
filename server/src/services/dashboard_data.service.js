@@ -469,6 +469,33 @@ async function buildContentPerformance(dashboard, widget) {
   };
 }
 
+// Pie/donut of positive/neutral/negative incoming-message counts in the range.
+async function buildSentimentBreakdown(dashboard) {
+  const { start, end } = resolveRange(dashboard);
+  const [rows] = await pool.execute(
+    `SELECT sentiment, COUNT(*) AS v
+     FROM engage_messages
+     WHERE direction = 'incoming' AND sent_at BETWEEN ? AND ?
+       AND sentiment IS NOT NULL
+     GROUP BY sentiment`,
+    [start, end]
+  );
+  const map = { positive: 0, neutral: 0, negative: 0 };
+  for (const r of rows) {
+    if (map[r.sentiment] !== undefined) map[r.sentiment] = Number(r.v) || 0;
+  }
+  const total = map.positive + map.neutral + map.negative;
+  return {
+    range: { start, end },
+    total,
+    rows: [
+      { sentiment: 'positive', value: map.positive, share: total > 0 ? (map.positive / total) * 100 : 0 },
+      { sentiment: 'neutral',  value: map.neutral,  share: total > 0 ? (map.neutral  / total) * 100 : 0 },
+      { sentiment: 'negative', value: map.negative, share: total > 0 ? (map.negative / total) * 100 : 0 },
+    ],
+  };
+}
+
 async function buildWidgetData(dashboard, widget) {
   switch (widget.widget_type || widget.widgetType) {
     case 'key_metrics':           return buildKeyMetrics(dashboard, widget);
@@ -477,6 +504,7 @@ async function buildWidgetData(dashboard, widget) {
     case 'network_comparison':    return buildNetworkComparison(dashboard, widget);
     case 'breakdown':             return buildBreakdown(dashboard, widget);
     case 'content_performance':   return buildContentPerformance(dashboard, widget);
+    case 'sentiment_breakdown':   return buildSentimentBreakdown(dashboard);
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

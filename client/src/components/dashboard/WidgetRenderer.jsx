@@ -70,6 +70,7 @@ function WidgetBody({ widget }) {
     case 'network_comparison':    return <NetworkComparisonBody data={data} />;
     case 'breakdown':             return <BreakdownBody data={data} />;
     case 'content_performance':   return <ContentPerformanceBody data={data} />;
+    case 'sentiment_breakdown':   return <SentimentBreakdownBody data={data} />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -272,6 +273,70 @@ function BreakdownBody({ data }) {
   );
 }
 
+// ── Sentiment breakdown (donut + counts) ──
+
+const SENTIMENT_COLORS = {
+  positive: '#10b981',
+  neutral:  '#94a3b8',
+  negative: '#ef4444',
+};
+const SENTIMENT_LABEL = {
+  positive: 'Positive',
+  neutral:  'Neutral',
+  negative: 'Negative',
+};
+
+function SentimentBreakdownBody({ data }) {
+  const rows = data?.rows || [];
+  const total = Number(data?.total) || 0;
+  if (total === 0) {
+    return <ChartEmptyState height={200} title="No messages yet" hint="Once incoming comments and DMs are ingested, the sentiment split appears here." />;
+  }
+  const display = rows.map(r => ({
+    name: SENTIMENT_LABEL[r.sentiment] || r.sentiment,
+    sentiment: r.sentiment,
+    value: Number(r.value) || 0,
+    share: Number(r.share) || 0,
+  }));
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 h-full">
+      <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+        <PieChart>
+          <Pie
+            data={display}
+            dataKey="value"
+            nameKey="name"
+            innerRadius="55%"
+            outerRadius="85%"
+            paddingAngle={1}
+            isAnimationActive={false}
+          >
+            {display.map(r => (
+              <Cell key={r.sentiment} fill={SENTIMENT_COLORS[r.sentiment]} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v, _n, e) => [`${v} (${(e.payload.share || 0).toFixed(1)}%)`, e.payload.name]} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex flex-col justify-center space-y-2 px-2">
+        {display.map(r => (
+          <div key={r.sentiment} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: SENTIMENT_COLORS[r.sentiment] }} />
+            <span className="text-xs text-slate-600 flex-1">{r.name}</span>
+            <span className="text-xs font-semibold text-slate-900 tabular-nums">{r.value}</span>
+            <span className="text-[10px] text-slate-400 tabular-nums w-12 text-right">{r.share.toFixed(1)}%</span>
+          </div>
+        ))}
+        <div className="border-t border-slate-100 pt-2 mt-1 flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Total messages</span>
+          <span className="text-xs font-bold text-slate-900">{total}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Content performance (top-N posts table) ──
 
 const PLATFORM_ICON = {
@@ -353,6 +418,7 @@ function titleFor(widget) {
     network_comparison: 'Network comparison',
     breakdown: 'Breakdown',
     content_performance: 'Top content',
+    sentiment_breakdown: 'Sentiment breakdown',
   };
   return map[widget.widgetType] || (widget.widgetType || '').replace(/_/g, ' ');
 }

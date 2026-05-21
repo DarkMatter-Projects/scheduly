@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, ArrowLeft, Check, Lock, BarChart3, Activity, Smile, LineChart as LineIcon, GridIcon, Layers } from 'lucide-react';
+import { X, ArrowLeft, Check, Lock, BarChart3, Activity, Smile, LineChart as LineIcon, GridIcon, Layers, PieChart as PieIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { listAvailableMetrics } from '../../api/dashboardsApi';
 
@@ -36,8 +36,13 @@ export default function AddWidgetModal({ onSave, onClose }) {
     setPicked(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   };
 
+  // Widget types whose data source is fixed — they don't need user-picked metrics.
+  const NO_METRIC_WIDGETS = new Set(['sentiment_breakdown']);
+  const requiresMetrics = !NO_METRIC_WIDGETS.has(widgetType);
+
   const handleSave = () => {
-    if (!widgetType || picked.length === 0) return;
+    if (!widgetType) return;
+    if (requiresMetrics && picked.length === 0) return;
     onSave({
       category,
       widgetType,
@@ -47,6 +52,15 @@ export default function AddWidgetModal({ onSave, onClose }) {
       width: widgetType === 'key_metrics' ? 12 : widgetType === 'time_series' ? 6 : 6,
       height: widgetType === 'key_metrics' ? 2 : 3,
     });
+  };
+
+  const onNext = () => {
+    // Skip the metric picker entirely for widgets that don't need metrics.
+    if (!requiresMetrics) {
+      handleSave();
+      return;
+    }
+    setStep('metrics');
   };
 
   return (
@@ -74,7 +88,7 @@ export default function AddWidgetModal({ onSave, onClose }) {
             setCategory={setCategory}
             widgetType={widgetType}
             setWidgetType={setWidgetType}
-            onNext={() => setStep('metrics')}
+            onNext={onNext}
           />
         ) : (
           <MetricStep
@@ -117,10 +131,11 @@ const WIDGETS_BY_CATEGORY = {
     { key: 'label_performance',   label: 'Label performance',   icon: BarChart3,  impl: false },
   ],
   engage: [
-    { key: 'key_metrics',        label: 'Key metrics',        icon: GridIcon,   impl: true },
-    { key: 'time_series',        label: 'Time series',        icon: LineIcon,   impl: true },
-    { key: 'channel_comparison', label: 'Channel comparison', icon: BarChart3,  impl: true },
-    { key: 'label_performance',  label: 'Label performance',  icon: BarChart3,  impl: false },
+    { key: 'key_metrics',          label: 'Key metrics',          icon: GridIcon,   impl: true },
+    { key: 'time_series',          label: 'Time series',          icon: LineIcon,   impl: true },
+    { key: 'channel_comparison',   label: 'Channel comparison',   icon: BarChart3,  impl: true },
+    { key: 'sentiment_breakdown',  label: 'Sentiment breakdown',  icon: PieIcon,    impl: true },
+    { key: 'label_performance',    label: 'Label performance',    icon: BarChart3,  impl: false },
   ],
 };
 
