@@ -544,11 +544,28 @@ function ThreadRow({ thread, selected, checked, onClick, onToggleCheck }) {
       {thread.lastMessagePreview && (
         <p className="text-xs text-slate-700 line-clamp-3 ml-10">{thread.lastMessagePreview}</p>
       )}
-      {sentimentStyle && (
-        <div className="ml-10 mt-1.5">
-          <span className={clsx('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide', sentimentStyle.bg, sentimentStyle.text)}>
-            {sentimentStyle.label}
-          </span>
+      {(sentimentStyle || thread.status !== 'open' || thread.assigneeName) && (
+        <div className="ml-10 mt-1.5 flex items-center gap-1.5 flex-wrap">
+          {sentimentStyle && (
+            <span className={clsx('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide', sentimentStyle.bg, sentimentStyle.text)}>
+              {sentimentStyle.label}
+            </span>
+          )}
+          {thread.status === 'closed' && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-slate-100 text-slate-600">
+              Closed
+            </span>
+          )}
+          {thread.status === 'snoozed' && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-50 text-amber-700">
+              Snoozed
+            </span>
+          )}
+          {thread.assigneeName && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700">
+              @{thread.assigneeName.split(' ')[0]}
+            </span>
+          )}
         </div>
       )}
     </div>
