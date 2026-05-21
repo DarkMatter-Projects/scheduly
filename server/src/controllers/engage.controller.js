@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const engage = require('../services/engage.service');
 const metaEngage = require('../services/meta_engage.service');
 const tiktokEngage = require('../services/tiktok_engage.service');
+const templates = require('../services/engage_templates.service');
 const { runEngageIngestJob } = require('../jobs/engageIngestJob');
 const logger = require('../utils/logger');
 
@@ -152,7 +153,43 @@ async function refresh(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ── Reply templates ──────────────────────────────────────────────────────────
+
+async function listTemplates(req, res, next) {
+  try {
+    const list = await templates.listTemplates({ teamId: req.user.teamId });
+    res.json(list);
+  } catch (err) { next(err); }
+}
+
+async function createTemplate(req, res, next) {
+  try {
+    const { name, body } = req.body;
+    const tpl = await templates.createTemplate({
+      teamId: req.user.teamId, userId: req.user.userId, name, body,
+    });
+    res.status(201).json(tpl);
+  } catch (err) { next(err); }
+}
+
+async function updateTemplate(req, res, next) {
+  try {
+    const tpl = await templates.updateTemplate(
+      parseInt(req.params.id, 10), req.user.userId, req.user.role, req.body
+    );
+    res.json(tpl);
+  } catch (err) { next(err); }
+}
+
+async function deleteTemplate(req, res, next) {
+  try {
+    await templates.deleteTemplate(parseInt(req.params.id, 10), req.user.userId, req.user.role);
+    res.json({ message: 'Template deleted' });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listThreads, counts, getThread, markRead, setStatus, assign,
   addNote, deleteNote, reply, refresh,
+  listTemplates, createTemplate, updateTemplate, deleteTemplate,
 };

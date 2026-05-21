@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import { getPlatform } from '../utils/platforms';
 import { SENTIMENT_STYLES } from '../utils/sentiment';
+import ReplyTemplatesMenu from '../components/engage/ReplyTemplates';
 
 const FEEDS = [
   { key: 'all',             label: 'All feeds',       icon: Inbox },
@@ -461,6 +462,11 @@ function ConversationPane({ thread, canReply, onReply }) {
               <Send className="w-3.5 h-3.5" />
               {sending ? 'Sending…' : 'Reply'}
             </button>
+          </div>
+          <div className="flex items-center justify-between mt-1.5">
+            <ReplyTemplatesMenu
+              onInsert={(body) => setDraft(d => d ? `${d}\n${body}` : body)}
+            />
           </div>
         </div>
       )}

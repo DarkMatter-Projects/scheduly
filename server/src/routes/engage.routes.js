@@ -17,4 +17,9 @@ router.post('/threads/:id/reply', authenticate, requireRole('admin', 'manager', 
 router.post('/threads/:id/notes', authenticate, ctrl.addNote);
 router.delete('/threads/notes/:noteId', authenticate, ctrl.deleteNote);
 
+router.get('/templates', authenticate, ctrl.listTemplates);
+router.post('/templates', authenticate, requireRole('admin', 'manager', 'editor'), ctrl.createTemplate);
+router.put('/templates/:id', authenticate, requireRole('admin', 'manager', 'editor'), ctrl.updateTemplate);
+router.delete('/templates/:id', authenticate, requireRole('admin', 'manager', 'editor'), ctrl.deleteTemplate);
+
 module.exports = router;

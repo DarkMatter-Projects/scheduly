@@ -29,3 +29,15 @@ export const deleteThreadNote = (noteId) =>
 
 export const refreshEngageInbox = () =>
   api.post('/engage/refresh').then(r => r.data);
+
+export const listReplyTemplates = () =>
+  api.get('/engage/templates').then(r => r.data);
+
+export const createReplyTemplate = ({ name, body }) =>
+  api.post('/engage/templates', { name, body }).then(r => r.data);
+
+export const updateReplyTemplate = (id, { name, body }) =>
+  api.put(`/engage/templates/${id}`, { name, body }).then(r => r.data);
+
+export const deleteReplyTemplate = (id) =>
+  api.delete(`/engage/templates/${id}`).then(r => r.data);
