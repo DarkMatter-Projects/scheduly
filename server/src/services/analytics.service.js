@@ -6,7 +6,8 @@ const logger = require('../utils/logger');
 
 async function fetchInsightsForTarget(postTargetId) {
   const [rows] = await pool.execute(
-    `SELECT pt.platform_post_id, sa.platform, sa.access_token, sa.platform_account_id
+    `SELECT pt.platform_post_id, sa.id AS social_account_id, sa.platform,
+            sa.access_token, sa.platform_account_id
      FROM post_targets pt
      JOIN social_accounts sa ON pt.social_account_id = sa.id
      WHERE pt.id = ? AND pt.status = 'published' AND pt.platform_post_id IS NOT NULL`,
@@ -18,13 +19,14 @@ async function fetchInsightsForTarget(postTargetId) {
   }
 
   const target = rows[0];
-  const token = decrypt(target.access_token);
   let metrics;
 
   if (target.platform === 'facebook_page') {
-    metrics = await fetchFacebookInsights(target.platform_post_id, token);
+    metrics = await fetchFacebookInsights(target.platform_post_id, decrypt(target.access_token));
   } else if (target.platform === 'instagram_business') {
-    metrics = await fetchInstagramInsights(target.platform_post_id, token);
+    metrics = await fetchInstagramInsights(target.platform_post_id, decrypt(target.access_token));
+  } else if (target.platform === 'tiktok') {
+    metrics = await fetchTiktokInsights(target.social_account_id, target.platform_post_id);
   } else {
     throw new Error(`Unsupported platform: ${target.platform}`);
   }
@@ -128,6 +130,45 @@ async function fetchInstagramInsights(mediaId, token) {
       mediaId,
     });
     throw Object.assign(new Error(`Instagram: ${msg}`), { code: apiError?.code });
+  }
+}
+
+// TikTok insights pulled via the Display API (/v2/video/query/). publishId is
+// the value we stored in post_targets.platform_post_id at init time; before
+// we can query insights we need to resolve it to a publicly_available_post_id
+// via /post/publish/status/fetch/. INBOX-mode posts never produce one (the
+// user finishes posting in the app and we never see the final video id) so
+// we just return empty metrics rather than treating that as an error.
+async function fetchTiktokInsights(socialAccountId, publishId) {
+  try {
+    const tiktokPosting = require('./tiktok_posting.service');
+    const accessToken = await tiktokPosting.ensureFreshAccessToken(socialAccountId);
+    const status = await tiktokPosting.getPublishStatus(accessToken, publishId);
+    const publicVideoId = status?.publicly_available_post_id;
+    if (!publicVideoId) return {};
+
+    const video = await tiktokPosting.fetchVideoInsights(socialAccountId, publicVideoId);
+    if (!video) return {};
+
+    const views = Number(video.view_count) || 0;
+    const likes = Number(video.like_count) || 0;
+    const comments = Number(video.comment_count) || 0;
+    const shares = Number(video.share_count) || 0;
+    return {
+      // TikTok's Display API doesn't expose reach separately for organic
+      // videos; views is the closest equivalent so we mirror it.
+      impressions: views,
+      reach: views,
+      likes,
+      comments,
+      shares,
+      engagementRate: views > 0
+        ? ((likes + comments + shares) / views * 100).toFixed(2)
+        : 0,
+    };
+  } catch (err) {
+    logger.error(`TikTok insights error: ${err.message}`);
+    throw Object.assign(new Error(`TikTok: ${err.message}`), {});
   }
 }
 

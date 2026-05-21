@@ -8,11 +8,15 @@ const TIKTOK_REVOKE_URL = 'https://open.tiktokapis.com/v2/oauth/revoke/';
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com/v2';
 
 // Login Kit scopes. video.upload = inbox mode, video.publish = direct post.
-// Both are requested so the user can pick mode per-post.
+// video.list = read insights (view/like/comment/share counts) for posts the
+// user owns; required for the daily analytics fetch to populate organic
+// TikTok stats. All three are requested at OAuth time so we never need to
+// re-consent for posting + reading insights separately.
 const TIKTOK_SCOPES = [
   'user.info.basic',
   'video.upload',
   'video.publish',
+  'video.list',
 ].join(',');
 
 module.exports = {

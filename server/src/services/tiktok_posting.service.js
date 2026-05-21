@@ -293,6 +293,29 @@ async function publishPhotos(accessToken, caption, mediaFiles, publicBaseUrl, op
   return publishId;
 }
 
+// Reads insights for a public TikTok video the user owns. Requires the
+// `video.list` scope on the OAuth grant; will 401 with scope_not_authorized
+// if the user connected before that scope was added (re-OAuth fixes it).
+async function fetchVideoInsights(socialAccountId, publicVideoId) {
+  const accessToken = await ensureFreshAccessToken(socialAccountId);
+  const fields = 'id,view_count,like_count,comment_count,share_count';
+  const { data } = await axios.post(
+    `${tt.TIKTOK_API_BASE}/video/query/?fields=${fields}`,
+    { filters: { video_ids: [String(publicVideoId)] } },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      timeout: 15000,
+    }
+  );
+  if (data.error && data.error.code !== 'ok') {
+    throw new Error(`TikTok video query failed: ${data.error.message || data.error.code}`);
+  }
+  return (data.data?.videos || [])[0] || null;
+}
+
 // Poll the publish status. For PULL_FROM_URL flows we don't block on this
 // during the publish job — we record the publish_id and let it process
 // asynchronously. Callers can poll if they want the final platform_post_id.
@@ -324,4 +347,5 @@ module.exports = {
   queryCreatorInfo,
   publishToTikTok,
   getPublishStatus,
+  fetchVideoInsights,
 };

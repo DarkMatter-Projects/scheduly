@@ -14,6 +14,7 @@ import { SENTIMENT_STYLES } from '../utils/sentiment';
 import { useClientScope } from '../context/ClientContext';
 import { useAuth } from '../context/AuthContext';
 import KpiCard from '../components/common/KpiCard';
+import ChartEmptyState from '../components/common/ChartEmptyState';
 
 const SENTIMENT_COLORS = {
   positive: '#10b981',
@@ -238,11 +239,10 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Charts */}
-          {daily.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Impressions & Reach chart */}
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Impressions & Reach</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h3 className="text-sm font-medium text-gray-700 mb-4">Impressions & Reach</h3>
+              {daily.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={daily}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -261,11 +261,18 @@ export default function AnalyticsPage() {
                     <Line type="monotone" dataKey="reach" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
+              ) : (
+                <ChartEmptyState
+                  height={250}
+                  title="No insights yet for this period"
+                  hint="Insights are pulled from Meta and Instagram once a day. Publish a Facebook or Instagram post, or open a published post and hit Refresh Insights to populate this chart immediately."
+                />
+              )}
+            </div>
 
-              {/* Engagement chart */}
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Likes & Posts Published</h3>
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h3 className="text-sm font-medium text-gray-700 mb-4">Likes & Posts Published</h3>
+              {daily.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={daily}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -284,9 +291,15 @@ export default function AnalyticsPage() {
                     <Bar dataKey="postsCount" fill="#8b5cf6" name="Posts" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
+              ) : (
+                <ChartEmptyState
+                  height={250}
+                  title="No engagement data yet"
+                  hint="Likes and post counts appear here after your first published post in this date range collects insights."
+                />
+              )}
             </div>
-          )}
+          </div>
 
           {/* Paid media summary */}
           {paidOverview && paidOverview.summary.spend > 0 && (() => {

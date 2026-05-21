@@ -24,6 +24,7 @@ import { useClientScope } from '../context/ClientContext';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import KpiCard from '../components/common/KpiCard';
+import ChartEmptyState from '../components/common/ChartEmptyState';
 
 const RANGES = [
   { label: '7 days', days: 7 },
@@ -486,10 +487,10 @@ export default function AdsPage() {
                 </div>
 
                 {/* Spend chart */}
-                {daily.length > 0 && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                      <h3 className="text-sm font-medium text-gray-700 mb-4">Daily Spend</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 className="text-sm font-medium text-gray-700 mb-4">Daily Spend</h3>
+                    {daily.length > 0 ? (
                       <ResponsiveContainer width="100%" height={240}>
                         <BarChart data={daily}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -506,9 +507,17 @@ export default function AdsPage() {
                           <Bar dataKey="spend" fill="#10b981" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
-                    </div>
-                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                      <h3 className="text-sm font-medium text-gray-700 mb-4">Clicks & Impressions</h3>
+                    ) : (
+                      <ChartEmptyState
+                        height={240}
+                        title="No Meta spend in this period"
+                        hint="Spend appears after the daily Meta sync runs (7 AM UTC), or click Sync now at the top of the section."
+                      />
+                    )}
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 className="text-sm font-medium text-gray-700 mb-4">Clicks & Impressions</h3>
+                    {daily.length > 0 ? (
                       <ResponsiveContainer width="100%" height={240}>
                         <LineChart data={daily}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -527,9 +536,15 @@ export default function AdsPage() {
                           <Line type="monotone" dataKey="clicks" stroke="#06b6d4" strokeWidth={2} dot={{ r: 2 }} />
                         </LineChart>
                       </ResponsiveContainer>
-                    </div>
+                    ) : (
+                      <ChartEmptyState
+                        height={240}
+                        title="No engagement data"
+                        hint="Clicks and impressions populate once campaigns serve and the daily sync pulls insights."
+                      />
+                    )}
                   </div>
-                )}
+                </div>
               </>
             );
           })()}
