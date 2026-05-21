@@ -10,7 +10,8 @@ import {
   Sparkles, MessageCircle, LayoutGrid,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
+import { formatRelative } from '../utils/time';
 import Thumbnail from '../components/common/Thumbnail';
 import clsx from 'clsx';
 
@@ -246,7 +247,7 @@ export default function DashboardPage() {
                         {actionLabels[item.action] || item.action}
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                        {formatRelative(item.createdAt)}
                       </p>
                     </div>
                   </div>
