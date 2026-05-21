@@ -9,8 +9,10 @@ import { updatePost } from '../api/postsApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import clsx from 'clsx';
+import CalendarPreviewPanel from '../components/calendar/CalendarPreviewPanel';
+import PostQuickModal from '../components/calendar/PostQuickModal';
 
 const statusColors = {
   draft: { bg: '#f3f4f6', border: '#9ca3af', text: '#374151' },
@@ -29,6 +31,8 @@ export default function CalendarPage() {
   const { activeClientId, activeClient } = useClientScope();
   const queryClient = useQueryClient();
   const [currentTitle, setCurrentTitle] = useState('');
+  const [events, setEvents] = useState([]); // cached for the preview panel
+  const [quickPostId, setQuickPostId] = useState(null);
 
   // Refetch events when the active client changes
   useEffect(() => {
@@ -49,9 +53,11 @@ export default function CalendarPage() {
   });
 
   const handleEventClick = useCallback((info) => {
+    // Open the quick-look modal instead of navigating away — keeps the
+    // calendar + preview context visible while the user reviews/approves.
     const postId = info.event.extendedProps.postId;
-    navigate(`/posts/${postId}`);
-  }, [navigate]);
+    setQuickPostId(postId);
+  }, []);
 
   const handleEventDrop = useCallback((info) => {
     const postId = info.event.extendedProps.postId;
@@ -117,8 +123,9 @@ export default function CalendarPage() {
         </button>
       </div>
 
-      {/* Calendar toolbar */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Two-column layout: calendar on the left, phone preview on the right */}
+      <div className="flex items-start gap-6">
+      <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <button
@@ -169,7 +176,7 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar */}
-        <div className="p-4 calendar-wrapper">
+        <div className="p-4 calendar-wrapper overflow-x-auto">
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, interactionPlugin]}
@@ -177,7 +184,10 @@ export default function CalendarPage() {
             headerToolbar={false}
             events={(fetchInfo, successCallback, failureCallback) => {
               getCalendarEvents(fetchInfo.startStr, fetchInfo.endStr, activeClientId || undefined)
-                .then(successCallback)
+                .then(data => {
+                  setEvents(data);
+                  successCallback(data);
+                })
                 .catch(failureCallback);
             }}
             eventClick={handleEventClick}
@@ -189,18 +199,18 @@ export default function CalendarPage() {
             datesSet={handleDatesSet}
             height="auto"
             eventContent={(eventInfo) => {
-              const { status, content, mediaCount } = eventInfo.event.extendedProps;
+              const { status, mediaCount, postId } = eventInfo.event.extendedProps;
               const colors = statusColors[status] || statusColors.draft;
               return (
                 <div
-                  className="w-full px-2 py-1 rounded text-xs cursor-pointer overflow-hidden"
+                  className="group w-full px-2 py-1 rounded text-xs cursor-pointer overflow-hidden relative"
                   style={{
                     backgroundColor: colors.bg,
                     borderLeft: `3px solid ${colors.border}`,
                     color: colors.text,
                   }}
                 >
-                  <div className="font-medium truncate">
+                  <div className="font-medium truncate pr-5">
                     {eventInfo.event.title}
                   </div>
                   {mediaCount > 0 && (
@@ -208,12 +218,29 @@ export default function CalendarPage() {
                       {mediaCount} media
                     </div>
                   )}
+                  {/* Hover-reveal Edit button — stops propagation so it opens the
+                      quick-look modal without also triggering the calendar's
+                      eventClick / drag handlers. */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setQuickPostId(postId); }}
+                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-white/90 hover:bg-white rounded p-0.5 shadow-sm"
+                    title="Edit / review"
+                  >
+                    <Pencil className="w-2.5 h-2.5 text-slate-700" />
+                  </button>
                 </div>
               );
             }}
           />
         </div>
       </div>
+
+      <CalendarPreviewPanel events={events} onPostClick={setQuickPostId} />
+      </div>
+
+      {quickPostId && (
+        <PostQuickModal postId={quickPostId} onClose={() => setQuickPostId(null)} />
+      )}
     </div>
   );
 }

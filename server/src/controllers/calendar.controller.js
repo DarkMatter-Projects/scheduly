@@ -22,7 +22,12 @@ async function getEvents(req, res, next) {
       `SELECT p.id, p.title, p.content, p.post_type, p.status, p.scheduled_at, p.published_at, p.created_at,
               u.first_name, u.last_name,
               (SELECT COUNT(*) FROM post_media pm WHERE pm.post_id = p.id) AS media_count,
-              (SELECT m.thumbnail_path FROM media m JOIN post_media pm ON m.id = pm.media_id WHERE pm.post_id = p.id ORDER BY pm.sort_order LIMIT 1) AS thumbnail
+              (SELECT COALESCE(m.thumbnail_path, m.file_path)
+               FROM media m JOIN post_media pm ON m.id = pm.media_id
+               WHERE pm.post_id = p.id ORDER BY pm.sort_order LIMIT 1) AS thumbnail,
+              (SELECT m.mime_type
+               FROM media m JOIN post_media pm ON m.id = pm.media_id
+               WHERE pm.post_id = p.id ORDER BY pm.sort_order LIMIT 1) AS thumbnail_mime
        FROM posts p
        JOIN users u ON p.created_by = u.id
        WHERE (
@@ -34,20 +39,49 @@ async function getEvents(req, res, next) {
       params
     );
 
-    const events = rows.map(r => ({
-      id: r.id,
-      title: r.title || r.content.substring(0, 50),
-      start: r.scheduled_at || r.published_at || r.created_at,
-      extendedProps: {
-        postId: r.id,
-        status: r.status,
-        postType: r.post_type,
-        content: r.content,
-        creatorName: `${r.first_name} ${r.last_name}`,
-        mediaCount: r.media_count,
-        thumbnail: r.thumbnail ? `/uploads/${r.thumbnail}` : null,
-      },
-    }));
+    // Batch-fetch the targets for all events in one query (instead of N per post).
+    const ids = rows.map(r => r.id);
+    let targetsByPost = new Map();
+    if (ids.length > 0) {
+      const [trows] = await pool.query(
+        `SELECT pt.post_id, pt.id AS target_id, sa.id AS account_id, sa.platform, sa.account_name,
+                sa.profile_picture_url
+         FROM post_targets pt
+         JOIN social_accounts sa ON pt.social_account_id = sa.id
+         WHERE pt.post_id IN (?)`,
+        [ids]
+      );
+      for (const t of trows) {
+        if (!targetsByPost.has(t.post_id)) targetsByPost.set(t.post_id, []);
+        targetsByPost.get(t.post_id).push({
+          targetId: t.target_id,
+          accountId: t.account_id,
+          platform: t.platform,
+          accountName: t.account_name,
+          profilePictureUrl: t.profile_picture_url,
+        });
+      }
+    }
+
+    const events = rows.map(r => {
+      const thumbnail = r.thumbnail ? (r.thumbnail.startsWith('http') ? r.thumbnail : `/uploads/${r.thumbnail}`) : null;
+      return {
+        id: r.id,
+        title: r.title || r.content.substring(0, 50),
+        start: r.scheduled_at || r.published_at || r.created_at,
+        extendedProps: {
+          postId: r.id,
+          status: r.status,
+          postType: r.post_type,
+          content: r.content,
+          creatorName: `${r.first_name} ${r.last_name}`,
+          mediaCount: r.media_count,
+          thumbnail,
+          thumbnailMime: r.thumbnail_mime || null,
+          targets: targetsByPost.get(r.id) || [],
+        },
+      };
+    });
 
     res.json(events);
   } catch (err) {
