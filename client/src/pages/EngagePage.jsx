@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -122,6 +122,53 @@ export default function EngagePage() {
     if (t.unreadCount > 0) markReadMut.mutate(t.id);
   };
 
+  // Keyboard shortcuts. We attach a single listener at the page level so the
+  // shortcuts work without the user clicking anywhere first.
+  const replyTextareaRef = useRef(null);
+  useEffect(() => {
+    const handler = (e) => {
+      // Don't hijack typing inside inputs/textareas — except for Escape, which
+      // we use to blur out of them.
+      const tag = e.target.tagName;
+      const inField = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
+      if (e.key === 'Escape') {
+        if (inField) e.target.blur();
+        if (checkedIds.size > 0) setCheckedIds(new Set());
+        return;
+      }
+      if (inField) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const idx = threads.findIndex(t => t.id === selectedId);
+      if ((e.key === 'j' || e.key === 'ArrowDown') && threads.length > 0) {
+        e.preventDefault();
+        const next = threads[Math.min(idx + 1, threads.length - 1)] || threads[0];
+        if (next) selectThread(next);
+      } else if ((e.key === 'k' || e.key === 'ArrowUp') && threads.length > 0) {
+        e.preventDefault();
+        const next = threads[Math.max(idx - 1, 0)] || threads[0];
+        if (next) selectThread(next);
+      } else if (e.key === 'r' && selectedId) {
+        e.preventDefault();
+        replyTextareaRef.current?.focus();
+      } else if (e.key === 'e' && selectedId) {
+        e.preventDefault();
+        setThreadStatus(selectedId, 'closed').then(() => {
+          queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
+          queryClient.invalidateQueries({ queryKey: ['engage-counts'] });
+          toast.success('Closed');
+        });
+      } else if (e.key === '/' ) {
+        // Focus the search input.
+        e.preventDefault();
+        const search = document.querySelector('input[placeholder^="Search messages"]');
+        search?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [threads, selectedId, checkedIds, queryClient]);
+
   return (
     <div className="flex h-[calc(100vh-140px)] min-h-[600px] bg-white border border-slate-200 rounded-xl overflow-hidden">
       <SidebarFeeds feed={feed} setFeed={setFeed} counts={counts || {}} />
@@ -153,6 +200,7 @@ export default function EngagePage() {
       <ConversationPane
         thread={thread}
         canReply={canReply}
+        replyTextareaRef={replyTextareaRef}
         onReply={(body) => {
           if (!selectedId) return;
           return replyToThread(selectedId, body).then(() => {
@@ -489,7 +537,7 @@ function ThreadRow({ thread, selected, checked, onClick, onToggleCheck }) {
 
 // ── Middle/right: Conversation pane ──────────────────────────────────────────
 
-function ConversationPane({ thread, canReply, onReply }) {
+function ConversationPane({ thread, canReply, onReply, replyTextareaRef }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -541,9 +589,16 @@ function ConversationPane({ thread, canReply, onReply }) {
         <div className="border-t border-slate-200 p-3 bg-white">
           <div className="flex items-end gap-2">
             <textarea
+              ref={replyTextareaRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Write a reply…"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              placeholder="Write a reply…  (⌘/Ctrl-Enter to send)"
               rows={2}
               className="flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
@@ -560,6 +615,16 @@ function ConversationPane({ thread, canReply, onReply }) {
             <ReplyTemplatesMenu
               onInsert={(body) => setDraft(d => d ? `${d}\n${body}` : body)}
             />
+            <span className="text-[10px] text-slate-400">
+              <kbd className="px-1 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">j</kbd>/
+              <kbd className="px-1 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">k</kbd> nav
+              {' '}·{' '}
+              <kbd className="px-1 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">r</kbd> reply
+              {' '}·{' '}
+              <kbd className="px-1 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">e</kbd> close
+              {' '}·{' '}
+              <kbd className="px-1 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">/</kbd> search
+            </span>
           </div>
         </div>
       )}
