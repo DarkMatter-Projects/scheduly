@@ -1,4 +1,6 @@
+const pool = require('../config/db');
 const postService = require('../services/post.service');
+const tiktokPosting = require('../services/tiktok_posting.service');
 
 async function list(req, res, next) {
   try {
@@ -144,4 +146,58 @@ async function stats(req, res, next) {
   }
 }
 
-module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats };
+// Asks TikTok how a previously-initiated publish is going. The publish_id
+// is what we stored in post_targets.platform_post_id at init time.
+async function refreshTiktokTargetStatus(req, res, next) {
+  try {
+    const targetId = parseInt(req.params.targetId, 10);
+    const [rows] = await pool.execute(
+      `SELECT pt.id, pt.platform_post_id, pt.status, pt.error_message,
+              sa.id AS social_account_id, sa.platform
+         FROM post_targets pt
+         JOIN social_accounts sa ON pt.social_account_id = sa.id
+        WHERE pt.id = ?`,
+      [targetId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Post target not found' });
+    }
+    const t = rows[0];
+    if (t.platform !== 'tiktok') {
+      return res.status(400).json({ error: 'Target is not a TikTok publish' });
+    }
+    if (!t.platform_post_id) {
+      return res.status(400).json({ error: 'No publish_id stored for this target' });
+    }
+
+    const accessToken = await tiktokPosting.ensureFreshAccessToken(t.social_account_id);
+    const status = await tiktokPosting.getPublishStatus(accessToken, t.platform_post_id);
+
+    // Map TikTok's lifecycle to our local target.status when terminal:
+    //   PUBLISH_COMPLETE  -> keep 'published' (already set at init)
+    //   FAILED            -> mark 'failed', persist reason
+    //   PROCESSING_*      -> leave as-is, return the raw status to caller
+    if (status?.status === 'FAILED') {
+      const reason = status?.fail_reason || status?.error?.message || 'TikTok reports FAILED';
+      await pool.execute(
+        `UPDATE post_targets SET status = 'failed', error_message = ? WHERE id = ?`,
+        [String(reason).slice(0, 500), targetId]
+      );
+    }
+
+    res.json({
+      targetId,
+      publishId: t.platform_post_id,
+      localStatus: t.status,
+      tiktokStatus: status?.status || null,
+      publiclyAvailablePostId: status?.publicly_available_post_id || null,
+      failReason: status?.fail_reason || null,
+      uploadedBytes: status?.uploaded_bytes ?? null,
+      raw: status,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus };

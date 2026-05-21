@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPost, deletePost, submitForApproval, approvePost, rejectPost, schedulePost } from '../api/postsApi';
+import { getPost, deletePost, submitForApproval, approvePost, rejectPost, schedulePost, refreshTiktokTargetStatus } from '../api/postsApi';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import {
   ArrowLeft, Trash2, Send, CheckCircle, XCircle, Clock,
-  Edit3, Film, Calendar,
+  Edit3, Film, Calendar, RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
 import CommentThread from '../components/posts/CommentThread';
@@ -26,6 +26,78 @@ const statusConfig = {
   published: { label: 'Published', color: 'bg-green-100 text-green-700' },
   failed: { label: 'Failed', color: 'bg-red-100 text-red-700' },
 };
+
+// Lifecycle map for the TikTok per-publish status TikTok returns after init.
+const TIKTOK_STATUS_LABEL = {
+  PROCESSING_DOWNLOAD: 'TikTok: downloading media…',
+  PROCESSING_UPLOAD: 'TikTok: uploading to draft…',
+  PUBLISH_COMPLETE: 'TikTok: live on profile',
+  SEND_TO_USER_INBOX: 'TikTok: waiting in user inbox',
+  FAILED: 'TikTok: processing failed',
+  EXPIRED: 'TikTok: session expired',
+};
+
+function TargetRow({ target }) {
+  const queryClient = useQueryClient();
+  const [ttStatus, setTtStatus] = useState(null);
+  const isTiktok = target.platform === 'tiktok';
+
+  const refreshMut = useMutation({
+    mutationFn: () => refreshTiktokTargetStatus(target.id),
+    onSuccess: (data) => {
+      setTtStatus(data);
+      const label = TIKTOK_STATUS_LABEL[data.tiktokStatus] || `TikTok: ${data.tiktokStatus || 'unknown'}`;
+      if (data.tiktokStatus === 'FAILED') {
+        toast.error(`${label}${data.failReason ? ` — ${data.failReason}` : ''}`, { duration: 6000 });
+        queryClient.invalidateQueries({ queryKey: ['post'] });
+      } else if (data.tiktokStatus === 'PUBLISH_COMPLETE') {
+        toast.success(label);
+      } else {
+        toast(label, { icon: '⏳' });
+      }
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to fetch status'),
+  });
+
+  return (
+    <div className="text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-gray-700 truncate">{target.accountName}</span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className={clsx(
+            'px-2 py-0.5 rounded-full text-xs',
+            target.status === 'published' ? 'bg-green-100 text-green-700' :
+            target.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+          )}>
+            {target.status}
+          </span>
+          {isTiktok && target.platformPostId && (
+            <button
+              onClick={() => refreshMut.mutate()}
+              disabled={refreshMut.isPending}
+              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+              title="Check TikTok processing status"
+            >
+              <RefreshCw className={clsx('w-3.5 h-3.5', refreshMut.isPending && 'animate-spin')} />
+            </button>
+          )}
+        </div>
+      </div>
+      {ttStatus && (
+        <p className="text-[11px] text-slate-500 mt-1">
+          {TIKTOK_STATUS_LABEL[ttStatus.tiktokStatus] || `TikTok: ${ttStatus.tiktokStatus || 'unknown'}`}
+          {ttStatus.publiclyAvailablePostId && (
+            <> · post id <code className="bg-slate-100 px-1 rounded">{ttStatus.publiclyAvailablePostId}</code></>
+          )}
+          {ttStatus.failReason && <> · {ttStatus.failReason}</>}
+        </p>
+      )}
+      {target.errorMessage && !ttStatus && (
+        <p className="text-[11px] text-rose-600 mt-1">{target.errorMessage}</p>
+      )}
+    </div>
+  );
+}
 
 export default function PostDetailPage() {
   const { id } = useParams();
@@ -289,16 +361,7 @@ export default function PostDetailPage() {
               <h3 className="text-sm font-medium text-gray-700 mb-3">Publish Targets</h3>
               <div className="space-y-2">
                 {post.targets.map(t => (
-                  <div key={t.id} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-700">{t.accountName}</span>
-                    <span className={clsx(
-                      'px-2 py-0.5 rounded-full text-xs',
-                      t.status === 'published' ? 'bg-green-100 text-green-700' :
-                      t.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                    )}>
-                      {t.status}
-                    </span>
-                  </div>
+                  <TargetRow key={t.id} target={t} />
                 ))}
               </div>
             </div>

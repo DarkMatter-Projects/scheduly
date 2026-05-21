@@ -29,3 +29,6 @@ export const schedulePost = (id, scheduledAt) =>
 
 export const publishNow = (id) =>
   api.post(`/posts/${id}/publish-now`).then(r => r.data);
+
+export const refreshTiktokTargetStatus = (targetId) =>
+  api.get(`/posts/targets/${targetId}/tiktok-status`).then(r => r.data);
