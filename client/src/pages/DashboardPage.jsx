@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { getPostStats } from '../api/statsApi';
 import { listPosts } from '../api/postsApi';
 import { getRecentActivity } from '../api/activityApi';
+import { getThreadCounts } from '../api/engageApi';
 import {
   CalendarDays, PenSquare, Image as ImageIcon, BarChart3,
   Clock, AlertCircle, CheckCircle, Activity, TrendingUp, ArrowUpRight,
-  Sparkles,
+  Sparkles, MessageCircle, LayoutGrid,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -68,6 +69,12 @@ export default function DashboardPage() {
     queryFn: () => getRecentActivity({ limit: 8 }),
   });
 
+  const { data: engageCounts } = useQuery({
+    queryKey: ['engage-counts-dashboard'],
+    queryFn: () => getThreadCounts(),
+    refetchInterval: 60000,
+  });
+
   const posts = recentPosts?.data || [];
 
   const actionLabels = {
@@ -111,7 +118,7 @@ export default function DashboardPage() {
         <StatCard icon={Clock} label="Scheduled posts" value={stats?.scheduled} color="violet" />
         <StatCard icon={AlertCircle} label="Awaiting approval" value={stats?.pendingApproval} color="amber" />
         <StatCard icon={CheckCircle} label="Published this week" value={stats?.publishedThisWeek} color="emerald" />
-        <StatCard icon={BarChart3} label="Total posts" value={(posts?.length || 0) + (stats?.publishedThisWeek || 0)} color="blue" />
+        <StatCard icon={MessageCircle} label="Unread inbox" value={engageCounts?.unread} color="blue" />
       </div>
 
       {/* Quick actions */}
@@ -120,10 +127,12 @@ export default function DashboardPage() {
         <div className="relative">
           <h2 className="text-lg font-semibold mb-1">Quick actions</h2>
           <p className="text-slate-400 text-sm mb-5">Jump right into what matters.</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
               { to: '/posts/new', icon: PenSquare, label: 'New post' },
               { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
+              { to: '/engage', icon: MessageCircle, label: 'Engage' },
+              { to: '/dashboards', icon: LayoutGrid, label: 'Dashboards' },
               { to: '/media', icon: ImageIcon, label: 'Media' },
               { to: '/analytics', icon: BarChart3, label: 'Analytics' },
             ].map(({ to, icon: Icon, label }) => (
