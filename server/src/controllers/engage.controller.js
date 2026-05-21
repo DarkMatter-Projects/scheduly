@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const engage = require('../services/engage.service');
 const metaEngage = require('../services/meta_engage.service');
+const tiktokEngage = require('../services/tiktok_engage.service');
 const logger = require('../utils/logger');
 
 async function listThreads(req, res, next) {
@@ -100,8 +101,10 @@ async function reply(req, res, next) {
       if (thread.platform === 'facebook_page' || thread.platform === 'instagram_business') {
         const result = await metaEngage.sendReply({ thread, body: text });
         platformMessageId = result.platformMessageId;
+      } else if (thread.platform === 'tiktok' && thread.source_type === 'comment') {
+        platformMessageId = await tiktokEngage.replyToTikTokComment({ thread, body: text });
       } else {
-        errorMessage = `Reply delivery not yet implemented for ${thread.platform}`;
+        errorMessage = `Reply delivery not yet implemented for ${thread.platform}/${thread.source_type}`;
       }
     } catch (err) {
       errorMessage = err.response?.data?.error?.message || err.message;

@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const meta = require('../services/meta_engage.service');
+const tiktok = require('../services/tiktok_engage.service');
 const logger = require('../utils/logger');
 
 async function runEngageIngestJob() {
@@ -7,7 +8,7 @@ async function runEngageIngestJob() {
     const [accounts] = await pool.execute(
       `SELECT * FROM social_accounts
        WHERE is_active = 1
-         AND platform IN ('facebook_page', 'instagram_business')
+         AND platform IN ('facebook_page', 'instagram_business', 'tiktok')
          AND access_token IS NOT NULL`
     );
 
@@ -15,10 +16,20 @@ async function runEngageIngestJob() {
 
     let totals = { comments: 0, dms: 0, accounts: 0, errors: 0 };
     for (const account of accounts) {
-      const stats = await meta.ingestAllForAccount(account);
-      totals.comments += stats.comments;
-      totals.dms += stats.dms;
-      totals.errors += stats.errors.length;
+      if (account.platform === 'tiktok') {
+        try {
+          totals.comments += await tiktok.ingestTikTokComments(account);
+        } catch (err) {
+          const msg = err.response?.data?.error?.message || err.message;
+          logger.error(`Engage ingest tiktok:comments for ${account.account_name} — ${msg}`);
+          totals.errors++;
+        }
+      } else {
+        const stats = await meta.ingestAllForAccount(account);
+        totals.comments += stats.comments;
+        totals.dms += stats.dms;
+        totals.errors += stats.errors.length;
+      }
       totals.accounts++;
     }
     if (totals.comments + totals.dms > 0 || totals.errors > 0) {
