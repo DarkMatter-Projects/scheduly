@@ -52,39 +52,35 @@ async function listThreads({ userId, feed = 'all', platform, sourceType, sentime
 }
 
 async function getThreadCounts({ userId, clientId }) {
-  // The numbers next to the sidebar feeds. One query per bucket is overkill
-  // for ~5 buckets at the scale this app sees, so simple COUNTs are fine.
-  const clientFilter = clientId
-    ? `AND EXISTS (SELECT 1 FROM social_accounts sa WHERE sa.id = t.social_account_id AND sa.client_id = ${pool.escape(clientId)})`
-    : '';
-
-  const [unread] = await pool.execute(
-    `SELECT COUNT(*) AS v FROM engage_threads t WHERE t.unread_count > 0 ${clientFilter}`
-  );
-  const [open] = await pool.execute(
-    `SELECT COUNT(*) AS v FROM engage_threads t WHERE t.status = 'open' ${clientFilter}`
-  );
-  const [closed] = await pool.execute(
-    `SELECT COUNT(*) AS v FROM engage_threads t WHERE t.status = 'closed' ${clientFilter}`
-  );
-  const [assigned] = await pool.execute(
-    `SELECT COUNT(*) AS v FROM engage_threads t WHERE t.assigned_to = ? ${clientFilter}`,
-    [userId]
-  );
-  const [snoozed] = await pool.execute(
-    `SELECT COUNT(*) AS v FROM engage_threads t WHERE t.status = 'snoozed' ${clientFilter}`
-  );
-  const [all] = await pool.execute(
-    `SELECT COUNT(*) AS v FROM engage_threads t WHERE 1=1 ${clientFilter}`
+  // One conditional-sum query gives us all six bucket totals in a single
+  // round trip — much cheaper than six separate COUNT queries.
+  const params = [userId];
+  let clientFilter = '';
+  if (clientId) {
+    clientFilter = ' AND EXISTS (SELECT 1 FROM social_accounts sa WHERE sa.id = t.social_account_id AND sa.client_id = ?)';
+    params.push(clientId);
+  }
+  const [rows] = await pool.execute(
+    `SELECT
+       COUNT(*) AS total,
+       SUM(CASE WHEN t.unread_count > 0 THEN 1 ELSE 0 END) AS unread,
+       SUM(CASE WHEN t.status = 'open' THEN 1 ELSE 0 END) AS open_cnt,
+       SUM(CASE WHEN t.status = 'closed' THEN 1 ELSE 0 END) AS closed_cnt,
+       SUM(CASE WHEN t.status = 'snoozed' THEN 1 ELSE 0 END) AS snoozed_cnt,
+       SUM(CASE WHEN t.assigned_to = ? THEN 1 ELSE 0 END) AS mine
+     FROM engage_threads t
+     WHERE 1=1 ${clientFilter}`,
+    params
   );
 
+  const r = rows[0] || {};
   return {
-    all: Number(all[0].v),
-    unread: Number(unread[0].v),
-    open: Number(open[0].v),
-    closed: Number(closed[0].v),
-    snoozed: Number(snoozed[0].v),
-    assignedToMe: Number(assigned[0].v),
+    all: Number(r.total) || 0,
+    unread: Number(r.unread) || 0,
+    open: Number(r.open_cnt) || 0,
+    closed: Number(r.closed_cnt) || 0,
+    snoozed: Number(r.snoozed_cnt) || 0,
+    assignedToMe: Number(r.mine) || 0,
   };
 }
 
