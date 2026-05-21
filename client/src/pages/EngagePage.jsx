@@ -596,6 +596,19 @@ function ConversationPane({ thread, canReply, onReply, replyTextareaRef }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
+  // Autosave draft per thread to localStorage so a page refresh / nav-away
+  // doesn't lose what the user was typing.
+  const draftKey = thread ? `engage-draft-${thread.id}` : null;
+  useEffect(() => {
+    if (!draftKey) { setDraft(''); return; }
+    setDraft(localStorage.getItem(draftKey) || '');
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftKey) return;
+    if (draft) localStorage.setItem(draftKey, draft);
+    else localStorage.removeItem(draftKey);
+  }, [draft, draftKey]);
+
   if (!thread) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-slate-300 px-8 text-center">
@@ -613,6 +626,8 @@ function ConversationPane({ thread, canReply, onReply, replyTextareaRef }) {
     try {
       await onReply(draft.trim());
       setDraft('');
+      // Reply succeeded — also clear the saved draft so we don't restore it.
+      if (draftKey) localStorage.removeItem(draftKey);
     } finally {
       setSending(false);
     }
