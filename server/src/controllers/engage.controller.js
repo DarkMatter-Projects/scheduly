@@ -1,4 +1,7 @@
+const pool = require('../config/db');
 const engage = require('../services/engage.service');
+const metaEngage = require('../services/meta_engage.service');
+const logger = require('../utils/logger');
 
 async function listThreads(req, res, next) {
   try {
@@ -79,23 +82,42 @@ async function deleteNote(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Reply will be wired to the platform-specific publisher in the next commit
-// when the ingestion lands. For now, the route exists and records an
-// outgoing message locally so the UI is testable end-to-end.
 async function reply(req, res, next) {
   try {
     const threadId = parseInt(req.params.id, 10);
     const { body } = req.body;
     if (!body || !body.trim()) return res.status(400).json({ error: 'Reply body required' });
+    const text = body.trim();
+
+    const [rows] = await pool.execute('SELECT * FROM engage_threads WHERE id = ?', [threadId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Thread not found' });
+    const thread = rows[0];
+
+    let platformMessageId = null;
+    let errorMessage = null;
+
+    try {
+      if (thread.platform === 'facebook_page' || thread.platform === 'instagram_business') {
+        const result = await metaEngage.sendReply({ thread, body: text });
+        platformMessageId = result.platformMessageId;
+      } else {
+        errorMessage = `Reply delivery not yet implemented for ${thread.platform}`;
+      }
+    } catch (err) {
+      errorMessage = err.response?.data?.error?.message || err.message;
+      logger.error(`Engage reply failed (thread ${threadId}): ${errorMessage}`);
+    }
+
     await engage.recordOutgoingMessage({
       threadId,
-      body: body.trim(),
+      platformMessageId,
+      body: text,
       sentByUserId: req.user.userId,
-      errorMessage: 'Platform reply API not wired yet — message logged locally only.',
+      errorMessage,
     });
-    res.status(202).json({
-      message: 'Reply recorded locally. Platform delivery wires up in the next commit.',
-    });
+
+    if (errorMessage) return res.status(502).json({ error: errorMessage });
+    res.status(201).json({ message: 'Reply sent', platformMessageId });
   } catch (err) { next(err); }
 }
 

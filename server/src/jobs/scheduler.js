@@ -3,6 +3,7 @@ const { runPublishJob } = require('./publishJob');
 const { runTokenRefreshJob } = require('./tokenRefreshJob');
 const { runAnalyticsFetchJob } = require('./analyticsFetchJob');
 const { runAdsSyncJob } = require('./adsSyncJob');
+const { runEngageIngestJob } = require('./engageIngestJob');
 const logger = require('../utils/logger');
 
 function startScheduler() {
@@ -30,7 +31,13 @@ function startScheduler() {
     await runAdsSyncJob();
   });
 
-  logger.info('Scheduler started: publish (every min), token refresh (3 AM), analytics (6 AM), ads sync (7 AM)');
+  // Pull new comments + DMs into the Engage inbox every 5 minutes
+  cron.schedule('*/5 * * * *', async () => {
+    logger.debug('Scheduler: running engage ingest job');
+    await runEngageIngestJob();
+  });
+
+  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), token refresh (3 AM), analytics (6 AM), ads sync (7 AM)');
 }
 
 module.exports = { startScheduler };
