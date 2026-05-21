@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import { Trash2, AlertTriangle } from 'lucide-react';
@@ -71,6 +71,7 @@ function WidgetBody({ widget }) {
     case 'breakdown':             return <BreakdownBody data={data} />;
     case 'content_performance':   return <ContentPerformanceBody data={data} />;
     case 'sentiment_breakdown':   return <SentimentBreakdownBody data={data} />;
+    case 'sentiment_trend':       return <SentimentTrendBody data={data} />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -337,6 +338,34 @@ function SentimentBreakdownBody({ data }) {
   );
 }
 
+// ── Sentiment trend (stacked area over time) ──
+
+function SentimentTrendBody({ data }) {
+  const points = data?.points || [];
+  const anyValue = points.some(p => p.positive + p.neutral + p.negative > 0);
+  if (!anyValue) {
+    return <ChartEmptyState height={200} title="No messages in range" hint="Sentiment over time appears once incoming comments and DMs are ingested." />;
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+      <AreaChart data={points}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+        <XAxis
+          dataKey="date"
+          tickFormatter={(v) => { try { return format(new Date(v), 'MMM d'); } catch { return v; } }}
+          tick={{ fontSize: 10, fill: '#94a3b8' }}
+        />
+        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+        <Tooltip labelFormatter={(v) => { try { return format(new Date(v), 'MMM d, yyyy'); } catch { return v; } }} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Area type="monotone" dataKey="positive" stackId="1" stroke={SENTIMENT_COLORS.positive} fill={SENTIMENT_COLORS.positive} fillOpacity={0.8} name="Positive" isAnimationActive={false} />
+        <Area type="monotone" dataKey="neutral"  stackId="1" stroke={SENTIMENT_COLORS.neutral}  fill={SENTIMENT_COLORS.neutral}  fillOpacity={0.8} name="Neutral"  isAnimationActive={false} />
+        <Area type="monotone" dataKey="negative" stackId="1" stroke={SENTIMENT_COLORS.negative} fill={SENTIMENT_COLORS.negative} fillOpacity={0.8} name="Negative" isAnimationActive={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ── Content performance (top-N posts table) ──
 
 const PLATFORM_ICON = {
@@ -419,6 +448,7 @@ function titleFor(widget) {
     breakdown: 'Breakdown',
     content_performance: 'Top content',
     sentiment_breakdown: 'Sentiment breakdown',
+    sentiment_trend: 'Sentiment over time',
   };
   return map[widget.widgetType] || (widget.widgetType || '').replace(/_/g, ' ');
 }

@@ -469,6 +469,31 @@ async function buildContentPerformance(dashboard, widget) {
   };
 }
 
+// Daily counts of incoming messages by sentiment — drives the stacked-area
+// sentiment trend chart.
+async function buildSentimentTrend(dashboard) {
+  const { start, end } = resolveRange(dashboard);
+  const [rows] = await pool.execute(
+    `SELECT DATE(sent_at) AS date,
+            SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) AS positive,
+            SUM(CASE WHEN sentiment = 'neutral'  THEN 1 ELSE 0 END) AS neutral,
+            SUM(CASE WHEN sentiment = 'negative' THEN 1 ELSE 0 END) AS negative
+     FROM engage_messages
+     WHERE direction = 'incoming' AND sent_at BETWEEN ? AND ?
+     GROUP BY DATE(sent_at) ORDER BY date ASC`,
+    [start, end]
+  );
+  return {
+    range: { start, end },
+    points: rows.map(r => ({
+      date: r.date,
+      positive: Number(r.positive) || 0,
+      neutral:  Number(r.neutral) || 0,
+      negative: Number(r.negative) || 0,
+    })),
+  };
+}
+
 // Pie/donut of positive/neutral/negative incoming-message counts in the range.
 async function buildSentimentBreakdown(dashboard) {
   const { start, end } = resolveRange(dashboard);
@@ -505,6 +530,7 @@ async function buildWidgetData(dashboard, widget) {
     case 'breakdown':             return buildBreakdown(dashboard, widget);
     case 'content_performance':   return buildContentPerformance(dashboard, widget);
     case 'sentiment_breakdown':   return buildSentimentBreakdown(dashboard);
+    case 'sentiment_trend':       return buildSentimentTrend(dashboard);
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

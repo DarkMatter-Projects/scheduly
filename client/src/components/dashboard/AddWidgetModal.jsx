@@ -37,7 +37,7 @@ export default function AddWidgetModal({ onSave, onClose }) {
   };
 
   // Widget types whose data source is fixed — they don't need user-picked metrics.
-  const NO_METRIC_WIDGETS = new Set(['sentiment_breakdown']);
+  const NO_METRIC_WIDGETS = new Set(['sentiment_breakdown', 'sentiment_trend']);
   const requiresMetrics = !NO_METRIC_WIDGETS.has(widgetType);
 
   const handleSave = () => {
@@ -135,6 +135,7 @@ const WIDGETS_BY_CATEGORY = {
     { key: 'time_series',          label: 'Time series',          icon: LineIcon,   impl: true },
     { key: 'channel_comparison',   label: 'Channel comparison',   icon: BarChart3,  impl: true },
     { key: 'sentiment_breakdown',  label: 'Sentiment breakdown',  icon: PieIcon,    impl: true },
+    { key: 'sentiment_trend',      label: 'Sentiment over time',  icon: LineIcon,   impl: true },
     { key: 'label_performance',    label: 'Label performance',    icon: BarChart3,  impl: false },
   ],
 };
