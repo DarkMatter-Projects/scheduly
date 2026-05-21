@@ -18,6 +18,7 @@ async function listThreads({ userId, feed = 'all', platform, sourceType, clientI
   if (feed === 'unread')          { where += ' AND t.unread_count > 0'; }
   else if (feed === 'open')       { where += " AND t.status = 'open'"; }
   else if (feed === 'closed')     { where += " AND t.status = 'closed'"; }
+  else if (feed === 'snoozed')    { where += " AND t.status = 'snoozed'"; }
   else if (feed === 'assigned_to_me') { where += ' AND t.assigned_to = ?'; params.push(userId); }
 
   if (clientId) {
@@ -69,12 +70,19 @@ async function getThreadCounts({ userId, clientId }) {
     `SELECT COUNT(*) AS v FROM engage_threads t WHERE t.assigned_to = ? ${clientFilter}`,
     [userId]
   );
+  const [snoozed] = await pool.execute(
+    `SELECT COUNT(*) AS v FROM engage_threads t WHERE t.status = 'snoozed' ${clientFilter}`
+  );
+  const [all] = await pool.execute(
+    `SELECT COUNT(*) AS v FROM engage_threads t WHERE 1=1 ${clientFilter}`
+  );
 
   return {
-    all: Number(unread[0].v) + Number(open[0].v) + Number(closed[0].v), // approximate "all"
+    all: Number(all[0].v),
     unread: Number(unread[0].v),
     open: Number(open[0].v),
     closed: Number(closed[0].v),
+    snoozed: Number(snoozed[0].v),
     assignedToMe: Number(assigned[0].v),
   };
 }

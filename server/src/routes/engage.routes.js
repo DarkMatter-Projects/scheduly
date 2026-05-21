@@ -7,6 +7,7 @@ const router = Router();
 
 router.get('/threads', authenticate, ctrl.listThreads);
 router.get('/threads/counts', authenticate, ctrl.counts);
+router.post('/refresh', authenticate, ctrl.refresh);
 router.get('/threads/:id', authenticate, ctrl.getThread);
 router.post('/threads/:id/read', authenticate, ctrl.markRead);
 router.post('/threads/:id/status', authenticate, requireRole('admin', 'manager', 'editor'), ctrl.setStatus);

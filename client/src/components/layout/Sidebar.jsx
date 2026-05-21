@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
+import { getThreadCounts } from '../../api/engageApi';
 import {
   LayoutDashboard,
   CalendarDays,
@@ -38,7 +40,18 @@ const adminItems = [
 ];
 
 export default function Sidebar({ open, onClose }) {
-  const { hasRole, user } = useAuth();
+  const { hasRole, user, isAuthenticated } = useAuth();
+
+  // Engage unread count drives the badge on the nav item. Refetched every
+  // minute so the badge updates roughly in step with the inbox itself.
+  const { data: counts } = useQuery({
+    queryKey: ['engage-counts-sidebar'],
+    queryFn: () => getThreadCounts(),
+    refetchInterval: 60000,
+    enabled: isAuthenticated,
+    staleTime: 30000,
+  });
+  const engageUnread = counts?.unread || 0;
 
   const linkClass = ({ isActive }) =>
     clsx(
@@ -86,6 +99,11 @@ export default function Sidebar({ open, onClose }) {
                     <span>{label}</span>
                     {highlight && (
                       <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 uppercase tracking-wide">New</span>
+                    )}
+                    {to === '/engage' && engageUnread > 0 && (
+                      <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500 text-white min-w-[18px] text-center">
+                        {engageUnread > 99 ? '99+' : engageUnread}
+                      </span>
                     )}
                   </>
                 )}

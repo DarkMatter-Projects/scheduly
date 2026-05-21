@@ -26,3 +26,6 @@ export const addThreadNote = (id, body) =>
 
 export const deleteThreadNote = (noteId) =>
   api.delete(`/engage/threads/notes/${noteId}`).then(r => r.data);
+
+export const refreshEngageInbox = () =>
+  api.post('/engage/refresh').then(r => r.data);

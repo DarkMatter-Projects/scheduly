@@ -2,14 +2,14 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
-  Search, Inbox, MessageSquare, AtSign, Hash, Send, RefreshCw,
+  Search, Inbox, MessageSquare, AtSign, Hash, Send, RefreshCw, Clock,
   CheckCircle, ChevronDown, MoreHorizontal, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import {
   listThreads, getThreadCounts, getThread, markThreadRead, setThreadStatus,
-  assignThread, replyToThread, addThreadNote, deleteThreadNote,
+  assignThread, replyToThread, addThreadNote, deleteThreadNote, refreshEngageInbox,
 } from '../api/engageApi';
 import { listUsers } from '../api/usersApi';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +22,7 @@ const FEEDS = [
   { key: 'unread',          label: 'Unread',          icon: MessageSquare },
   { key: 'assigned_to_me',  label: 'My assignments',  icon: AtSign },
   { key: 'open',            label: 'Open',            icon: Hash },
+  { key: 'snoozed',         label: 'Snoozed',         icon: Clock },
   { key: 'closed',          label: 'Closed',          icon: CheckCircle },
 ];
 
@@ -72,6 +73,21 @@ export default function EngagePage() {
     },
   });
 
+  const refreshMut = useMutation({
+    mutationFn: refreshEngageInbox,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
+      queryClient.invalidateQueries({ queryKey: ['engage-counts'] });
+      toast.success('Inbox refreshed');
+    },
+    onError: (err) => {
+      const retry = err.response?.data?.retryAfterSeconds;
+      toast.error(retry
+        ? `Just refreshed — try again in ${retry}s`
+        : (err.response?.data?.error || 'Refresh failed'));
+    },
+  });
+
   // Marking-read fires automatically when a thread is selected and it has unread items.
   const selectThread = (t) => {
     setSelectedId(t.id);
@@ -87,7 +103,8 @@ export default function EngagePage() {
         loading={threadsLoading}
         selectedId={selectedId}
         onSelect={selectThread}
-        onRefresh={refetchThreads}
+        onRefresh={() => refreshMut.mutate()}
+        refreshing={refreshMut.isPending}
         feed={feed}
         search={search}
         setSearch={setSearch}
@@ -160,6 +177,7 @@ function SidebarFeeds({ feed, setFeed, counts }) {
             : f.key === 'unread' ? counts.unread
             : f.key === 'assigned_to_me' ? counts.assignedToMe
             : f.key === 'open' ? counts.open
+            : f.key === 'snoozed' ? counts.snoozed
             : f.key === 'closed' ? counts.closed
             : 0;
           return (
@@ -193,7 +211,7 @@ function SidebarFeeds({ feed, setFeed, counts }) {
 
 // ── Middle: Thread list ──────────────────────────────────────────────────────
 
-function ThreadList({ threads, loading, selectedId, onSelect, onRefresh, feed, search, setSearch }) {
+function ThreadList({ threads, loading, selectedId, onSelect, onRefresh, refreshing, feed, search, setSearch }) {
   return (
     <div className="w-[360px] border-r border-slate-200 flex flex-col flex-shrink-0">
       <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between">
@@ -201,8 +219,13 @@ function ThreadList({ threads, loading, selectedId, onSelect, onRefresh, feed, s
           <h3 className="text-sm font-semibold text-slate-900 capitalize">{feed.replace(/_/g, ' ')}</h3>
           <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Message feed</span>
         </div>
-        <button onClick={onRefresh} className="p-1.5 rounded hover:bg-slate-100 text-slate-500" title="Refresh">
-          <RefreshCw className="w-3.5 h-3.5" />
+        <button
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 disabled:opacity-50"
+          title="Pull new comments and DMs from the platforms"
+        >
+          <RefreshCw className={clsx('w-3.5 h-3.5', refreshing && 'animate-spin')} />
         </button>
       </div>
       <div className="px-3 py-2 border-b border-slate-100 bg-white">
@@ -356,9 +379,6 @@ function ConversationPane({ thread, canReply, onReply }) {
               {sending ? 'Sending…' : 'Reply'}
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 mt-1.5">
-            Platform delivery wires up next — replies are logged locally for now.
-          </p>
         </div>
       )}
     </div>

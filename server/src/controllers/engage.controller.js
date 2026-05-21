@@ -2,7 +2,13 @@ const pool = require('../config/db');
 const engage = require('../services/engage.service');
 const metaEngage = require('../services/meta_engage.service');
 const tiktokEngage = require('../services/tiktok_engage.service');
+const { runEngageIngestJob } = require('../jobs/engageIngestJob');
 const logger = require('../utils/logger');
+
+// Cooldown so a mashing user doesn't hammer Meta/TikTok with parallel ingests.
+// Shared across all callers in this server process.
+let lastRefreshAt = 0;
+let refreshInFlight = null;
 
 async function listThreads(req, res, next) {
   try {
@@ -124,7 +130,28 @@ async function reply(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function refresh(req, res, next) {
+  try {
+    const COOLDOWN_MS = 30 * 1000;
+    const since = Date.now() - lastRefreshAt;
+    if (since < COOLDOWN_MS) {
+      return res.status(429).json({
+        error: 'Refreshed recently — wait a moment before trying again.',
+        retryAfterSeconds: Math.ceil((COOLDOWN_MS - since) / 1000),
+      });
+    }
+    // If a refresh is already running, return its promise so concurrent
+    // callers get the same result instead of starting parallel ingests.
+    if (!refreshInFlight) {
+      lastRefreshAt = Date.now();
+      refreshInFlight = runEngageIngestJob().finally(() => { refreshInFlight = null; });
+    }
+    await refreshInFlight;
+    res.json({ message: 'Inbox refreshed' });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listThreads, counts, getThread, markRead, setStatus, assign,
-  addNote, deleteNote, reply,
+  addNote, deleteNote, reply, refresh,
 };
