@@ -11,6 +11,7 @@ import {
   FileText,
   FolderClosed,
   Megaphone,
+  LayoutGrid,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/posts/new', icon: PenSquare, label: 'New Post', highlight: true },
   { to: '/media', icon: Image, label: 'Library' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/dashboards', icon: LayoutGrid, label: 'Dashboards' },
   { to: '/ads', icon: Megaphone, label: 'Ads' },
 ];
 

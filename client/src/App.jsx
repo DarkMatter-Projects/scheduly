@@ -22,6 +22,9 @@ import PostsListPage from './pages/PostsListPage';
 import PostEditPage from './pages/PostEditPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import DashboardsListPage from './pages/DashboardsListPage';
+import DashboardBuilderPage from './pages/DashboardBuilderPage';
+import SharedDashboardPage from './pages/SharedDashboardPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,6 +58,8 @@ function App() {
               {/* Public legal pages — needed for TikTok/Meta app review */}
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              {/* Public shared dashboard viewer (token-auth via URL) */}
+              <Route path="/share/dashboards/:token" element={<SharedDashboardPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppShell />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
@@ -66,6 +71,8 @@ function App() {
                   <Route path="/media" element={<MediaLibraryPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/ads" element={<AdsPage />} />
+                  <Route path="/dashboards" element={<DashboardsListPage />} />
+                  <Route path="/dashboards/:id" element={<DashboardBuilderPage />} />
                   <Route path="/accounts" element={<AccountsPage />} />
                   <Route path="/clients" element={<ClientsPage />} />
                   <Route element={<RoleGate allowed={['admin']} />}>

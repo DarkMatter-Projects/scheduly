@@ -12,6 +12,7 @@ const pageTitles = {
   '/media': 'Media Library',
   '/analytics': 'Analytics',
   '/ads': 'Ads',
+  '/dashboards': 'Dashboards',
   '/accounts': 'Social Accounts',
   '/settings': 'Settings',
 };
