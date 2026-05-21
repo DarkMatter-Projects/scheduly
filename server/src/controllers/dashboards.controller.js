@@ -1,4 +1,7 @@
+const pool = require('../config/db');
 const dashboardService = require('../services/dashboard.service');
+const { buildWidgetData } = require('../services/dashboard_data.service');
+const { METRICS } = require('../services/dashboard_metrics');
 
 async function list(req, res, next) {
   try {
@@ -104,6 +107,35 @@ async function revokeShare(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function listMetrics(req, res, next) {
+  try {
+    // Front-end uses this to populate the metric picker. Static list — fine
+    // to return whole.
+    res.json(METRICS);
+  } catch (err) { next(err); }
+}
+
+async function getWidgetData(req, res, next) {
+  try {
+    const widgetId = parseInt(req.params.widgetId, 10);
+    const [wrows] = await pool.execute(
+      'SELECT * FROM dashboard_widgets WHERE id = ?',
+      [widgetId]
+    );
+    if (wrows.length === 0) return res.status(404).json({ error: 'Widget not found' });
+    const widget = wrows[0];
+    // Decode JSON columns inline so the resolver can use them directly.
+    try { widget.channelIds = widget.channel_ids ? JSON.parse(widget.channel_ids) : []; } catch { widget.channelIds = []; }
+    try { widget.metricKeys = widget.metric_keys ? JSON.parse(widget.metric_keys) : []; } catch { widget.metricKeys = []; }
+
+    const [drows] = await pool.execute('SELECT * FROM dashboards WHERE id = ?', [widget.dashboard_id]);
+    if (drows.length === 0) return res.status(404).json({ error: 'Dashboard not found' });
+
+    const data = await buildWidgetData(drows[0], widget);
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
 // Public, no-auth viewer resolver. Returns the dashboard payload for a token.
 async function viewShared(req, res, next) {
   try {
@@ -120,4 +152,5 @@ module.exports = {
   list, get, create, update, remove,
   addWidget, updateWidget, deleteWidget, reorderWidgets,
   createShare, revokeShare, viewShared,
+  listMetrics, getWidgetData,
 };

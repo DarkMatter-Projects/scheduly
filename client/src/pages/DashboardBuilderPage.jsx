@@ -5,15 +5,14 @@ import { ArrowLeft, Pencil, Plus, Share2, Trash2, LayoutGrid, Copy, ExternalLink
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
-  getDashboard, updateDashboard, deleteWidget, createShareLink, revokeShareLink,
+  getDashboard, updateDashboard, deleteWidget, createShareLink, revokeShareLink, addWidget,
 } from '../api/dashboardsApi';
 import { listAccounts } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
 import { getPlatform } from '../utils/platforms';
+import AddWidgetModal from '../components/dashboard/AddWidgetModal';
+import WidgetRenderer from '../components/dashboard/WidgetRenderer';
 
-// Shell page for editing a single dashboard. Widgets render via tiny
-// placeholders in this commit; the real renderers + add-widget modal land
-// in the next pass so this is browsable end-to-end immediately.
 export default function DashboardBuilderPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -24,6 +23,7 @@ export default function DashboardBuilderPage() {
 
   const [editingName, setEditingName] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showAddWidget, setShowAddWidget] = useState(false);
 
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['dashboard', id],
@@ -72,6 +72,16 @@ export default function DashboardBuilderPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
       toast.success('Share link revoked');
     },
+  });
+
+  const addWidgetMut = useMutation({
+    mutationFn: (widget) => addWidget(id, widget),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
+      toast.success('Widget added');
+      setShowAddWidget(false);
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to add widget'),
   });
 
   if (isLoading || !dashboard) {
@@ -130,7 +140,7 @@ export default function DashboardBuilderPage() {
           )}
           {canEdit && (
             <button
-              onClick={() => toast('Widget picker coming in the next pass', { icon: '🛠️' })}
+              onClick={() => setShowAddWidget(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white bg-blue-600 rounded-lg hover:bg-blue-700"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -160,7 +170,7 @@ export default function DashboardBuilderPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
           {dashboard.widgets.map(w => (
-            <WidgetPlaceholder
+            <WidgetRenderer
               key={w.id}
               widget={w}
               canEdit={canEdit}
@@ -168,6 +178,13 @@ export default function DashboardBuilderPage() {
             />
           ))}
         </div>
+      )}
+
+      {showAddWidget && (
+        <AddWidgetModal
+          onClose={() => setShowAddWidget(false)}
+          onSave={(w) => addWidgetMut.mutate(w)}
+        />
       )}
     </div>
   );

@@ -36,3 +36,9 @@ export const revokeShareLink = (tokenId) =>
 // Public viewer — no auth required.
 export const fetchSharedDashboard = (token) =>
   api.get(`/dashboards/share/${token}`).then(r => r.data);
+
+export const listAvailableMetrics = () =>
+  api.get('/dashboards/metrics').then(r => r.data);
+
+export const getWidgetData = (widgetId) =>
+  api.get(`/dashboards/widgets/${widgetId}/data`).then(r => r.data);

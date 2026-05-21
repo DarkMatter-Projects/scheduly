@@ -5,6 +5,12 @@ const requireRole = require('../middleware/rbac');
 
 const router = Router();
 
+// Static metric catalogue used by the AddWidgetModal. Must come before
+// the /:id route so it doesn't get swallowed.
+router.get('/metrics', authenticate, ctrl.listMetrics);
+// Per-widget data for the renderer.
+router.get('/widgets/:widgetId/data', authenticate, ctrl.getWidgetData);
+
 router.get('/', authenticate, ctrl.list);
 router.post('/', authenticate, requireRole('admin', 'manager', 'editor'), ctrl.create);
 router.get('/:id', authenticate, ctrl.get);
