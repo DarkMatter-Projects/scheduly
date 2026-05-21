@@ -24,4 +24,5 @@ module.exports = {
   appId: env.facebook.appId,
   appSecret: env.facebook.appSecret,
   redirectUri: env.facebook.redirectUri,
+  webhookVerifyToken: env.facebook.webhookVerifyToken,
 };
