@@ -14,7 +14,7 @@ let refreshInFlight = null;
 
 async function listThreads(req, res, next) {
   try {
-    const { feed, platform, sourceType, sentiment, clientId, search, limit } = req.query;
+    const { feed, platform, sourceType, sentiment, clientId, search, sort, limit } = req.query;
     const threads = await engage.listThreads({
       userId: req.user.userId,
       feed: feed || 'all',
@@ -23,6 +23,7 @@ async function listThreads(req, res, next) {
       sentiment: sentiment || undefined,
       clientId: clientId ? parseInt(clientId, 10) : undefined,
       search: search || undefined,
+      sort: sort || undefined,
       limit,
     });
     res.json(threads);

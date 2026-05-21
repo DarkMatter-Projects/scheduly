@@ -8,7 +8,7 @@ const sentiment = require('./sentiment.service');
 //   platform:    one of facebook_page | instagram_business | tiktok
 //   sourceType:  comment | dm | mention
 //   clientId:    scope to a single client (via social_accounts.client_id)
-async function listThreads({ userId, feed = 'all', platform, sourceType, sentiment, clientId, search, limit = 100 }) {
+async function listThreads({ userId, feed = 'all', platform, sourceType, sentiment, clientId, search, sort = 'newest', limit = 100 }) {
   let where = '1=1';
   const params = [];
 
@@ -35,6 +35,15 @@ async function listThreads({ userId, feed = 'all', platform, sourceType, sentime
 
   const safeLimit = Math.max(10, Math.min(500, parseInt(limit, 10) || 100));
 
+  // Sort orders are an allow-listed map so a malicious query param can't
+  // inject SQL via the ORDER BY clause.
+  const orderBy = {
+    newest:    't.last_message_at DESC',
+    oldest:    't.last_message_at ASC',
+    unread:    't.unread_count DESC, t.last_message_at DESC',
+    negative:  "FIELD(t.sentiment, 'negative', 'neutral', 'positive') ASC, t.last_message_at DESC",
+  }[sort] || 't.last_message_at DESC';
+
   const [rows] = await pool.execute(
     `SELECT t.*, sa.account_name AS account_account_name, sa.platform AS account_platform,
             c.id AS client_id_resolved, c.name AS client_name, c.color AS client_color,
@@ -44,7 +53,7 @@ async function listThreads({ userId, feed = 'all', platform, sourceType, sentime
      LEFT JOIN clients c ON sa.client_id = c.id
      LEFT JOIN users u ON t.assigned_to = u.id
      WHERE ${where}
-     ORDER BY t.last_message_at DESC
+     ORDER BY ${orderBy}
      LIMIT ${safeLimit}`,
     params
   );

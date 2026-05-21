@@ -46,6 +46,7 @@ export default function EngagePage() {
   const [platformFilter, setPlatformFilter] = useState(() => searchParams.get('platform'));
   const [sourceTypeFilter, setSourceTypeFilter] = useState(() => searchParams.get('type'));
   const [sentimentFilter, setSentimentFilter] = useState(() => searchParams.get('sentiment'));
+  const [sort, setSort] = useState(() => searchParams.get('sort') || 'newest');
   const [checkedIds, setCheckedIds] = useState(() => new Set());
 
   // Write filter state back to the URL when it changes.
@@ -56,8 +57,9 @@ export default function EngagePage() {
     if (platformFilter) next.set('platform', platformFilter);
     if (sourceTypeFilter) next.set('type', sourceTypeFilter);
     if (sentimentFilter) next.set('sentiment', sentimentFilter);
+    if (sort && sort !== 'newest') next.set('sort', sort);
     setSearchParams(next, { replace: true });
-  }, [feed, search, platformFilter, sourceTypeFilter, sentimentFilter, setSearchParams]);
+  }, [feed, search, platformFilter, sourceTypeFilter, sentimentFilter, sort, setSearchParams]);
 
   const { data: counts } = useQuery({
     queryKey: ['engage-counts', activeClientId],
@@ -66,7 +68,7 @@ export default function EngagePage() {
   });
 
   const { data: threads = [], isLoading: threadsLoading, refetch: refetchThreads } = useQuery({
-    queryKey: ['engage-threads', feed, activeClientId, search, platformFilter, sourceTypeFilter, sentimentFilter],
+    queryKey: ['engage-threads', feed, activeClientId, search, platformFilter, sourceTypeFilter, sentimentFilter, sort],
     queryFn: () => listThreads({
       feed,
       clientId: activeClientId || undefined,
@@ -74,6 +76,7 @@ export default function EngagePage() {
       platform: platformFilter || undefined,
       sourceType: sourceTypeFilter || undefined,
       sentiment: sentimentFilter || undefined,
+      sort: sort || undefined,
     }),
     refetchInterval: 30000,
   });
@@ -205,6 +208,8 @@ export default function EngagePage() {
         setSourceTypeFilter={setSourceTypeFilter}
         sentimentFilter={sentimentFilter}
         setSentimentFilter={setSentimentFilter}
+        sort={sort}
+        setSort={setSort}
         checkedIds={checkedIds}
         toggleChecked={toggleChecked}
         clearChecked={() => setCheckedIds(new Set())}
@@ -318,7 +323,7 @@ function SidebarFeeds({ feed, setFeed, counts }) {
 function ThreadList({
   threads, loading, selectedId, onSelect, onRefresh, refreshing, feed, search, setSearch,
   platformFilter, setPlatformFilter, sourceTypeFilter, setSourceTypeFilter,
-  sentimentFilter, setSentimentFilter,
+  sentimentFilter, setSentimentFilter, sort, setSort,
   checkedIds, toggleChecked, clearChecked, selectAllVisible, onBulk, bulkPending,
 }) {
   const hasSelection = checkedIds && checkedIds.size > 0;
@@ -329,14 +334,27 @@ function ThreadList({
           <h3 className="text-sm font-semibold text-slate-900 capitalize">{feed.replace(/_/g, ' ')}</h3>
           <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Message feed</span>
         </div>
-        <button
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 disabled:opacity-50"
-          title="Pull new comments and DMs from the platforms"
-        >
-          <RefreshCw className={clsx('w-3.5 h-3.5', refreshing && 'animate-spin')} />
-        </button>
+        <div className="flex items-center gap-1">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            className="text-[11px] text-slate-600 bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-1 focus:ring-blue-500 outline-none"
+            title="Sort order"
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="unread">Most unread</option>
+            <option value="negative">Negative first</option>
+          </select>
+          <button
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="p-1.5 rounded hover:bg-slate-100 text-slate-500 disabled:opacity-50"
+            title="Pull new comments and DMs from the platforms"
+          >
+            <RefreshCw className={clsx('w-3.5 h-3.5', refreshing && 'animate-spin')} />
+          </button>
+        </div>
       </div>
       <FilterChipRows
         platformFilter={platformFilter}
