@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { formatRelative } from '../utils/time';
 import {
   Search, Inbox, MessageSquare, AtSign, Hash, Send, RefreshCw, Clock,
-  CheckCircle, ChevronDown, MoreHorizontal, X, UserPlus, EyeOff,
+  CheckCircle, ChevronDown, MoreHorizontal, X, UserPlus, EyeOff, ExternalLink,
 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
@@ -608,10 +608,22 @@ function ConversationPane({ thread, canReply, onReply, replyTextareaRef }) {
             <Icon className="w-2.5 h-2.5" />
           </span>
         )}
-        <h3 className="text-sm font-semibold text-slate-900 truncate">
+        <h3 className="text-sm font-semibold text-slate-900 truncate flex-1 min-w-0">
           {sourceLabel(thread)} from {thread.participantName || thread.participantHandle || `@${thread.participantId}`}
           {' '}on {thread.accountName}
         </h3>
+        {platformPostLink(thread) && (
+          <a
+            href={platformPostLink(thread)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 rounded"
+            title="View original post on the platform"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Open post
+          </a>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 bg-slate-50/30 space-y-4">
@@ -864,6 +876,19 @@ function sourceLabel(thread) {
   if (thread.sourceType === 'comment') return 'Comment';
   if (thread.sourceType === 'mention') return 'Mention';
   return thread.sourceType;
+}
+
+// Build a link back to the original post on the platform.
+function platformPostLink(thread) {
+  if (thread.sourceType !== 'comment') return null;
+  // Prefer the stored permalink (always correct when present).
+  if (thread.platformPostUrl) return thread.platformPostUrl;
+  // Fall back to the constructed FB URL for older threads ingested before we
+  // started storing permalinks.
+  if (thread.platform === 'facebook_page' && thread.platformPostId) {
+    return `https://www.facebook.com/${thread.platformPostId}`;
+  }
+  return null;
 }
 
 function formatCount(n) {

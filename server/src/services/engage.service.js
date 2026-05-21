@@ -247,7 +247,7 @@ async function recordOutgoingMessage({ threadId, platformMessageId, body, sentAt
 // Convenience used by ingestion: find or create a thread keyed on the
 // platform's natural ids and return its id.
 async function upsertThread({
-  platform, sourceType, socialAccountId, postTargetId, platformPostId,
+  platform, sourceType, socialAccountId, postTargetId, platformPostId, platformPostUrl,
   participantId, participantHandle, participantName, participantAvatarUrl,
 }) {
   const [existing] = await pool.execute(
@@ -262,21 +262,23 @@ async function upsertThread({
       `UPDATE engage_threads
          SET participant_handle = COALESCE(?, participant_handle),
              participant_name   = COALESCE(?, participant_name),
-             participant_avatar_url = COALESCE(?, participant_avatar_url)
+             participant_avatar_url = COALESCE(?, participant_avatar_url),
+             platform_post_url  = COALESCE(?, platform_post_url)
        WHERE id = ?`,
-      [participantHandle || null, participantName || null, participantAvatarUrl || null, existing[0].id]
+      [participantHandle || null, participantName || null, participantAvatarUrl || null,
+       platformPostUrl || null, existing[0].id]
     );
     return existing[0].id;
   }
 
   const [result] = await pool.execute(
     `INSERT INTO engage_threads
-       (platform, source_type, social_account_id, post_target_id, platform_post_id,
+       (platform, source_type, social_account_id, post_target_id, platform_post_id, platform_post_url,
         participant_id, participant_handle, participant_name, participant_avatar_url,
         last_message_at, unread_count, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 0, 'open')`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 0, 'open')`,
     [
-      platform, sourceType, socialAccountId, postTargetId || null, platformPostId || null,
+      platform, sourceType, socialAccountId, postTargetId || null, platformPostId || null, platformPostUrl || null,
       participantId, participantHandle || null, participantName || null, participantAvatarUrl || null,
     ]
   );
@@ -318,6 +320,7 @@ function formatThread(r) {
     accountName: r.account_account_name,
     postTargetId: r.post_target_id,
     platformPostId: r.platform_post_id,
+    platformPostUrl: r.platform_post_url,
     participantId: r.participant_id,
     participantHandle: r.participant_handle,
     participantName: r.participant_name,

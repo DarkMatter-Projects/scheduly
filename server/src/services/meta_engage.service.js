@@ -57,6 +57,7 @@ async function ingestFacebookPostComments(account, token, platformPostId) {
   const postTargetId = tgtRows[0]?.id || null;
 
   let count = 0;
+  const fbPostUrl = platformPostId ? `https://www.facebook.com/${platformPostId}` : null;
   for (const c of data.data || []) {
     if (!c.from) continue; // anonymous / hidden authors
     const threadId = await engage.upsertThread({
@@ -65,6 +66,7 @@ async function ingestFacebookPostComments(account, token, platformPostId) {
       socialAccountId: account.id,
       postTargetId,
       platformPostId,
+      platformPostUrl: fbPostUrl,
       participantId: c.from.id,
       participantName: c.from.name,
       participantAvatarUrl: c.from.picture?.data?.url,
@@ -155,17 +157,17 @@ async function ingestInstagramComments(account) {
   const igUserId = account.platform_account_id;
 
   const { data: mediaData } = await axios.get(`${ig.IG_GRAPH_URL}/${igUserId}/media`, {
-    params: { fields: 'id,timestamp', limit: 25, access_token: token },
+    params: { fields: 'id,timestamp,permalink', limit: 25, access_token: token },
   });
 
   let inserted = 0;
   for (const m of mediaData.data || []) {
-    inserted += await ingestInstagramMediaComments(account, token, m.id);
+    inserted += await ingestInstagramMediaComments(account, token, m.id, m.permalink);
   }
   return inserted;
 }
 
-async function ingestInstagramMediaComments(account, token, mediaId) {
+async function ingestInstagramMediaComments(account, token, mediaId, mediaPermalink) {
   let data;
   try {
     const resp = await axios.get(`${ig.IG_GRAPH_URL}/${mediaId}/comments`, {
@@ -204,6 +206,7 @@ async function ingestInstagramMediaComments(account, token, mediaId) {
       socialAccountId: account.id,
       postTargetId,
       platformPostId: mediaId,
+      platformPostUrl: mediaPermalink || null,
       participantId: authorId,
       participantHandle: authorHandle,
       participantName: authorHandle,

@@ -78,6 +78,7 @@ async function handlePageFeedChange(pageId, value) {
     socialAccountId: account.id,
     postTargetId,
     platformPostId,
+    platformPostUrl: platformPostId ? `https://www.facebook.com/${platformPostId}` : null,
     participantId: c.from.id,
     participantName: c.from.name,
     participantAvatarUrl: c.from.picture?.data?.url,
@@ -144,12 +145,13 @@ async function handleInstagramComment(igUserId, value) {
   if (!account) return;
   const token = decrypt(account.access_token);
 
-  // Webhook gives us the comment id; refetch for the text + author.
+  // Webhook gives us the comment id; refetch for the text + author + media url.
   const { data: c } = await axios.get(`https://graph.instagram.com/${value.id}`, {
-    params: { fields: 'id,from,text,timestamp,media{id}', access_token: token },
+    params: { fields: 'id,from,text,timestamp,media{id,permalink}', access_token: token },
   });
 
   const mediaId = c.media?.id || null;
+  const mediaUrl = c.media?.permalink || null;
   const [tgtRows] = mediaId
     ? await pool.execute('SELECT id FROM post_targets WHERE platform_post_id = ? LIMIT 1', [mediaId])
     : [[]];
@@ -164,6 +166,7 @@ async function handleInstagramComment(igUserId, value) {
     socialAccountId: account.id,
     postTargetId,
     platformPostId: mediaId,
+    platformPostUrl: mediaUrl,
     participantId: authorId,
     participantHandle: authorHandle,
     participantName: authorHandle,
