@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
+import { formatRelative } from '../utils/time';
 import {
   Search, Inbox, MessageSquare, AtSign, Hash, Send, RefreshCw, Clock,
   CheckCircle, ChevronDown, MoreHorizontal, X, UserPlus, EyeOff,
@@ -536,7 +537,7 @@ function ThreadRow({ thread, selected, checked, onClick, onToggleCheck }) {
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <span className="text-[10px] text-slate-400">{thread.lastMessageAt ? formatDistanceToNow(new Date(thread.lastMessageAt), { addSuffix: false }) : ''}</span>
+          <span className="text-[10px] text-slate-400">{formatRelative(thread.lastMessageAt)}</span>
           {thread.unreadCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
         </div>
       </div>

@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
+import { formatRelative } from '../../utils/time';
 import { listThreads } from '../../api/engageApi';
 import { Menu, LogOut, ChevronDown, Search, Bell, Plus, Inbox } from 'lucide-react';
 import ClientSwitcher from './ClientSwitcher';
@@ -130,7 +130,7 @@ export default function Header({ onMenuToggle }) {
                           {t.participantName || t.participantHandle || `@${t.participantId}`}
                         </p>
                         <span className="text-[10px] text-slate-400 ml-2 flex-shrink-0">
-                          {t.lastMessageAt ? formatDistanceToNow(new Date(t.lastMessageAt), { addSuffix: false }) : ''}
+                          {formatRelative(t.lastMessageAt)}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600 line-clamp-2">{t.lastMessagePreview || '(no preview)'}</p>
