@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import { getWidgetData } from '../../api/dashboardsApi';
 import KpiCard from '../common/KpiCard';
 import ChartEmptyState from '../common/ChartEmptyState';
+import { FacebookIcon, InstagramIcon, TiktokIcon } from '../common/SocialIcons';
 
 const METRIC_COLORS = [
   '#3b82f6', '#10b981', '#ec4899', '#8b5cf6', '#f59e0b',
@@ -63,9 +64,12 @@ function WidgetBody({ widget }) {
   }
 
   switch (widget.widgetType) {
-    case 'key_metrics':         return <KeyMetricsBody data={data} />;
-    case 'time_series':         return <TimeSeriesBody data={data} />;
-    case 'channel_comparison':  return <ChannelComparisonBody data={data} />;
+    case 'key_metrics':           return <KeyMetricsBody data={data} />;
+    case 'time_series':           return <TimeSeriesBody data={data} />;
+    case 'channel_comparison':    return <ChannelComparisonBody data={data} />;
+    case 'network_comparison':    return <NetworkComparisonBody data={data} />;
+    case 'breakdown':             return <BreakdownBody data={data} />;
+    case 'content_performance':   return <ContentPerformanceBody data={data} />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -190,6 +194,141 @@ function ChannelComparisonBody({ data }) {
   );
 }
 
+// ── Network comparison (bar chart grouped by platform) ──
+
+const PLATFORM_LABEL = {
+  facebook_page: 'Facebook',
+  instagram_business: 'Instagram',
+  tiktok: 'TikTok',
+};
+const PLATFORM_COLOR = {
+  facebook_page: '#1877f2',
+  instagram_business: '#e4405f',
+  tiktok: '#000000',
+};
+
+function NetworkComparisonBody({ data }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0) return <EmptyHint hint="Connect at least one account to see network comparison." />;
+  const allZero = rows.every(r => Number(r.value) === 0);
+  if (allZero) return <ChartEmptyState height={200} title="No data yet" hint="Once insights sync, networks appear here." />;
+
+  const formatted = rows.map(r => ({
+    name: PLATFORM_LABEL[r.platform] || r.platform,
+    platform: r.platform,
+    value: Number(r.value) || 0,
+  }));
+  const metric = data?.metric;
+
+  return (
+    <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+      <BarChart data={formatted} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+        <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 10, fill: '#475569' }} />
+        <Tooltip formatter={(v) => [formatValue(v, metric?.format || 'number'), metric?.label || 'Value']} />
+        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+          {formatted.map((entry, idx) => (
+            <Cell key={idx} fill={PLATFORM_COLOR[entry.platform] || METRIC_COLORS[idx]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Breakdown (pie chart of share by account) ──
+
+function BreakdownBody({ data }) {
+  const rows = (data?.rows || []).filter(r => Number(r.value) > 0);
+  if (rows.length === 0) return <ChartEmptyState height={200} title="No data yet" hint="As soon as the metric has values, the breakdown fills in." />;
+  const metric = data?.metric;
+
+  return (
+    <ResponsiveContainer width="100%" height="100%" minHeight={220}>
+      <PieChart>
+        <Pie
+          data={rows}
+          dataKey="value"
+          nameKey="accountName"
+          innerRadius="45%"
+          outerRadius="80%"
+          paddingAngle={1}
+          isAnimationActive={false}
+        >
+          {rows.map((_, idx) => (
+            <Cell key={idx} fill={METRIC_COLORS[idx % METRIC_COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip
+          formatter={(v, _name, entry) => {
+            const share = entry?.payload?.share || 0;
+            return [`${formatValue(v, metric?.format || 'number')} (${share.toFixed(1)}%)`, entry?.payload?.accountName];
+          }}
+        />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Content performance (top-N posts table) ──
+
+const PLATFORM_ICON = {
+  facebook_page: FacebookIcon,
+  instagram_business: InstagramIcon,
+  tiktok: TiktokIcon,
+};
+
+function ContentPerformanceBody({ data }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0) return <ChartEmptyState height={180} title="No posts in range" hint="Publish posts in the selected period to see top performers." />;
+  const sortBy = data?.sortBy;
+
+  return (
+    <div className="overflow-auto h-full -mx-1">
+      <table className="min-w-full text-xs">
+        <thead className="sticky top-0 bg-white border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px]">
+          <tr>
+            <th className="px-2 py-2 text-left font-semibold">Post</th>
+            <th className="px-2 py-2 text-right font-semibold">Reach</th>
+            <th className="px-2 py-2 text-right font-semibold">Likes</th>
+            <th className="px-2 py-2 text-right font-semibold">Comments</th>
+            <th className="px-2 py-2 text-right font-semibold">ER</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const Icon = PLATFORM_ICON[r.platform];
+            return (
+              <tr key={r.postId} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="px-2 py-2">
+                  <div className="flex items-start gap-2">
+                    {Icon ? <Icon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-500" /> : null}
+                    <div className="min-w-0">
+                      <div className="text-slate-800 line-clamp-2">{r.content || '(no caption)'}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {r.accountName} · {r.publishedAt ? format(new Date(r.publishedAt), 'MMM d') : ''}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{r.reach.toLocaleString()}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{r.likes.toLocaleString()}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{r.comments.toLocaleString()}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{r.engagementRate.toFixed(2)}%</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {sortBy && (
+        <p className="text-[10px] text-slate-400 mt-2 px-2">Top 10 by {sortBy.label}</p>
+      )}
+    </div>
+  );
+}
+
 // ── helpers ──
 
 function EmptyHint({ hint }) {
@@ -211,6 +350,9 @@ function titleFor(widget) {
     key_metrics: 'Key metrics',
     time_series: 'Time series',
     channel_comparison: 'Channel comparison',
+    network_comparison: 'Network comparison',
+    breakdown: 'Breakdown',
+    content_performance: 'Top content',
   };
   return map[widget.widgetType] || (widget.widgetType || '').replace(/_/g, ' ');
 }

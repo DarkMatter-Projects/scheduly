@@ -352,12 +352,132 @@ async function buildChannelComparison(dashboard, widget) {
   return { range: { start, end }, metric: { key, label: m?.label || key, format: m?.format }, rows };
 }
 
+// Aggregate a metric across all accounts in scope, grouped by platform
+// (facebook_page / instagram_business / tiktok). One row per platform.
+async function buildNetworkComparison(dashboard, widget) {
+  const { start, end } = resolveRange(dashboard);
+  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
+    ? widget.channelIds.map(Number)
+    : null;
+  const key = (widget.metricKeys && widget.metricKeys[0]) || 'impressions';
+  const m = metric(key);
+
+  const params = [];
+  let where = 'sa.is_active = 1';
+  if (channelIds) {
+    where += ` AND sa.id IN (${channelIds.map(() => '?').join(',')})`;
+    params.push(...channelIds);
+  }
+  const [accounts] = await pool.execute(
+    `SELECT id, platform FROM social_accounts sa WHERE ${where}`,
+    params
+  );
+
+  const byPlatform = new Map();
+  for (const a of accounts) {
+    const v = await totalForMetric(key, [a.id], start, end);
+    byPlatform.set(a.platform, (byPlatform.get(a.platform) || 0) + v);
+  }
+  const rows = [...byPlatform.entries()].map(([platform, value]) => ({ platform, value }));
+  rows.sort((a, b) => b.value - a.value);
+  return { range: { start, end }, metric: { key, label: m?.label || key, format: m?.format }, rows };
+}
+
+// Split a single metric proportionally across the accounts in scope.
+// Drives the pie chart UI. Same SQL path as channel_comparison.
+async function buildBreakdown(dashboard, widget) {
+  const result = await buildChannelComparison(dashboard, widget);
+  const total = result.rows.reduce((s, r) => s + (Number(r.value) || 0), 0);
+  result.rows = result.rows.map(r => ({
+    ...r,
+    share: total > 0 ? (Number(r.value) / total) * 100 : 0,
+  }));
+  result.total = total;
+  return result;
+}
+
+// Top-N posts by the chosen metric, with key insight columns alongside.
+async function buildContentPerformance(dashboard, widget) {
+  const { start, end } = resolveRange(dashboard);
+  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
+    ? widget.channelIds.map(Number)
+    : null;
+  const sortKey = (widget.metricKeys && widget.metricKeys[0]) || 'engagement_rate';
+  const m = metric(sortKey);
+
+  // Map metric key → analytics column. Falls through to engagement_rate.
+  const COL_MAP = {
+    impressions: 'pa.impressions',
+    reach: 'pa.reach',
+    likes: 'pa.likes',
+    comments: 'pa.comments_count',
+    shares: 'pa.shares',
+    saves: 'pa.saves',
+    clicks: 'pa.clicks',
+    engagement_rate: 'pa.engagement_rate',
+  };
+  const sortCol = COL_MAP[sortKey] || 'pa.engagement_rate';
+
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND pt.social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  const params = [start, end, ...(channelIds || [])];
+
+  const [rows] = await pool.execute(
+    `SELECT p.id AS post_id,
+            p.content,
+            p.published_at,
+            sa.platform,
+            sa.account_name,
+            pa.impressions,
+            pa.reach,
+            pa.likes,
+            pa.comments_count AS comments,
+            pa.shares,
+            pa.saves,
+            pa.engagement_rate,
+            ${sortCol} AS sort_val
+     FROM post_analytics pa
+     JOIN post_targets pt ON pa.post_target_id = pt.id
+     JOIN posts p         ON pt.post_id = p.id
+     JOIN social_accounts sa ON pt.social_account_id = sa.id
+     WHERE p.published_at BETWEEN ? AND ?
+       ${accountsFilter}
+     ORDER BY sort_val DESC
+     LIMIT 10`,
+    params
+  );
+
+  return {
+    range: { start, end },
+    sortBy: { key: sortKey, label: m?.label || sortKey, format: m?.format },
+    rows: rows.map(r => ({
+      postId: r.post_id,
+      content: r.content,
+      publishedAt: r.published_at,
+      platform: r.platform,
+      accountName: r.account_name,
+      impressions: Number(r.impressions) || 0,
+      reach: Number(r.reach) || 0,
+      likes: Number(r.likes) || 0,
+      comments: Number(r.comments) || 0,
+      shares: Number(r.shares) || 0,
+      saves: Number(r.saves) || 0,
+      engagementRate: parseFloat(r.engagement_rate) || 0,
+      sortValue: Number(r.sort_val) || 0,
+    })),
+  };
+}
+
 async function buildWidgetData(dashboard, widget) {
   switch (widget.widget_type || widget.widgetType) {
-    case 'key_metrics':         return buildKeyMetrics(dashboard, widget);
-    case 'time_series':         return buildTimeSeries(dashboard, widget);
-    case 'channel_comparison':  return buildChannelComparison(dashboard, widget);
-    default:                    return { unsupported: widget.widget_type || widget.widgetType };
+    case 'key_metrics':           return buildKeyMetrics(dashboard, widget);
+    case 'time_series':           return buildTimeSeries(dashboard, widget);
+    case 'channel_comparison':    return buildChannelComparison(dashboard, widget);
+    case 'network_comparison':    return buildNetworkComparison(dashboard, widget);
+    case 'breakdown':             return buildBreakdown(dashboard, widget);
+    case 'content_performance':   return buildContentPerformance(dashboard, widget);
+    default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }
 
