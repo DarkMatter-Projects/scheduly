@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
+import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Smile, Hash, AtSign, Type } from 'lucide-react';
 import clsx from 'clsx';
 import { analyzeSentiment, SENTIMENT_STYLES } from '../../utils/sentiment';
+
+// 300KB picker — deferred until the user actually opens it.
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 const IG_LIMIT = 2200;
 const FB_LIMIT = 63206;
@@ -137,22 +139,24 @@ export default function PostComposer({ content, onChange, title, onTitleChange }
             <span>Shift+Enter for new line</span>
           </div>
 
-          {/* Emoji picker popover */}
+          {/* Emoji picker popover — lazy-loaded so it only ships when opened */}
           {showEmoji && (
             <div
               ref={emojiPickerRef}
               className="absolute bottom-full left-0 mb-2 z-50 shadow-2xl rounded-lg overflow-hidden border border-slate-200"
             >
-              <EmojiPicker
-                onEmojiClick={handleEmojiClick}
-                emojiStyle={EmojiStyle.NATIVE}
-                theme={Theme.LIGHT}
-                width={320}
-                height={400}
-                searchPlaceholder="Search emoji..."
-                previewConfig={{ showPreview: false }}
-                skinTonesDisabled={false}
-              />
+              <Suspense fallback={<div className="w-[320px] h-[400px] bg-white flex items-center justify-center text-xs text-slate-400">Loading…</div>}>
+                <EmojiPicker
+                  onEmojiClick={handleEmojiClick}
+                  emojiStyle="native"
+                  theme="light"
+                  width={320}
+                  height={400}
+                  searchPlaceholder="Search emoji..."
+                  previewConfig={{ showPreview: false }}
+                  skinTonesDisabled={false}
+                />
+              </Suspense>
             </div>
           )}
         </div>

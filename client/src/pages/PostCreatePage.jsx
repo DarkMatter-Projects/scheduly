@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPost, schedulePost } from '../api/postsApi';
@@ -9,7 +9,8 @@ import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
-import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
+// Emoji picker is large (~300KB), so we lazy-load it.
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import {
   X, Upload, Film, Clock, ChevronDown, ChevronUp, Trash2, Image as ImageIcon,
   Smile, Hash, Sparkles, Zap, Edit3, FileText, Settings2,
@@ -608,15 +609,17 @@ export default function PostCreatePage() {
 
                   {showEmoji && (
                     <div ref={emojiRef} className="absolute top-full left-0 mt-1 z-50 shadow-2xl rounded-lg overflow-hidden border border-slate-200">
-                      <EmojiPicker
-                        onEmojiClick={(e) => insertAtCursor(e.emoji)}
-                        emojiStyle={EmojiStyle.NATIVE}
-                        theme={Theme.LIGHT}
-                        width={320}
-                        height={400}
-                        searchPlaceholder="Search emoji..."
-                        previewConfig={{ showPreview: false }}
-                      />
+                      <Suspense fallback={<div className="w-[320px] h-[400px] bg-white flex items-center justify-center text-xs text-slate-400">Loading…</div>}>
+                        <EmojiPicker
+                          onEmojiClick={(e) => insertAtCursor(e.emoji)}
+                          emojiStyle="native"
+                          theme="light"
+                          width={320}
+                          height={400}
+                          searchPlaceholder="Search emoji..."
+                          previewConfig={{ showPreview: false }}
+                        />
+                      </Suspense>
                     </div>
                   )}
                 </div>
