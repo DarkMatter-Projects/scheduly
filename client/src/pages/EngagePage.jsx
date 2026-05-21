@@ -500,7 +500,11 @@ function ThreadRow({ thread, selected, checked, onClick, onToggleCheck }) {
             {checked && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 10" fill="none"><path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           </span>
           <div className="relative flex-shrink-0">
-            <div className="w-8 h-8 rounded-full bg-slate-200" />
+            <ParticipantAvatar
+              src={thread.participantAvatarUrl}
+              name={thread.participantName || thread.participantHandle || thread.participantId}
+              size={32}
+            />
             {Icon && (
               <div className={clsx('absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-white', p.bg)}>
                 <Icon className="w-2 h-2 text-white" />
@@ -636,7 +640,15 @@ function MessageBubble({ message }) {
   const isOut = message.direction === 'outgoing';
   return (
     <div className={clsx('flex gap-2', isOut ? 'justify-end' : 'justify-start')}>
-      {!isOut && <div className="w-6 h-6 rounded-full bg-slate-200 flex-shrink-0 mt-1" />}
+      {!isOut && (
+        <div className="mt-1 flex-shrink-0">
+          <ParticipantAvatar
+            src={message.authorAvatarUrl}
+            name={message.authorName || message.authorHandle || message.authorId}
+            size={24}
+          />
+        </div>
+      )}
       <div className={clsx('max-w-[70%] rounded-2xl px-3 py-2', isOut ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-800')}>
         {!isOut && (message.authorHandle || message.authorName) && (
           <p className="text-[10px] font-semibold mb-0.5 text-slate-500">
@@ -672,10 +684,21 @@ function DetailsPanel({ thread, currentUserId, canAssign, onAssign, onStatus, on
       <h3 className="text-sm font-semibold text-slate-900 mb-3">Conversation details</h3>
 
       <div className="bg-white rounded-xl border border-slate-200 p-3 mb-3">
-        <p className="text-xs font-semibold text-slate-900">{thread.participantName || thread.participantHandle || `@${thread.participantId}`}</p>
-        {thread.participantHandle && (
-          <p className="text-[11px] text-slate-500">@{thread.participantHandle}</p>
-        )}
+        <div className="flex items-center gap-3 mb-2">
+          <ParticipantAvatar
+            src={thread.participantAvatarUrl}
+            name={thread.participantName || thread.participantHandle || thread.participantId}
+            size={40}
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-900 truncate">
+              {thread.participantName || thread.participantHandle || `@${thread.participantId}`}
+            </p>
+            {thread.participantHandle && (
+              <p className="text-[11px] text-slate-500 truncate">@{thread.participantHandle}</p>
+            )}
+          </div>
+        </div>
         <div className="mt-3 grid grid-cols-2 gap-y-1.5 text-[11px]">
           <span className="text-slate-500">Account</span>
           <span className="text-slate-800 text-right">{thread.accountName}</span>
@@ -757,6 +780,50 @@ function DetailsPanel({ thread, currentUserId, canAssign, onAssign, onStatus, on
       </div>
     </aside>
   );
+}
+
+// Renders the participant's avatar with an initials fallback. Tries the real
+// avatar URL first; on load error or missing url, paints a colored circle
+// derived from the name so each contact stays visually distinct.
+function ParticipantAvatar({ src, name, size = 32 }) {
+  const [errored, setErrored] = useState(false);
+  const showImage = src && !errored;
+  const initials = (name || '?').split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  const bg = avatarBgFor(name || '?');
+
+  if (showImage) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        width={size}
+        height={size}
+        onError={() => setErrored(true)}
+        className="rounded-full object-cover bg-slate-100"
+        style={{ width: size, height: size }}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  return (
+    <div
+      className={clsx('rounded-full flex items-center justify-center text-white font-semibold', bg)}
+      style={{ width: size, height: size, fontSize: Math.max(10, size * 0.36) }}
+    >
+      {initials || '?'}
+    </div>
+  );
+}
+
+function avatarBgFor(text) {
+  // Cheap, deterministic hash to one of a small palette.
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+  const palette = [
+    'bg-blue-500', 'bg-emerald-500', 'bg-rose-500', 'bg-amber-500',
+    'bg-violet-500', 'bg-sky-500', 'bg-indigo-500', 'bg-teal-500',
+  ];
+  return palette[Math.abs(h) % palette.length];
 }
 
 function sourceLabel(thread) {
