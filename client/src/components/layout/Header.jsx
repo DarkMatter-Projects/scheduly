@@ -122,7 +122,7 @@ export default function Header({ onMenuToggle }) {
                   unreadThreads.map(t => (
                     <button
                       key={t.id}
-                      onClick={() => { setBellOpen(false); navigate('/engage'); }}
+                      onClick={() => { setBellOpen(false); navigate(`/engage?thread=${t.id}`); }}
                       className="w-full text-left px-4 py-2.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
                     >
                       <div className="flex items-center justify-between mb-0.5">

@@ -42,7 +42,10 @@ export default function EngagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [feed, setFeed] = useState(() => searchParams.get('feed') || 'all');
   const [search, setSearch] = useState(() => searchParams.get('q') || '');
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(() => {
+    const v = searchParams.get('thread');
+    return v ? parseInt(v, 10) : null;
+  });
   const [platformFilter, setPlatformFilter] = useState(() => searchParams.get('platform'));
   const [sourceTypeFilter, setSourceTypeFilter] = useState(() => searchParams.get('type'));
   const [sentimentFilter, setSentimentFilter] = useState(() => searchParams.get('sentiment'));
@@ -58,6 +61,9 @@ export default function EngagePage() {
     if (sourceTypeFilter) next.set('type', sourceTypeFilter);
     if (sentimentFilter) next.set('sentiment', sentimentFilter);
     if (sort && sort !== 'newest') next.set('sort', sort);
+    // We deliberately do NOT preserve the `thread` query param. It's used as
+    // a one-shot deep-link target on mount; once we've consumed it the user
+    // is just clicking around the list, so leaving it in the URL is noise.
     setSearchParams(next, { replace: true });
   }, [feed, search, platformFilter, sourceTypeFilter, sentimentFilter, sort, setSearchParams]);
 
