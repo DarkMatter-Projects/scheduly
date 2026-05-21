@@ -1,8 +1,24 @@
 const axios = require('axios');
 const pool = require('../config/db');
 const fb = require('../config/facebook');
+const env = require('../config/env');
 const { encrypt, decrypt } = require('./token.service');
+const storage = require('./storage.service');
 const logger = require('../utils/logger');
+
+// Build a public URL Meta can fetch. With R2 configured storage.publicUrlFor()
+// returns an absolute URL; otherwise we fall back to publicBaseUrl + /uploads/...
+function publicMediaUrl(media) {
+  const url = storage.publicUrlFor(media.filePath);
+  if (url && url.startsWith('http')) return url;
+  const base = env.igPublicBaseUrl || null;
+  if (!base) {
+    throw new Error(
+      'No public URL for media. Configure R2_* env vars or set IG_PUBLIC_BASE_URL so Facebook can fetch the file.'
+    );
+  }
+  return `${base}${url}`;
+}
 
 // ── OAuth Flow ──
 
@@ -116,77 +132,40 @@ async function publishToPage(pageId, pageToken, content, mediaFiles) {
   }
 
   if (mediaFiles.length === 1 && mediaFiles[0].mimeType.startsWith('image/')) {
-    // Single photo post
-    const fs = require('fs');
-    const path = require('path');
-    const FormData = require('form-data');
-
-    const filePath = path.join(__dirname, '../../uploads', mediaFiles[0].filePath);
-    const form = new FormData();
-    form.append('source', fs.createReadStream(filePath));
-    form.append('caption', content);
-    form.append('access_token', token);
-
-    const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/photos`, form, {
-      headers: form.getHeaders(),
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
+    // Single photo via URL upload — Meta fetches it from R2 / public host so
+    // it works the same on Railway as locally, no fs access required.
+    const imageUrl = publicMediaUrl(mediaFiles[0]);
+    const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/photos`, null, {
+      params: { url: imageUrl, caption: content, access_token: token },
     });
     return data.id || data.post_id;
   }
 
   if (mediaFiles.length === 1 && mediaFiles[0].mimeType.startsWith('video/')) {
-    // Single video post
-    const fs = require('fs');
-    const path = require('path');
-    const FormData = require('form-data');
-
-    const filePath = path.join(__dirname, '../../uploads', mediaFiles[0].filePath);
-    const form = new FormData();
-    form.append('source', fs.createReadStream(filePath));
-    form.append('description', content);
-    form.append('access_token', token);
-
-    const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/videos`, form, {
-      headers: form.getHeaders(),
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
+    // Single video via URL upload — Meta accepts file_url for /videos.
+    const videoUrl = publicMediaUrl(mediaFiles[0]);
+    const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/videos`, null, {
+      params: { file_url: videoUrl, description: content, access_token: token },
     });
     return data.id;
   }
 
-  // Multiple photos — upload each unpublished, then create multi-photo post
+  // Multi-photo — upload each one unpublished by URL, then create a feed
+  // post that attaches all of them.
   const photoIds = [];
   for (const media of mediaFiles) {
     if (!media.mimeType.startsWith('image/')) continue;
-
-    const fs = require('fs');
-    const path = require('path');
-    const FormData = require('form-data');
-
-    const filePath = path.join(__dirname, '../../uploads', media.filePath);
-    const form = new FormData();
-    form.append('source', fs.createReadStream(filePath));
-    form.append('published', 'false');
-    form.append('access_token', token);
-
-    const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/photos`, form, {
-      headers: form.getHeaders(),
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
+    const imageUrl = publicMediaUrl(media);
+    const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/photos`, null, {
+      params: { url: imageUrl, published: 'false', access_token: token },
     });
     photoIds.push(data.id);
   }
 
-  // Create the multi-photo post
-  const postBody = {
-    message: content,
-    access_token: token,
-  };
+  const postBody = { message: content, access_token: token };
   photoIds.forEach((id, i) => {
     postBody[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
   });
-
   const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/feed`, postBody);
   return data.id;
 }
