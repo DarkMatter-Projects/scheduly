@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -95,7 +95,7 @@ export default function EngagePage() {
 
   // Open the first thread automatically when the list loads, so the right
   // pane isn't empty on the first visit.
-  useMemo(() => {
+  useEffect(() => {
     if (!selectedId && threads.length > 0) setSelectedId(threads[0].id);
   }, [threads, selectedId]);
 
