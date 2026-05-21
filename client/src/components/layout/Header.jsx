@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
-import { Menu, LogOut, ChevronDown, Search, Bell, Plus } from 'lucide-react';
+import { listThreads } from '../../api/engageApi';
+import { Menu, LogOut, ChevronDown, Search, Bell, Plus, Inbox } from 'lucide-react';
 import ClientSwitcher from './ClientSwitcher';
 
 const pageTitles = {
@@ -19,15 +22,31 @@ const pageTitles = {
 };
 
 export default function Header({ onMenuToggle }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const bellRef = useRef(null);
+
+  // Recent unread Engage threads for the notification bell. Polls every 60s.
+  const { data: unreadThreads = [] } = useQuery({
+    queryKey: ['engage-unread-recent'],
+    queryFn: () => listThreads({ feed: 'unread', limit: 10 }),
+    refetchInterval: 60000,
+    staleTime: 30000,
+    enabled: isAuthenticated,
+  });
+  const unreadCount = unreadThreads.length;
 
   useEffect(() => {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
+      }
+      if (bellRef.current && !bellRef.current.contains(e.target)) {
+        setBellOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -69,9 +88,66 @@ export default function Header({ onMenuToggle }) {
         </Link>
 
         {/* Notifications */}
-        <button className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 relative">
-          <Bell className="w-5 h-5" />
-        </button>
+        <div className="relative" ref={bellRef}>
+          <button
+            onClick={() => setBellOpen(o => !o)}
+            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 relative"
+            title="Unread Engage threads"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {bellOpen && (
+            <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50 max-h-[420px] flex flex-col">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-900">Unread inbox</p>
+                {unreadCount > 0 && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-rose-600">
+                    {unreadCount} new
+                  </span>
+                )}
+              </div>
+              <div className="overflow-y-auto flex-1">
+                {unreadCount === 0 ? (
+                  <div className="px-4 py-8 text-center">
+                    <Inbox className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs text-slate-500">You're all caught up.</p>
+                  </div>
+                ) : (
+                  unreadThreads.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => { setBellOpen(false); navigate('/engage'); }}
+                      className="w-full text-left px-4 py-2.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <p className="text-xs font-semibold text-slate-900 truncate">
+                          {t.participantName || t.participantHandle || `@${t.participantId}`}
+                        </p>
+                        <span className="text-[10px] text-slate-400 ml-2 flex-shrink-0">
+                          {t.lastMessageAt ? formatDistanceToNow(new Date(t.lastMessageAt), { addSuffix: false }) : ''}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 line-clamp-2">{t.lastMessagePreview || '(no preview)'}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 capitalize">{t.sourceType} · {t.accountName}</p>
+                    </button>
+                  ))
+                )}
+              </div>
+              <button
+                onClick={() => { setBellOpen(false); navigate('/engage'); }}
+                className="px-4 py-2 text-[11px] font-semibold text-blue-600 hover:bg-slate-50 border-t border-slate-100"
+              >
+                Open Engage inbox →
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* User menu */}
         <div className="relative" ref={dropdownRef}>
