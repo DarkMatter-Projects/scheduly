@@ -185,8 +185,13 @@ export default function CalendarPage() {
             events={(fetchInfo, successCallback, failureCallback) => {
               getCalendarEvents(fetchInfo.startStr, fetchInfo.endStr, activeClientId || undefined)
                 .then(data => {
-                  setEvents(data);
+                  // Hand the data to FullCalendar synchronously first — calling
+                  // setEvents before this caused a re-render mid-fetch which
+                  // gave FullCalendar a fresh callback reference and the first
+                  // successCallback's payload was dropped, leaving the grid
+                  // empty even though the data made it into React state.
                   successCallback(data);
+                  setEvents(data);
                 })
                 .catch(failureCallback);
             }}
