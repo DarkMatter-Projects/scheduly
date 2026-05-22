@@ -371,8 +371,12 @@ async function linkedinCallback(req, res, next) {
   try {
     const { code, state, error, error_description } = req.query;
     if (error) {
+      // Surface LinkedIn's exact error code + description so we can see why
+      // their consent screen is rejecting the request, instead of swallowing
+      // it as a generic "denied".
       logger.warn(`LinkedIn OAuth denied: ${error} - ${error_description}`);
-      return res.redirect(`${clientUrl}/accounts?error=oauth_denied`);
+      const detail = encodeURIComponent(`${error}: ${error_description || ''}`.slice(0, 300));
+      return res.redirect(`${clientUrl}/accounts?error=linkedin_failed&detail=${detail}`);
     }
     if (!state || !pendingStates.has(state)) {
       return res.redirect(`${clientUrl}/accounts?error=invalid_state`);
