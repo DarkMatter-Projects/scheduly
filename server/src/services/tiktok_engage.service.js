@@ -60,8 +60,15 @@ async function ingestTikTokComments(account) {
     try {
       comments = await listCommentsForVideo(accessToken, v.id);
     } catch (err) {
-      if (err.code === 'scope_not_authorized') {
-        logger.warn(`TikTok comments skipped: comment.list scope missing (account ${account.account_name})`);
+      if (err.code === 'scope_not_authorized' || err.response?.status === 404) {
+        // 404 means the endpoint isn't available for our app yet (Display API
+        // comment access is gated behind TikTok review). Log once at the
+        // account level instead of spamming for every video.
+        if (err.response?.status === 404) {
+          logger.debug(`TikTok comment.list not available for ${account.account_name} (endpoint 404 — scope not approved)`);
+        } else {
+          logger.warn(`TikTok comments skipped: comment.list scope missing (account ${account.account_name})`);
+        }
         return inserted;
       }
       logger.warn(`TikTok comment.list failed for video ${v.id}: ${err.message}`);
