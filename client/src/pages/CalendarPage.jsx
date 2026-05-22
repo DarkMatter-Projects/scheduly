@@ -59,6 +59,52 @@ export default function CalendarPage() {
     setQuickPostId(postId);
   }, []);
 
+  // Stable events fetcher — passing an inline function recreated this on
+  // every render, which made FullCalendar refetch and clear the grid in a
+  // loop because the same render also called setEvents. Memoizing keeps the
+  // reference stable; the events state for the preview is updated as a
+  // side-effect after handing the data to FullCalendar.
+  const fetchEvents = useCallback((fetchInfo, successCallback, failureCallback) => {
+    getCalendarEvents(fetchInfo.startStr, fetchInfo.endStr, activeClientId || undefined)
+      .then(data => {
+        successCallback(data);
+        setEvents(data);
+      })
+      .catch(failureCallback);
+  }, [activeClientId]);
+
+  // Stable eventContent renderer. Same loop reason as fetchEvents.
+  const renderEventContent = useCallback((eventInfo) => {
+    const { status, mediaCount, postId } = eventInfo.event.extendedProps;
+    const colors = statusColors[status] || statusColors.draft;
+    return (
+      <div
+        className="group w-full px-2 py-1 rounded text-xs cursor-pointer overflow-hidden relative"
+        style={{
+          backgroundColor: colors.bg,
+          borderLeft: `3px solid ${colors.border}`,
+          color: colors.text,
+        }}
+      >
+        <div className="font-medium truncate pr-5">
+          {eventInfo.event.title}
+        </div>
+        {mediaCount > 0 && (
+          <div className="text-[10px] opacity-70 mt-0.5">
+            {mediaCount} media
+          </div>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); setQuickPostId(postId); }}
+          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-white/90 hover:bg-white rounded p-0.5 shadow-sm"
+          title="Edit / review"
+        >
+          <Pencil className="w-2.5 h-2.5 text-slate-700" />
+        </button>
+      </div>
+    );
+  }, []);
+
   const handleEventDrop = useCallback((info) => {
     const postId = info.event.extendedProps.postId;
     const status = info.event.extendedProps.status;
@@ -182,19 +228,7 @@ export default function CalendarPage() {
             plugins={[dayGridPlugin, interactionPlugin]}
             initialView="dayGridMonth"
             headerToolbar={false}
-            events={(fetchInfo, successCallback, failureCallback) => {
-              getCalendarEvents(fetchInfo.startStr, fetchInfo.endStr, activeClientId || undefined)
-                .then(data => {
-                  // Hand the data to FullCalendar synchronously first — calling
-                  // setEvents before this caused a re-render mid-fetch which
-                  // gave FullCalendar a fresh callback reference and the first
-                  // successCallback's payload was dropped, leaving the grid
-                  // empty even though the data made it into React state.
-                  successCallback(data);
-                  setEvents(data);
-                })
-                .catch(failureCallback);
-            }}
+            events={fetchEvents}
             eventClick={handleEventClick}
             eventDrop={handleEventDrop}
             dateClick={handleDateClick}
@@ -203,39 +237,7 @@ export default function CalendarPage() {
             dayMaxEvents={3}
             datesSet={handleDatesSet}
             height="auto"
-            eventContent={(eventInfo) => {
-              const { status, mediaCount, postId } = eventInfo.event.extendedProps;
-              const colors = statusColors[status] || statusColors.draft;
-              return (
-                <div
-                  className="group w-full px-2 py-1 rounded text-xs cursor-pointer overflow-hidden relative"
-                  style={{
-                    backgroundColor: colors.bg,
-                    borderLeft: `3px solid ${colors.border}`,
-                    color: colors.text,
-                  }}
-                >
-                  <div className="font-medium truncate pr-5">
-                    {eventInfo.event.title}
-                  </div>
-                  {mediaCount > 0 && (
-                    <div className="text-[10px] opacity-70 mt-0.5">
-                      {mediaCount} media
-                    </div>
-                  )}
-                  {/* Hover-reveal Edit button — stops propagation so it opens the
-                      quick-look modal without also triggering the calendar's
-                      eventClick / drag handlers. */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setQuickPostId(postId); }}
-                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition bg-white/90 hover:bg-white rounded p-0.5 shadow-sm"
-                    title="Edit / review"
-                  >
-                    <Pencil className="w-2.5 h-2.5 text-slate-700" />
-                  </button>
-                </div>
-              );
-            }}
+            eventContent={renderEventContent}
           />
         </div>
       </div>
