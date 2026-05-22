@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const storage = require('../services/storage.service');
 
 async function getEvents(req, res, next) {
   try {
@@ -64,7 +65,10 @@ async function getEvents(req, res, next) {
     }
 
     const events = rows.map(r => {
-      const thumbnail = r.thumbnail ? (r.thumbnail.startsWith('http') ? r.thumbnail : `/uploads/${r.thumbnail}`) : null;
+      // storage.publicUrlFor handles both R2 (absolute URL) and local storage
+      // (/uploads/...). The axios interceptor on the client will rewrite relative
+      // paths to the backend origin when needed.
+      const thumbnail = r.thumbnail ? storage.publicUrlFor(r.thumbnail) : null;
       return {
         id: r.id,
         title: r.title || r.content.substring(0, 50),
