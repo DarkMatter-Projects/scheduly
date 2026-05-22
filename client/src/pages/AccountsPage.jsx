@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listAccounts, startFacebookAuth, startInstagramAuth, startTiktokLoginAuth, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
+import { listAccounts, startFacebookAuth, startInstagramAuth, startTiktokLoginAuth, startLinkedinAuth, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
@@ -161,6 +161,7 @@ export default function AccountsPage() {
         invalid_state: 'Invalid session. Please try again.',
         connection_failed: 'Failed to connect accounts. Please try again.',
         tiktok_login_failed: 'TikTok connection failed',
+        linkedin_failed: 'LinkedIn connection failed',
       };
       const detail = searchParams.get('detail');
       const base = messages[error] || 'Connection failed';
@@ -185,6 +186,12 @@ export default function AccountsPage() {
     mutationFn: () => startTiktokLoginAuth(),
     onSuccess: (data) => { window.location.href = data.authUrl; },
     onError: () => toast.error('Failed to start TikTok connection. Check TIKTOK_LOGIN_* env vars.'),
+  });
+
+  const connectLinkedinMutation = useMutation({
+    mutationFn: () => startLinkedinAuth(),
+    onSuccess: (data) => { window.location.href = data.authUrl; },
+    onError: () => toast.error('Failed to start LinkedIn connection. Check LINKEDIN_* env vars.'),
   });
 
   const disconnectMut = useMutation({
@@ -235,6 +242,8 @@ export default function AccountsPage() {
       connectInstagramMutation.mutate();
     } else if (platform.connectVia === 'tiktok_login') {
       connectTiktokMutation.mutate();
+    } else if (platform.connectVia === 'linkedin') {
+      connectLinkedinMutation.mutate();
     } else {
       toast(`${platform.label} integration coming soon!`, { icon: '🚀' });
     }

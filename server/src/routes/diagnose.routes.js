@@ -6,6 +6,7 @@ const pool = require('../config/db');
 const { decrypt } = require('../services/token.service');
 const googleConfig = require('../config/google');
 const tiktokLoginConfig = require('../config/tiktok_login');
+const linkedinConfig = require('../config/linkedin');
 
 const router = Router();
 
@@ -36,6 +37,21 @@ router.get('/tiktok-login-config', authenticate, requireRole('admin'), (req, res
     redirectUri: tiktokLoginConfig.redirectUri,
     scopes: tiktokLoginConfig.TIKTOK_SCOPES,
     authorizeUrl: tiktokLoginConfig.TIKTOK_AUTHORIZE_URL,
+  });
+});
+
+// LinkedIn config sanity check — verifies env vars + redirect URI without
+// leaking secrets. Hit this after setting LINKEDIN_CLIENT_ID / SECRET.
+router.get('/linkedin-config', authenticate, requireRole('admin'), (req, res) => {
+  const id = linkedinConfig.clientId;
+  res.json({
+    clientIdSet: !!id,
+    clientIdLength: id ? id.length : 0,
+    clientIdSuffix: id ? id.slice(-6) : null,
+    clientSecretSet: !!linkedinConfig.clientSecret,
+    redirectUri: linkedinConfig.redirectUri,
+    scopes: linkedinConfig.LINKEDIN_SCOPES,
+    authorizeUrl: linkedinConfig.LINKEDIN_AUTHORIZE_URL,
   });
 });
 

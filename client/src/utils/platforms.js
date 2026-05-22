@@ -62,12 +62,12 @@ export const PLATFORMS = {
   linkedin: {
     key: 'linkedin',
     label: 'LinkedIn',
-    sublabel: 'Page',
+    sublabel: 'Profile',
     icon: LinkedinIcon,
     bg: 'bg-sky-700',
     bgSoft: 'bg-sky-50',
     text: 'text-sky-700',
-    available: false,
+    available: true,
     connectVia: 'linkedin',
   },
   youtube: {

@@ -10,6 +10,7 @@ const instagramImportService = require('../services/instagram_import.service');
 const googleAdsService = require('../services/google_ads.service');
 const tiktokAdsService = require('../services/tiktok_ads.service');
 const tiktokPostingService = require('../services/tiktok_posting.service');
+const linkedinService = require('../services/linkedin.service');
 const { decrypt } = require('../services/token.service');
 const logger = require('../utils/logger');
 
@@ -348,6 +349,54 @@ async function startTiktokLoginOAuth(req, res, next) {
   }
 }
 
+async function startLinkedinOAuth(req, res, next) {
+  try {
+    const state = crypto.randomBytes(16).toString('hex');
+    pendingStates.set(state, {
+      userId: req.user.userId,
+      teamId: req.query.teamId || null,
+      platform: 'linkedin',
+      timestamp: Date.now(),
+    });
+    for (const [key, val] of pendingStates) {
+      if (Date.now() - val.timestamp > 600000) pendingStates.delete(key);
+    }
+    const authUrl = linkedinService.getAuthUrl(state);
+    res.json({ authUrl });
+  } catch (err) { next(err); }
+}
+
+async function linkedinCallback(req, res, next) {
+  const clientUrl = clientBase();
+  try {
+    const { code, state, error, error_description } = req.query;
+    if (error) {
+      logger.warn(`LinkedIn OAuth denied: ${error} - ${error_description}`);
+      return res.redirect(`${clientUrl}/accounts?error=oauth_denied`);
+    }
+    if (!state || !pendingStates.has(state)) {
+      return res.redirect(`${clientUrl}/accounts?error=invalid_state`);
+    }
+    const { userId, teamId } = pendingStates.get(state);
+    pendingStates.delete(state);
+
+    const tokens = await linkedinService.exchangeCodeForToken(code);
+    const userInfo = await linkedinService.fetchUserInfo(tokens.accessToken);
+    await linkedinService.storeAccount({ tokens, userInfo, userId, teamId });
+
+    logger.info(`LinkedIn OAuth: user ${userId} connected ${userInfo.name || userInfo.sub}`);
+    return res.redirect(`${clientUrl}/accounts?connected=1`);
+  } catch (err) {
+    const apiBody = err.response?.data;
+    const detail = (apiBody && typeof apiBody === 'object'
+      ? apiBody.error_description || apiBody.message || JSON.stringify(apiBody).slice(0, 200)
+      : null) || err.message || 'Unknown error';
+    logger.error('LinkedIn OAuth callback error:', { message: err.message, response: apiBody });
+    const enc = encodeURIComponent(detail.slice(0, 300));
+    return res.redirect(`${clientUrl}/accounts?error=linkedin_failed&detail=${enc}`);
+  }
+}
+
 async function tiktokLoginCallback(req, res, next) {
   const clientUrl = clientBase();
   try {
@@ -487,6 +536,8 @@ module.exports = {
   tiktokOAuthCallback,
   startTiktokLoginOAuth,
   tiktokLoginCallback,
+  startLinkedinOAuth,
+  linkedinCallback,
   disconnectAccount,
   reconnectAccount,
   getAccountAvatar,

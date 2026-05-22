@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const { publishToPage } = require('./facebook.service');
 const { publishToInstagram } = require('./instagram.service');
 const { publishToTikTok } = require('./tiktok_posting.service');
+const { publishToLinkedIn } = require('./linkedin.service');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 
@@ -69,6 +70,12 @@ async function publishPost(postId) {
           post.content,
           mediaFiles,
           publicBaseUrl
+        );
+      } else if (target.platform === 'linkedin') {
+        platformPostId = await publishToLinkedIn(
+          target.social_account_row_id,
+          post.content,
+          mediaFiles
         );
       } else if (target.platform === 'tiktok') {
         // TikTok returns a publish_id, not a platform post id — the post
