@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { getPlatform } from '../utils/platforms';
 import AddWidgetModal from '../components/dashboard/AddWidgetModal';
 import WidgetRenderer from '../components/dashboard/WidgetRenderer';
+import DateRangePicker from '../components/dashboard/DateRangePicker';
 
 export default function DashboardBuilderPage() {
   const { id } = useParams();
@@ -43,6 +44,16 @@ export default function DashboardBuilderPage() {
       setEditingName(false);
     },
     onError: () => toast.error('Failed to rename'),
+  });
+
+  const rangeMut = useMutation({
+    mutationFn: (range) => updateDashboard(id, range),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
+      // Widgets reload so they pick up the new range.
+      queryClient.invalidateQueries({ queryKey: ['widget-data'] });
+    },
+    onError: () => toast.error('Failed to update date range'),
   });
 
   const removeWidgetMut = useMutation({
@@ -129,6 +140,15 @@ export default function DashboardBuilderPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <DateRangePicker
+            value={{
+              defaultRange: dashboard.defaultRange,
+              rangeStart: dashboard.rangeStart,
+              rangeEnd: dashboard.rangeEnd,
+            }}
+            onChange={(range) => rangeMut.mutate(range)}
+            disabled={!canEdit}
+          />
           {canShare && (
             <button
               onClick={() => setShowShare(s => !s)}
