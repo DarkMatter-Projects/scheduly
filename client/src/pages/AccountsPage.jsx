@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listAccounts, startFacebookAuth, startInstagramAuth, startTiktokLoginAuth, startLinkedinAuth, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
+import { listAccounts, startFacebookAuth, startInstagramAuth, startTiktokLoginAuth, startLinkedinAuth, startYoutubeAuth, getYoutubeQuota, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
@@ -162,6 +162,7 @@ export default function AccountsPage() {
         connection_failed: 'Failed to connect accounts. Please try again.',
         tiktok_login_failed: 'TikTok connection failed',
         linkedin_failed: 'LinkedIn connection failed',
+        youtube_failed: 'YouTube connection failed',
       };
       const detail = searchParams.get('detail');
       const base = messages[error] || 'Connection failed';
@@ -192,6 +193,12 @@ export default function AccountsPage() {
     mutationFn: () => startLinkedinAuth(),
     onSuccess: (data) => { window.location.href = data.authUrl; },
     onError: () => toast.error('Failed to start LinkedIn connection. Check LINKEDIN_* env vars.'),
+  });
+
+  const connectYoutubeMutation = useMutation({
+    mutationFn: () => startYoutubeAuth(),
+    onSuccess: (data) => { window.location.href = data.authUrl; },
+    onError: () => toast.error('Failed to start YouTube connection. Check GOOGLE_* env vars and YouTube Data API v3 is enabled.'),
   });
 
   const disconnectMut = useMutation({
@@ -244,6 +251,8 @@ export default function AccountsPage() {
       connectTiktokMutation.mutate();
     } else if (platform.connectVia === 'linkedin') {
       connectLinkedinMutation.mutate();
+    } else if (platform.connectVia === 'youtube') {
+      connectYoutubeMutation.mutate();
     } else {
       toast(`${platform.label} integration coming soon!`, { icon: '🚀' });
     }

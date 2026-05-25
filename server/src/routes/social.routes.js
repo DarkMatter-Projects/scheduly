@@ -22,6 +22,9 @@ router.get('/auth/tiktok-login', authenticate, requireRole('admin'), socialContr
 router.get('/auth/tiktok-login/callback', socialController.tiktokLoginCallback);
 router.get('/auth/linkedin', authenticate, requireRole('admin'), socialController.startLinkedinOAuth);
 router.get('/auth/linkedin/callback', socialController.linkedinCallback);
+router.get('/auth/youtube', authenticate, requireRole('admin'), socialController.startYoutubeOAuth);
+router.get('/auth/youtube/callback', socialController.youtubeCallback);
+router.get('/youtube/quota', authenticate, socialController.getYoutubeQuota);
 router.delete('/accounts/:id', authenticate, requireRole('admin'), socialController.disconnectAccount);
 router.post('/accounts/:id/reconnect', authenticate, requireRole('admin'), socialController.reconnectAccount);
 router.post('/accounts/:id/import-history', authenticate, requireRole('admin', 'manager'), socialController.importHistory);

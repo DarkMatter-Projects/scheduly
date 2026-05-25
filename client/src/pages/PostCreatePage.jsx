@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPost, schedulePost } from '../api/postsApi';
 import { listMedia, uploadMedia } from '../api/mediaApi';
-import { listAccounts } from '../api/socialApi';
+import { listAccounts, getYoutubeQuota } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
@@ -294,6 +294,16 @@ export default function PostCreatePage() {
     queryKey: ['clients'],
     queryFn: listClients,
   });
+
+  // Only fetch YouTube quota if the user even has a YouTube account connected.
+  const hasYoutubeAccount = socialAccounts.some(a => a.platform === 'youtube' && a.isActive);
+  const { data: youtubeQuota } = useQuery({
+    queryKey: ['youtubeQuota'],
+    queryFn: getYoutubeQuota,
+    enabled: hasYoutubeAccount,
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
   // When a client workspace is active, only let users target that client's accounts.
   const activeAccounts = useMemo(() => {
     const live = socialAccounts.filter(a => a.isActive);
@@ -411,6 +421,10 @@ export default function PostCreatePage() {
   const charCount = content.length;
   const selectedAccounts = activeAccounts.filter(a => selectedAccountIds.includes(a.id));
   const hasTiktokTarget = selectedAccounts.some(a => a.platform === 'tiktok');
+  const youtubeTargetCount = selectedAccounts.filter(a => a.platform === 'youtube').length;
+  const youtubeOverQuota = youtubeTargetCount > 0
+    && youtubeQuota
+    && youtubeQuota.uploadsRemaining < youtubeTargetCount;
   // Use the strictest applicable limit (Instagram) when any selected target is IG
   const anyIG = selectedAccounts.some(a => a.platform === 'instagram_business');
   const limit = anyIG || selectedAccounts.length === 0 ? IG_LIMIT : FB_LIMIT;
@@ -765,13 +779,17 @@ export default function PostCreatePage() {
 
           <button
             onClick={handleSchedule}
-            disabled={isPending || !content.trim() || selectedAccountIds.length === 0}
+            disabled={isPending || !content.trim() || selectedAccountIds.length === 0 || youtubeOverQuota}
+            title={youtubeOverQuota ? `YouTube daily quota exhausted — ${youtubeQuota?.uploadsRemaining || 0} uploads remaining` : undefined}
             className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-full shadow-lg shadow-violet-600/20 transition disabled:opacity-50"
           >
             <Clock className="w-4 h-4" />
             {isPending ? 'Scheduling...' : selectedAccountIds.length > 1 ? `Schedule to ${selectedAccountIds.length}` : 'Schedule Post'}
           </button>
         </div>
+        {youtubeTargetCount > 0 && youtubeQuota && (
+          <YoutubeQuotaBadge quota={youtubeQuota} needed={youtubeTargetCount} />
+        )}
       </div>
 
       {showMediaPicker && (
@@ -783,6 +801,26 @@ export default function PostCreatePage() {
           onClose={() => setShowMediaPicker(false)}
         />
       )}
+    </div>
+  );
+}
+
+// Inline pill that shows YouTube's daily quota status — surfaces *before* the
+// publish click so the user knows if they'll be blocked. Goes red when the
+// requested upload count would exceed what's left.
+function YoutubeQuotaBadge({ quota, needed }) {
+  const blocked = quota.uploadsRemaining < needed;
+  return (
+    <div
+      className={clsx(
+        'mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium',
+        blocked ? 'bg-rose-50 text-rose-700' : 'bg-red-50 text-red-700'
+      )}
+      title="YouTube Data API v3 caps free-tier projects at 10,000 quota units/day. Each upload costs 1,600 units."
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+      YouTube quota: {quota.uploadsRemaining} of {Math.floor(quota.dailyLimit / quota.costPerUpload)} uploads remaining today
+      {blocked && ` — need ${needed}`}
     </div>
   );
 }

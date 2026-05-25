@@ -11,6 +11,7 @@ const googleAdsService = require('../services/google_ads.service');
 const tiktokAdsService = require('../services/tiktok_ads.service');
 const tiktokPostingService = require('../services/tiktok_posting.service');
 const linkedinService = require('../services/linkedin.service');
+const youtubeService = require('../services/youtube.service');
 const { decrypt } = require('../services/token.service');
 const logger = require('../utils/logger');
 
@@ -349,6 +350,65 @@ async function startTiktokLoginOAuth(req, res, next) {
   }
 }
 
+async function startYoutubeOAuth(req, res, next) {
+  try {
+    const state = crypto.randomBytes(16).toString('hex');
+    pendingStates.set(state, {
+      userId: req.user.userId,
+      teamId: req.query.teamId || null,
+      platform: 'youtube',
+      timestamp: Date.now(),
+    });
+    for (const [key, val] of pendingStates) {
+      if (Date.now() - val.timestamp > 600000) pendingStates.delete(key);
+    }
+    const authUrl = youtubeService.getAuthUrl(state);
+    res.json({ authUrl });
+  } catch (err) { next(err); }
+}
+
+async function youtubeCallback(req, res, next) {
+  const clientUrl = clientBase();
+  try {
+    const { code, state, error, error_description } = req.query;
+    if (error) {
+      logger.warn(`YouTube OAuth denied: ${error} - ${error_description}`);
+      const detail = encodeURIComponent(`${error}: ${error_description || ''}`.slice(0, 300));
+      return res.redirect(`${clientUrl}/accounts?error=youtube_failed&detail=${detail}`);
+    }
+    if (!state || !pendingStates.has(state)) {
+      return res.redirect(`${clientUrl}/accounts?error=invalid_state`);
+    }
+    const { userId, teamId } = pendingStates.get(state);
+    pendingStates.delete(state);
+
+    const tokens = await youtubeService.exchangeCodeForToken(code);
+    const channels = await youtubeService.fetchChannels(tokens.accessToken);
+    if (channels.length === 0) {
+      return res.redirect(`${clientUrl}/accounts?error=youtube_failed&detail=${encodeURIComponent('No YouTube channels found on this Google account')}`);
+    }
+    const stored = await youtubeService.storeAccounts({ tokens, channels, userId, teamId });
+
+    logger.info(`YouTube OAuth: user ${userId} connected ${stored.length} channel(s)`);
+    return res.redirect(`${clientUrl}/accounts?connected=${stored.length}`);
+  } catch (err) {
+    const apiBody = err.response?.data;
+    const detail = (apiBody && typeof apiBody === 'object'
+      ? apiBody.error_description || apiBody.error?.message || JSON.stringify(apiBody).slice(0, 200)
+      : null) || err.message || 'Unknown error';
+    logger.error('YouTube OAuth callback error:', { message: err.message, response: apiBody });
+    const enc = encodeURIComponent(detail.slice(0, 300));
+    return res.redirect(`${clientUrl}/accounts?error=youtube_failed&detail=${enc}`);
+  }
+}
+
+async function getYoutubeQuota(req, res, next) {
+  try {
+    const status = await youtubeService.getQuotaStatus();
+    res.json(status);
+  } catch (err) { next(err); }
+}
+
 async function startLinkedinOAuth(req, res, next) {
   try {
     const state = crypto.randomBytes(16).toString('hex');
@@ -542,6 +602,9 @@ module.exports = {
   tiktokLoginCallback,
   startLinkedinOAuth,
   linkedinCallback,
+  startYoutubeOAuth,
+  youtubeCallback,
+  getYoutubeQuota,
   disconnectAccount,
   reconnectAccount,
   getAccountAvatar,

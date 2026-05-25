@@ -78,7 +78,7 @@ export const PLATFORMS = {
     bg: 'bg-red-600',
     bgSoft: 'bg-red-50',
     text: 'text-red-600',
-    available: false,
+    available: true,
     connectVia: 'youtube',
   },
   snapchat: {

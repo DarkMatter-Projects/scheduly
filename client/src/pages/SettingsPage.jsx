@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listUsers, createUser, updateUser, deactivateUser } from '../api/usersApi';
+import { getYoutubeQuota } from '../api/socialApi';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 
 const ROLES = ['admin', 'manager', 'editor', 'viewer'];
@@ -129,6 +130,11 @@ function UserModal({ user, onClose, onSave }) {
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: listUsers });
+  const { data: youtubeQuota } = useQuery({
+    queryKey: ['youtubeQuota'],
+    queryFn: getYoutubeQuota,
+    refetchInterval: 60000,
+  });
   const [modalUser, setModalUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
@@ -245,6 +251,65 @@ export default function SettingsPage() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* YouTube quota panel — shows the rolling 24h usage and links to the
+          Google form for requesting a higher daily quota. */}
+      <div className="bg-white rounded-xl border border-gray-200 mt-6">
+        <div className="p-5 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800">YouTube API Quota</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            YouTube Data API v3 caps free-tier Google Cloud projects at 10,000 quota units per day.
+            Each video upload costs 1,600 units.
+          </p>
+        </div>
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-lg border border-slate-200 p-4">
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1">Uploads today</p>
+            <p className="text-2xl font-bold text-slate-900">{youtubeQuota?.uploadsToday ?? '—'}</p>
+            <p className="text-[11px] text-slate-500 mt-1">Rolling last 24 hours</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 p-4">
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1">Uploads remaining</p>
+            <p className={clsx(
+              'text-2xl font-bold',
+              !youtubeQuota ? 'text-slate-400'
+                : youtubeQuota.uploadsRemaining === 0 ? 'text-rose-600'
+                : youtubeQuota.uploadsRemaining < 2 ? 'text-amber-600'
+                : 'text-emerald-600'
+            )}>
+              {youtubeQuota?.uploadsRemaining ?? '—'}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1">
+              of {youtubeQuota ? Math.floor(youtubeQuota.dailyLimit / youtubeQuota.costPerUpload) : '—'} per day
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 p-4">
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1">Units consumed</p>
+            <p className="text-2xl font-bold text-slate-900">{youtubeQuota?.unitsUsed ?? '—'}</p>
+            <p className="text-[11px] text-slate-500 mt-1">of {youtubeQuota?.dailyLimit ?? '—'} units</p>
+          </div>
+        </div>
+        <div className="px-5 pb-5">
+          <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4">
+            <p className="text-sm font-semibold text-blue-900 mb-1">Need more uploads per day?</p>
+            <p className="text-xs text-blue-800 leading-relaxed">
+              Google grants higher quotas after a brief audit. Approvals usually take 2–8 weeks.
+              Fill out the YouTube API Services Audit &amp; Quota Extension form below, describing
+              Scheduly's use case (multi-channel social scheduling for agencies). Once approved,
+              set the new daily limit on the <code className="px-1 bg-white rounded text-[11px]">YOUTUBE_QUOTA_DAILY</code> env var.
+            </p>
+            <a
+              href="https://support.google.com/youtube/contact/yt_api_form"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Request a quota increase
+            </a>
+          </div>
+        </div>
       </div>
 
       {showModal && (

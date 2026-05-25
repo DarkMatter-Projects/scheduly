@@ -7,6 +7,7 @@ const { decrypt } = require('../services/token.service');
 const googleConfig = require('../config/google');
 const tiktokLoginConfig = require('../config/tiktok_login');
 const linkedinConfig = require('../config/linkedin');
+const youtubeConfig = require('../config/youtube');
 
 const router = Router();
 
@@ -37,6 +38,19 @@ router.get('/tiktok-login-config', authenticate, requireRole('admin'), (req, res
     redirectUri: tiktokLoginConfig.redirectUri,
     scopes: tiktokLoginConfig.TIKTOK_SCOPES,
     authorizeUrl: tiktokLoginConfig.TIKTOK_AUTHORIZE_URL,
+  });
+});
+
+// YouTube config sanity check — confirms env wiring without leaking secrets.
+router.get('/youtube-config', authenticate, requireRole('admin'), (req, res) => {
+  res.json({
+    clientIdSet: !!youtubeConfig.clientId,
+    clientIdSuffix: youtubeConfig.clientId ? youtubeConfig.clientId.slice(-30) : null,
+    clientSecretSet: !!youtubeConfig.clientSecret,
+    redirectUri: youtubeConfig.redirectUri,
+    scopes: youtubeConfig.YOUTUBE_SCOPES,
+    quotaDailyLimit: youtubeConfig.QUOTA_DAILY_LIMIT,
+    quotaCostPerUpload: youtubeConfig.QUOTA_COST.videoUpload,
   });
 });
 

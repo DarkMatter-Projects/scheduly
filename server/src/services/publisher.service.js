@@ -3,6 +3,7 @@ const { publishToPage } = require('./facebook.service');
 const { publishToInstagram } = require('./instagram.service');
 const { publishToTikTok } = require('./tiktok_posting.service');
 const { publishToLinkedIn } = require('./linkedin.service');
+const { publishToYouTube } = require('./youtube.service');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 
@@ -76,6 +77,18 @@ async function publishPost(postId) {
           target.social_account_row_id,
           post.content,
           mediaFiles
+        );
+      } else if (target.platform === 'youtube') {
+        platformPostId = await publishToYouTube(
+          target.social_account_row_id,
+          post.content,
+          mediaFiles,
+          {
+            // Sensible defaults — exposed on the composer once we wire UI
+            // controls. Posts default to private until the user explicitly
+            // opts to make them public.
+            privacy: post.youtube_privacy || 'private',
+          }
         );
       } else if (target.platform === 'tiktok') {
         // TikTok returns a publish_id, not a platform post id — the post

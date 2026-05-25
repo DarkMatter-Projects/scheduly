@@ -67,6 +67,11 @@ const env = {
     redirectUri: process.env.LINKEDIN_REDIRECT_URI
       || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/linkedin/callback`,
   },
+  youtube: {
+    // OAuth credentials reuse google.* (one Google Cloud project, two APIs).
+    redirectUri: process.env.YOUTUBE_REDIRECT_URI
+      || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/youtube/callback`,
+  },
   // TikTok for Developers (Login Kit + Content Posting API) — separate app
   // from the TikTok for Business app used for the Marketing API above.
   tiktokLogin: {

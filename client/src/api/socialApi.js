@@ -21,6 +21,12 @@ export const startTikTokAuth = (teamId) =>
 export const startLinkedinAuth = (teamId) =>
   api.get('/social/auth/linkedin', { params: { teamId } }).then(r => r.data);
 
+export const startYoutubeAuth = (teamId) =>
+  api.get('/social/auth/youtube', { params: { teamId } }).then(r => r.data);
+
+export const getYoutubeQuota = () =>
+  api.get('/social/youtube/quota').then(r => r.data);
+
 export const disconnectAccount = (id) =>
   api.delete(`/social/accounts/${id}`).then(r => r.data);
 
