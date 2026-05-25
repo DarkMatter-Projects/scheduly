@@ -36,6 +36,7 @@ async function create(req, res, next) {
       title, content, postType, teamId, mediaIds, targetAccountIds,
       tiktokPostMode, tiktokPrivacyLevel,
       tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
+      youtubePrivacy,
     } = req.body;
     if (!content) {
       return res.status(400).json({ error: 'Content is required' });
@@ -53,6 +54,7 @@ async function create(req, res, next) {
       tiktokDisableComment,
       tiktokDisableDuet,
       tiktokDisableStitch,
+      youtubePrivacy,
     });
     res.status(201).json(post);
   } catch (err) {

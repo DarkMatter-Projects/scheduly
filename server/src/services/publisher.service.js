@@ -12,7 +12,8 @@ async function publishPost(postId) {
   const [postRows] = await pool.execute(
     `SELECT id, content,
             tiktok_post_mode, tiktok_privacy_level,
-            tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment
+            tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
+            youtube_privacy
        FROM posts WHERE id = ?`,
     [postId]
   );

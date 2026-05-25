@@ -264,6 +264,7 @@ export default function PostCreatePage() {
   const [tiktokDisableComment, setTiktokDisableComment] = useState(false);
   const [tiktokDisableDuet, setTiktokDisableDuet] = useState(false);
   const [tiktokDisableStitch, setTiktokDisableStitch] = useState(false);
+  const [youtubePrivacy, setYoutubePrivacy] = useState('private');
   const [autoPublish, setAutoPublish] = useState(true);
   const [scheduleDate, setScheduleDate] = useState(() => {
     const d = new Date();
@@ -375,6 +376,7 @@ export default function PostCreatePage() {
         tiktokDisableComment,
         tiktokDisableDuet,
         tiktokDisableStitch,
+        youtubePrivacy,
       });
 
       if (autoPublish) {
@@ -405,6 +407,7 @@ export default function PostCreatePage() {
         tiktokDisableComment,
         tiktokDisableDuet,
         tiktokDisableStitch,
+        youtubePrivacy,
       });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       toast.success('Saved as draft');
@@ -725,6 +728,45 @@ export default function PostCreatePage() {
                     />
                     Disable stitch
                   </label>
+                </div>
+              </div>
+            )}
+
+            {/* YouTube-specific options — only when a YouTube channel is targeted */}
+            {youtubeTargetCount > 0 && (
+              <div className="rounded-xl border border-red-200 bg-red-50/40 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-semibold text-red-900 uppercase tracking-wider">YouTube options</h4>
+                  <span className="text-[10px] text-red-700/70">Caption becomes the video title + description</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Visibility</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: 'private',  label: 'Private',  desc: 'Only you can view' },
+                      { key: 'unlisted', label: 'Unlisted', desc: 'Anyone with the link' },
+                      { key: 'public',   label: 'Public',   desc: 'Visible on your channel' },
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setYoutubePrivacy(opt.key)}
+                        className={clsx(
+                          'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                          youtubePrivacy === opt.key
+                            ? 'border-red-300 bg-white text-red-900'
+                            : 'border-slate-200 bg-white text-slate-700'
+                        )}
+                      >
+                        <div className="font-semibold">{opt.label}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1.5">
+                    Default is Private so accidental publishes never go public. Find uploaded videos in YouTube Studio → Content.
+                  </p>
                 </div>
               </div>
             )}
