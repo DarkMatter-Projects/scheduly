@@ -64,6 +64,10 @@ app.set('trust proxy', 1);
 
 // Static files (uploaded media). Explicit headers + long cache so Meta's
 // CDN-style fetcher gets a stable, CDN-friendly response.
+//
+// We use fallthrough:true on Railway so missing local files (legacy DB rows
+// that point at /uploads/... but now live in R2) silently 404 without
+// throwing a noisy ENOENT through the global error handler.
 app.use('/uploads', (req, res, next) => {
   res.removeHeader('Content-Security-Policy');
   res.removeHeader('X-Frame-Options');
@@ -71,10 +75,12 @@ app.use('/uploads', (req, res, next) => {
   res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
   next();
 }, express.static(path.join(__dirname, '../uploads'), {
-  fallthrough: false,
+  fallthrough: true,
   etag: true,
   lastModified: true,
 }));
+// Final 404 for /uploads when the static handler didn't match a file.
+app.use('/uploads', (req, res) => res.status(404).send('Not found'));
 
 // API routes
 app.use('/api/auth', authRoutes);

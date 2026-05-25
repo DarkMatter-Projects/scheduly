@@ -236,9 +236,19 @@ async function upsertIncomingMessage({
        sentiment = VALUES(sentiment),
        author_name = VALUES(author_name),
        author_avatar_url = VALUES(author_avatar_url)`,
+    // mysql2 rejects `undefined` — coerce optional fields to null. Without
+    // this, FB DM ingest threw "Bind parameters must not contain undefined"
+    // because the Graph payload often omits handle/avatar fields entirely.
     [
-      threadId, platformMessageId, authorId, authorHandle, authorName, authorAvatarUrl,
-      body || '', s.label, sentAt,
+      threadId,
+      platformMessageId ?? null,
+      authorId ?? null,
+      authorHandle ?? null,
+      authorName ?? null,
+      authorAvatarUrl ?? null,
+      body || '',
+      s.label,
+      sentAt ?? new Date(),
     ]
   );
 
@@ -260,7 +270,7 @@ async function recordOutgoingMessage({ threadId, platformMessageId, body, sentAt
     `INSERT INTO engage_messages
        (thread_id, platform_message_id, direction, body, sent_at, sent_by_user_id, error_message, is_read)
      VALUES (?, ?, 'outgoing', ?, ?, ?, ?, 1)`,
-    [threadId, platformMessageId || null, body, sentAt || new Date(), sentByUserId, errorMessage || null]
+    [threadId, platformMessageId ?? null, body ?? '', sentAt ?? new Date(), sentByUserId ?? null, errorMessage ?? null]
   );
   if (!errorMessage) {
     await pool.execute(
