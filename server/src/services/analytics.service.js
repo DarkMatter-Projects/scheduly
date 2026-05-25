@@ -53,9 +53,14 @@ async function fetchInsightsForTarget(postTargetId) {
 
 async function fetchFacebookInsights(postId, token) {
   try {
+    // Meta retired post_impressions / post_impressions_unique in Graph v22
+    // (Dec 2024). The current organic-impressions metric is
+    // post_impressions_organic_v2 (with a _unique sibling for reach).
+    // post_engaged_users / post_clicks / post_reactions_by_type_total still
+    // work and supply the rest of the row.
     const { data } = await axios.get(`${fb.FB_GRAPH_URL}/${postId}/insights`, {
       params: {
-        metric: 'post_impressions,post_impressions_unique,post_reactions_by_type_total,post_clicks,post_engaged_users',
+        metric: 'post_impressions_organic_v2,post_impressions_unique,post_reactions_by_type_total,post_clicks,post_engaged_users',
         access_token: token,
       },
     });
@@ -64,7 +69,10 @@ async function fetchFacebookInsights(postId, token) {
     for (const item of data.data || []) {
       const val = item.values?.[0]?.value;
       switch (item.name) {
-        case 'post_impressions': metrics.impressions = val; break;
+        case 'post_impressions_organic_v2':
+        case 'post_impressions': // legacy alias, just in case Meta partially still returns it
+          metrics.impressions = val;
+          break;
         case 'post_impressions_unique': metrics.reach = val; break;
         case 'post_reactions_by_type_total':
           metrics.likes = typeof val === 'object' ? Object.values(val).reduce((a, b) => a + b, 0) : val;
@@ -95,9 +103,14 @@ async function fetchFacebookInsights(postId, token) {
 
 async function fetchInstagramInsights(mediaId, token) {
   try {
+    // Meta deprecated IG `impressions` in April 2025 — replacement is `views`.
+    // We request both: `views` works on current API, `impressions` is harmless
+    // when it's gone and helps if Meta partially still returns it on older
+    // media. `total_interactions` covers like+comment+share+save in one call,
+    // but we still ask for the components for the breakdown UI.
     const { data } = await axios.get(`${fb.FB_GRAPH_URL}/${mediaId}/insights`, {
       params: {
-        metric: 'impressions,reach,likes,comments,shares,saved',
+        metric: 'views,reach,likes,comments,shares,saved',
         access_token: token,
       },
     });
@@ -106,12 +119,13 @@ async function fetchInstagramInsights(mediaId, token) {
     for (const item of data.data || []) {
       const val = item.values?.[0]?.value || 0;
       switch (item.name) {
-        case 'impressions': metrics.impressions = val; break;
-        case 'reach': metrics.reach = val; break;
-        case 'likes': metrics.likes = val; break;
-        case 'comments': metrics.comments = val; break;
-        case 'shares': metrics.shares = val; break;
-        case 'saved': metrics.saves = val; break;
+        case 'views':       metrics.impressions = val; break;
+        case 'impressions': metrics.impressions = metrics.impressions || val; break; // fallback
+        case 'reach':       metrics.reach = val; break;
+        case 'likes':       metrics.likes = val; break;
+        case 'comments':    metrics.comments = val; break;
+        case 'shares':      metrics.shares = val; break;
+        case 'saved':       metrics.saves = val; break;
       }
     }
 
