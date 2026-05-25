@@ -92,6 +92,47 @@ router.get('/account-scopes/:id', authenticate, requireRole('admin'), async (req
   }
 });
 
+// Raw Meta /insights dump for a single post_targets row. Lets us see
+// exactly what Meta is returning so we can tell whether the 0s in the
+// Analytics page are real (post had 0 organic reach) or a parsing miss.
+router.get('/post-insights/:postTargetId', authenticate, requireRole('admin'), async (req, res) => {
+  const id = parseInt(req.params.postTargetId, 10);
+  const [rows] = await pool.execute(
+    `SELECT pt.platform_post_id, sa.platform, sa.access_token, sa.platform_account_id
+     FROM post_targets pt
+     JOIN social_accounts sa ON pt.social_account_id = sa.id
+     WHERE pt.id = ?`,
+    [id]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: 'Post target not found' });
+  const t = rows[0];
+  const token = decrypt(t.access_token);
+
+  try {
+    if (t.platform === 'facebook_page') {
+      // Try modern metric set first
+      const MODERN = 'post_impressions_organic_v2,post_impressions_unique,post_reactions_by_type_total,post_clicks,post_engaged_users';
+      const { data } = await axios.get(`https://graph.facebook.com/v21.0/${t.platform_post_id}/insights`, {
+        params: { metric: MODERN, access_token: token },
+      });
+      return res.json({ platform: 'facebook_page', postId: t.platform_post_id, metric: MODERN, response: data });
+    }
+    if (t.platform === 'instagram_business') {
+      const { data } = await axios.get(`https://graph.instagram.com/${t.platform_post_id}/insights`, {
+        params: { metric: 'views,reach,likes,comments,shares,saved', access_token: token },
+      });
+      return res.json({ platform: 'instagram_business', mediaId: t.platform_post_id, response: data });
+    }
+    return res.json({ platform: t.platform, message: 'No insights diagnostic for this platform' });
+  } catch (err) {
+    return res.json({
+      platform: t.platform,
+      postId: t.platform_post_id,
+      error: err.response?.data || err.message,
+    });
+  }
+});
+
 // YouTube config sanity check — confirms env wiring without leaking secrets.
 router.get('/youtube-config', authenticate, requireRole('admin'), (req, res) => {
   res.json({
