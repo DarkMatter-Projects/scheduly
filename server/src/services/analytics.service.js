@@ -1,6 +1,7 @@
 const axios = require('axios');
 const pool = require('../config/db');
 const fb = require('../config/facebook');
+const ig = require('../config/instagram');
 const { decrypt } = require('./token.service');
 const storage = require('./storage.service');
 const logger = require('../utils/logger');
@@ -52,64 +53,93 @@ async function fetchInsightsForTarget(postTargetId) {
   return metrics;
 }
 
+// Per-post insights conditions that aren't recoverable (deleted post, wrong
+// post type, no insights field) — we return zeros and keep iterating
+// instead of failing the whole bulk refresh.
+function isRecoverableFbInsightsError(apiError) {
+  if (!apiError) return false;
+  if (apiError.code === 100) return true; // bad post id / nonexisting field / invalid metric for type
+  if (apiError.code === 33) return true;  // explicit "not found"
+  return false;
+}
+
+async function fetchFacebookInsightsWithMetrics(postId, token, metricList) {
+  const { data } = await axios.get(`${fb.FB_GRAPH_URL}/${postId}/insights`, {
+    params: { metric: metricList.join(','), access_token: token },
+  });
+  return data.data || [];
+}
+
 async function fetchFacebookInsights(postId, token) {
+  // Meta retired post_impressions / post_impressions_unique in Graph v22
+  // (Dec 2024). Try the modern names first; fall back to the legacy ones if
+  // the post type doesn't support the new ones (Meta returns "value must be
+  // a valid insights metric" for older media). Other engagement metrics are
+  // stable across both eras.
+  const MODERN = ['post_impressions_organic_v2','post_impressions_unique','post_reactions_by_type_total','post_clicks','post_engaged_users'];
+  const LEGACY = ['post_impressions','post_impressions_unique','post_reactions_by_type_total','post_clicks','post_engaged_users'];
+
+  let items;
   try {
-    // Meta retired post_impressions / post_impressions_unique in Graph v22
-    // (Dec 2024). The current organic-impressions metric is
-    // post_impressions_organic_v2 (with a _unique sibling for reach).
-    // post_engaged_users / post_clicks / post_reactions_by_type_total still
-    // work and supply the rest of the row.
-    const { data } = await axios.get(`${fb.FB_GRAPH_URL}/${postId}/insights`, {
-      params: {
-        metric: 'post_impressions_organic_v2,post_impressions_unique,post_reactions_by_type_total,post_clicks,post_engaged_users',
-        access_token: token,
-      },
-    });
-
-    const metrics = {};
-    for (const item of data.data || []) {
-      const val = item.values?.[0]?.value;
-      switch (item.name) {
-        case 'post_impressions_organic_v2':
-        case 'post_impressions': // legacy alias, just in case Meta partially still returns it
-          metrics.impressions = val;
-          break;
-        case 'post_impressions_unique': metrics.reach = val; break;
-        case 'post_reactions_by_type_total':
-          metrics.likes = typeof val === 'object' ? Object.values(val).reduce((a, b) => a + b, 0) : val;
-          break;
-        case 'post_clicks': metrics.clicks = val; break;
-        case 'post_engaged_users': metrics.engagements = val; break;
-      }
-    }
-
-    // Calculate engagement rate
-    if (metrics.impressions > 0) {
-      metrics.engagementRate = ((metrics.engagements || 0) / metrics.impressions * 100).toFixed(2);
-    }
-
-    return metrics;
+    items = await fetchFacebookInsightsWithMetrics(postId, token, MODERN);
   } catch (err) {
     const apiError = err.response?.data?.error;
-    const msg = apiError?.message || err.message;
-    logger.error(`Facebook insights error: ${msg}`, {
-      code: apiError?.code,
-      subcode: apiError?.error_subcode,
-      type: apiError?.type,
-      postId,
-    });
-    throw Object.assign(new Error(`Facebook: ${msg}`), { code: apiError?.code });
+    // If Meta complains about the metric specifically, retry with legacy names.
+    if (apiError?.code === 100 && /valid insights metric/i.test(apiError.message || '')) {
+      try {
+        items = await fetchFacebookInsightsWithMetrics(postId, token, LEGACY);
+      } catch (retryErr) {
+        const r = retryErr.response?.data?.error;
+        if (isRecoverableFbInsightsError(r)) {
+          logger.warn(`FB insights skipped (${r.code}/${r.error_subcode || '-'}): ${r.message} — postId=${postId}`);
+          return {};
+        }
+        logger.error(`Facebook insights error: ${r?.message || retryErr.message}`, { code: r?.code, postId });
+        throw retryErr;
+      }
+    } else if (isRecoverableFbInsightsError(apiError)) {
+      logger.warn(`FB insights skipped (${apiError.code}/${apiError.error_subcode || '-'}): ${apiError.message} — postId=${postId}`);
+      return {};
+    } else {
+      logger.error(`Facebook insights error: ${apiError?.message || err.message}`, { code: apiError?.code, postId });
+      throw err;
+    }
   }
+
+  const metrics = {};
+  for (const item of items) {
+    const val = item.values?.[0]?.value;
+    switch (item.name) {
+      case 'post_impressions_organic_v2':
+      case 'post_impressions':
+        metrics.impressions = val;
+        break;
+      case 'post_impressions_unique': metrics.reach = val; break;
+      case 'post_reactions_by_type_total':
+        metrics.likes = typeof val === 'object' ? Object.values(val).reduce((a, b) => a + b, 0) : val;
+        break;
+      case 'post_clicks': metrics.clicks = val; break;
+      case 'post_engaged_users': metrics.engagements = val; break;
+    }
+  }
+
+  if (metrics.impressions > 0) {
+    metrics.engagementRate = ((metrics.engagements || 0) / metrics.impressions * 100).toFixed(2);
+  }
+  return metrics;
 }
 
 async function fetchInstagramInsights(mediaId, token) {
   try {
+    // Instagram Business Login (direct, not via FB Page) issues tokens that
+    // only work against graph.instagram.com. Hitting graph.facebook.com with
+    // them throws "Cannot parse access token". Use the IG graph base.
+    //
     // Meta deprecated IG `impressions` in April 2025 — replacement is `views`.
     // We request both: `views` works on current API, `impressions` is harmless
     // when it's gone and helps if Meta partially still returns it on older
-    // media. `total_interactions` covers like+comment+share+save in one call,
-    // but we still ask for the components for the breakdown UI.
-    const { data } = await axios.get(`${fb.FB_GRAPH_URL}/${mediaId}/insights`, {
+    // media.
+    const { data } = await axios.get(`${ig.IG_GRAPH_URL}/${mediaId}/insights`, {
       params: {
         metric: 'views,reach,likes,comments,shares,saved',
         access_token: token,
@@ -139,6 +169,13 @@ async function fetchInstagramInsights(mediaId, token) {
   } catch (err) {
     const apiError = err.response?.data?.error;
     const msg = apiError?.message || err.message;
+    // Recoverable: deleted media, wrong account type, metric not supported
+    // for this media kind. Log + skip so refreshAll doesn't fail the whole
+    // batch on one bad row.
+    if (apiError?.code === 100 || apiError?.code === 33) {
+      logger.warn(`IG insights skipped (${apiError.code}): ${msg} — mediaId=${mediaId}`);
+      return {};
+    }
     logger.error(`Instagram insights error: ${msg}`, {
       code: apiError?.code,
       subcode: apiError?.error_subcode,
