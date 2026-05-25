@@ -11,3 +11,6 @@ export const fetchInsights = (postTargetId) =>
 
 export const refreshPostInsights = (postId) =>
   api.post(`/analytics/posts/${postId}/refresh`).then(r => r.data);
+
+export const refreshAllInsights = (days = 90) =>
+  api.post('/analytics/refresh', { days }, { timeout: 300000 }).then(r => r.data);

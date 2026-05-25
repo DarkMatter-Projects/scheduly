@@ -47,4 +47,14 @@ async function refreshPost(req, res, next) {
   }
 }
 
-module.exports = { getPostAnalytics, getOverview, fetchInsights, refreshPost };
+async function refreshAll(req, res, next) {
+  try {
+    const days = req.body?.days ? parseInt(req.body.days, 10) : undefined;
+    const result = await analyticsService.refreshAllRecentInsights({ days });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getPostAnalytics, getOverview, fetchInsights, refreshPost, refreshAll };

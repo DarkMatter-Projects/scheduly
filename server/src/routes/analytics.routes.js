@@ -9,5 +9,6 @@ router.get('/overview', authenticate, analyticsController.getOverview);
 router.get('/posts/:id', authenticate, analyticsController.getPostAnalytics);
 router.post('/fetch/:postTargetId', authenticate, requireRole('admin', 'manager'), analyticsController.fetchInsights);
 router.post('/posts/:postId/refresh', authenticate, requireRole('admin', 'manager'), analyticsController.refreshPost);
+router.post('/refresh', authenticate, requireRole('admin', 'manager'), analyticsController.refreshAll);
 
 module.exports = router;

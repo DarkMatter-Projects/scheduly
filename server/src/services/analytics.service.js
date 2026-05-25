@@ -2,6 +2,7 @@ const axios = require('axios');
 const pool = require('../config/db');
 const fb = require('../config/facebook');
 const { decrypt } = require('./token.service');
+const storage = require('./storage.service');
 const logger = require('../utils/logger');
 
 async function fetchInsightsForTarget(postTargetId) {
@@ -210,6 +211,34 @@ async function refreshPostInsights(postId) {
   return result;
 }
 
+// Refresh insights for every published target in the last 90 days. Used by
+// the manual "Refresh" action on the Analytics page to backfill after a
+// metric-name change on Meta/etc.
+async function refreshAllRecentInsights({ days = 90 } = {}) {
+  const [targets] = await pool.execute(
+    `SELECT pt.id
+     FROM post_targets pt
+     JOIN posts p ON pt.post_id = p.id
+     WHERE pt.status = 'published'
+       AND pt.platform_post_id IS NOT NULL
+       AND p.published_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+     ORDER BY p.published_at DESC`,
+    [days]
+  );
+
+  const result = { total: targets.length, success: 0, failed: 0, errors: [] };
+  for (const t of targets) {
+    try {
+      await fetchInsightsForTarget(t.id);
+      result.success++;
+    } catch (err) {
+      result.failed++;
+      result.errors.push({ targetId: t.id, message: err.message });
+    }
+  }
+  return result;
+}
+
 async function getPostAnalytics(postId) {
   const [rows] = await pool.execute(
     `SELECT pa.*, pt.social_account_id, sa.platform, sa.account_name
@@ -398,7 +427,10 @@ async function getOverviewAnalytics(startDate, endDate, clientId = null) {
       commentsCount: p.comments_count || 0,
       shares: p.shares || 0,
       engagementRate: parseFloat(p.engagement_rate) || 0,
-      thumbnail: p.thumbnail ? `/uploads/${p.thumbnail}` : null,
+      // Route through publicUrlFor so R2 paths resolve to absolute Cloudflare
+      // URLs; hardcoding `/uploads/${p.thumbnail}` 404'd on Railway because
+      // those files live in R2, not on the server's local disk.
+      thumbnail: p.thumbnail ? storage.publicUrlFor(p.thumbnail) : null,
     })),
     daily: daily.map(d => ({
       date: d.date,
@@ -426,4 +458,4 @@ async function getOverviewAnalytics(startDate, endDate, clientId = null) {
   };
 }
 
-module.exports = { fetchInsightsForTarget, refreshPostInsights, getPostAnalytics, getOverviewAnalytics };
+module.exports = { fetchInsightsForTarget, refreshPostInsights, refreshAllRecentInsights, getPostAnalytics, getOverviewAnalytics };

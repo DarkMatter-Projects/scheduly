@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getOverviewAnalytics, refreshPostInsights } from '../api/analyticsApi';
+import { getOverviewAnalytics, refreshPostInsights, refreshAllInsights } from '../api/analyticsApi';
 import { getAdsOverview } from '../api/adsApi';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -78,6 +78,15 @@ export default function AnalyticsPage() {
     onError: (err) => {
       toast.error(err.response?.data?.error || err.message || 'Refresh failed');
     },
+  });
+
+  const refreshAllMutation = useMutation({
+    mutationFn: () => refreshAllInsights(90),
+    onSuccess: (result) => {
+      toast.success(`Refreshed ${result.success}/${result.total} posts${result.failed ? ` (${result.failed} failed)` : ''}`);
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.error || err.message || 'Bulk refresh failed'),
   });
 
   const applyPreset = (days) => {
@@ -160,6 +169,17 @@ export default function AnalyticsPage() {
               className="text-xs text-slate-700 bg-transparent outline-none"
             />
           </div>
+          {canRefresh && (
+            <button
+              onClick={() => refreshAllMutation.mutate()}
+              disabled={refreshAllMutation.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+              title="Re-pull insights for every published post in the last 90 days"
+            >
+              <RefreshCw className={clsx('w-3.5 h-3.5', refreshAllMutation.isPending && 'animate-spin')} />
+              {refreshAllMutation.isPending ? 'Refreshing…' : 'Refresh insights'}
+            </button>
+          )}
         </div>
       </div>
 
