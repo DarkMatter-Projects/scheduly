@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listMedia, uploadMedia, deleteMedia } from '../api/mediaApi';
+import UploadProgressCard from '../components/common/UploadProgressCard';
 import { useAuth } from '../context/AuthContext';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
@@ -75,13 +76,25 @@ export default function MediaLibraryPage({ onSelect, selectable = false }) {
     queryFn: () => listMedia({ page, limit: 24, type: typeFilter || undefined }),
   });
 
+  const [uploadProgress, setUploadProgress] = useState({ state: 'idle' });
+
   const uploadMutation = useMutation({
-    mutationFn: uploadMedia,
-    onSuccess: () => {
+    mutationFn: (files) => uploadMedia(files, {
+      onProgress: ({ loaded, total, percent }) =>
+        setUploadProgress({ state: 'uploading', percent, loaded, total, fileCount: files.length }),
+    }),
+    onSuccess: (uploaded) => {
       queryClient.invalidateQueries({ queryKey: ['media'] });
+      setUploadProgress({ state: 'success', fileCount: uploaded?.length || 1 });
+      setTimeout(() => setUploadProgress({ state: 'idle' }), 2500);
       toast.success('Files uploaded successfully');
     },
     onError: (err) => {
+      setUploadProgress({
+        state: 'error',
+        errorMessage: err.response?.data?.error || err.message || 'Upload failed',
+      });
+      setTimeout(() => setUploadProgress({ state: 'idle' }), 5000);
       toast.error(err.response?.data?.error || 'Upload failed');
     },
   });
@@ -98,6 +111,7 @@ export default function MediaLibraryPage({ onSelect, selectable = false }) {
 
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
+      setUploadProgress({ state: 'uploading', percent: 0, loaded: 0, total: 0, fileCount: acceptedFiles.length });
       uploadMutation.mutate(acceptedFiles);
     }
   }, []);
@@ -273,6 +287,15 @@ export default function MediaLibraryPage({ onSelect, selectable = false }) {
           onDelete={canDelete ? (id) => deleteMutation.mutate(id) : undefined}
         />
       )}
+
+      <UploadProgressCard
+        state={uploadProgress.state}
+        percent={uploadProgress.percent}
+        loaded={uploadProgress.loaded}
+        total={uploadProgress.total}
+        fileCount={uploadProgress.fileCount}
+        errorMessage={uploadProgress.errorMessage}
+      />
     </div>
   );
 }

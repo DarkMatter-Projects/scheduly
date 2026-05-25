@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { FacebookIcon, InstagramIcon } from '../components/common/SocialIcons';
 import AccountAvatar from '../components/common/AccountAvatar';
+import UploadProgressCard from '../components/common/UploadProgressCard';
 import { getPlatform } from '../utils/platforms';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -329,18 +330,37 @@ export default function PostCreatePage() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to schedule'),
   });
 
+  const [uploadProgress, setUploadProgress] = useState({ state: 'idle' });
+
   const uploadMutation = useMutation({
-    mutationFn: uploadMedia,
+    mutationFn: (files) => uploadMedia(files, {
+      onProgress: ({ loaded, total, percent }) =>
+        setUploadProgress({ state: 'uploading', percent, loaded, total, fileCount: files.length }),
+    }),
     onSuccess: (uploaded) => {
       queryClient.invalidateQueries({ queryKey: ['media'] });
       setAttachedMedia(prev => [...prev, ...uploaded]);
+      setUploadProgress({ state: 'success', fileCount: uploaded.length });
+      // Auto-dismiss the success card after a moment.
+      setTimeout(() => setUploadProgress({ state: 'idle' }), 2500);
       toast.success('Files uploaded');
     },
-    onError: () => toast.error('Upload failed'),
+    onError: (err) => {
+      setUploadProgress({
+        state: 'error',
+        errorMessage: err.response?.data?.error || err.message || 'Upload failed',
+      });
+      setTimeout(() => setUploadProgress({ state: 'idle' }), 5000);
+      toast.error('Upload failed');
+    },
   });
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: (files) => uploadMutation.mutate(files),
+    onDrop: (files) => {
+      if (files.length === 0) return;
+      setUploadProgress({ state: 'uploading', percent: 0, loaded: 0, total: 0, fileCount: files.length });
+      uploadMutation.mutate(files);
+    },
     accept: {
       'image/jpeg': [], 'image/png': [], 'image/gif': [], 'image/webp': [],
       'video/mp4': [], 'video/quicktime': [],
@@ -858,6 +878,15 @@ export default function PostCreatePage() {
           onClose={() => setShowMediaPicker(false)}
         />
       )}
+
+      <UploadProgressCard
+        state={uploadProgress.state}
+        percent={uploadProgress.percent}
+        loaded={uploadProgress.loaded}
+        total={uploadProgress.total}
+        fileCount={uploadProgress.fileCount}
+        errorMessage={uploadProgress.errorMessage}
+      />
     </div>
   );
 }
