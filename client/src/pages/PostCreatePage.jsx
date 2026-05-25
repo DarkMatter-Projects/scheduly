@@ -428,6 +428,11 @@ export default function PostCreatePage() {
   const youtubeOverQuota = youtubeTargetCount > 0
     && youtubeQuota
     && youtubeQuota.uploadsRemaining < youtubeTargetCount;
+  // YouTube only accepts video files — block schedule with a clear reason
+  // if the user targeted a YouTube channel but attached only images.
+  const youtubeMissingVideo = youtubeTargetCount > 0
+    && attachedMedia.length > 0
+    && !attachedMedia.some(m => (m.mimeType || '').startsWith('video/'));
   // Use the strictest applicable limit (Instagram) when any selected target is IG
   const anyIG = selectedAccounts.some(a => a.platform === 'instagram_business');
   const limit = anyIG || selectedAccounts.length === 0 ? IG_LIMIT : FB_LIMIT;
@@ -821,15 +826,25 @@ export default function PostCreatePage() {
 
           <button
             onClick={handleSchedule}
-            disabled={isPending || !content.trim() || selectedAccountIds.length === 0 || youtubeOverQuota}
-            title={youtubeOverQuota ? `YouTube daily quota exhausted — ${youtubeQuota?.uploadsRemaining || 0} uploads remaining` : undefined}
+            disabled={isPending || !content.trim() || selectedAccountIds.length === 0 || youtubeOverQuota || youtubeMissingVideo}
+            title={
+              youtubeMissingVideo ? 'YouTube only accepts videos — attach a video file or remove the YouTube target'
+              : youtubeOverQuota ? `YouTube daily quota exhausted — ${youtubeQuota?.uploadsRemaining || 0} uploads remaining`
+              : undefined
+            }
             className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-full shadow-lg shadow-violet-600/20 transition disabled:opacity-50"
           >
             <Clock className="w-4 h-4" />
             {isPending ? 'Scheduling...' : selectedAccountIds.length > 1 ? `Schedule to ${selectedAccountIds.length}` : 'Schedule Post'}
           </button>
         </div>
-        {youtubeTargetCount > 0 && youtubeQuota && (
+        {youtubeMissingVideo && (
+          <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+            YouTube only accepts videos — attach a video file or unselect the YouTube channel
+          </div>
+        )}
+        {youtubeTargetCount > 0 && youtubeQuota && !youtubeMissingVideo && (
           <YoutubeQuotaBadge quota={youtubeQuota} needed={youtubeTargetCount} />
         )}
       </div>

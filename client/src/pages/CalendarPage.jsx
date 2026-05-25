@@ -44,9 +44,20 @@ export default function CalendarPage() {
     mutationFn: ({ id, scheduledAt }) => updatePost(id, { scheduledAt }),
     onSuccess: () => {
       toast.success('Post rescheduled');
-      // Refetch events
       const api = calendarRef.current?.getApi();
-      if (api) api.refetchEvents();
+      if (api) {
+        api.refetchEvents();
+        // Belt-and-suspenders: explicitly re-pull events into React state so
+        // the preview panel re-derives. FullCalendar's internal refetch
+        // updates the grid but doesn't always re-fire the events callback
+        // when the visible range hasn't changed.
+        const view = api.view;
+        getCalendarEvents(
+          view.activeStart.toISOString(),
+          view.activeEnd.toISOString(),
+          activeClientId || undefined,
+        ).then(setEvents).catch(() => {});
+      }
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to reschedule'),
