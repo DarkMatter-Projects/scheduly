@@ -54,16 +54,31 @@ router.get('/account-scopes/:id', authenticate, requireRole('admin'), async (req
   catch (e) { return res.json({ platform: row.platform, account: row.account_name, error: 'Token decrypt failed: ' + e.message }); }
 
   try {
-    if (row.platform === 'facebook_page' || row.platform === 'instagram_business') {
-      // /me/permissions works for Page tokens; for IG Business Login tokens
-      // try /me on graph.instagram.com instead.
-      const base = row.platform === 'instagram_business'
-        ? 'https://graph.instagram.com'
-        : 'https://graph.facebook.com/v21.0';
-      const url = row.platform === 'instagram_business'
-        ? `${base}/me?fields=id,username,account_type`
-        : `${base}/me/permissions`;
-      const { data } = await axios.get(url, { params: { access_token: token } });
+    if (row.platform === 'facebook_page') {
+      // /me/permissions is only valid for User tokens — Page tokens 404 it.
+      // Use /debug_token instead which reveals the granted scopes for any
+      // token type when authenticated with an app token.
+      const fbConfig = require('../config/facebook');
+      const appAccessToken = `${fbConfig.appId}|${fbConfig.appSecret}`;
+      const { data } = await axios.get('https://graph.facebook.com/v21.0/debug_token', {
+        params: { input_token: token, access_token: appAccessToken },
+      });
+      return res.json({
+        platform: row.platform,
+        account: row.account_name,
+        tokenLength: token.length,
+        scopes: data.data?.scopes || [],
+        isValid: data.data?.is_valid,
+        expiresAt: data.data?.expires_at,
+        appId: data.data?.app_id,
+        type: data.data?.type,
+        rawDebugToken: data.data,
+      });
+    }
+    if (row.platform === 'instagram_business') {
+      const { data } = await axios.get('https://graph.instagram.com/me?fields=id,username,account_type', {
+        params: { access_token: token },
+      });
       return res.json({ platform: row.platform, account: row.account_name, tokenLength: token.length, response: data });
     }
     return res.json({ platform: row.platform, account: row.account_name, message: 'No scope check for this platform' });
