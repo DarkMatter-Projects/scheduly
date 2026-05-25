@@ -41,6 +41,42 @@ router.get('/tiktok-login-config', authenticate, requireRole('admin'), (req, res
   });
 });
 
+// Inspect the granted scopes on a connected social account's stored token.
+// Lets us tell at a glance whether a re-OAuth actually granted the new
+// scopes vs returning a stale grant.
+router.get('/account-scopes/:id', authenticate, requireRole('admin'), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const [rows] = await pool.execute('SELECT platform, account_name, access_token FROM social_accounts WHERE id = ?', [id]);
+  if (rows.length === 0) return res.status(404).json({ error: 'Account not found' });
+  const row = rows[0];
+  let token;
+  try { token = decrypt(row.access_token); }
+  catch (e) { return res.json({ platform: row.platform, account: row.account_name, error: 'Token decrypt failed: ' + e.message }); }
+
+  try {
+    if (row.platform === 'facebook_page' || row.platform === 'instagram_business') {
+      // /me/permissions works for Page tokens; for IG Business Login tokens
+      // try /me on graph.instagram.com instead.
+      const base = row.platform === 'instagram_business'
+        ? 'https://graph.instagram.com'
+        : 'https://graph.facebook.com/v21.0';
+      const url = row.platform === 'instagram_business'
+        ? `${base}/me?fields=id,username,account_type`
+        : `${base}/me/permissions`;
+      const { data } = await axios.get(url, { params: { access_token: token } });
+      return res.json({ platform: row.platform, account: row.account_name, tokenLength: token.length, response: data });
+    }
+    return res.json({ platform: row.platform, account: row.account_name, message: 'No scope check for this platform' });
+  } catch (err) {
+    return res.json({
+      platform: row.platform,
+      account: row.account_name,
+      tokenLength: token.length,
+      error: err.response?.data || err.message,
+    });
+  }
+});
+
 // YouTube config sanity check — confirms env wiring without leaking secrets.
 router.get('/youtube-config', authenticate, requireRole('admin'), (req, res) => {
   res.json({
