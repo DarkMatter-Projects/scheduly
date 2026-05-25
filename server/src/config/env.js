@@ -97,7 +97,9 @@ const env = {
   encryptionKey: process.env.ENCRYPTION_KEY,
   igPublicBaseUrl: process.env.IG_PUBLIC_BASE_URL || '',
   uploadDir: process.env.UPLOAD_DIR || './uploads',
-  maxFileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 104857600,
+  // Default 500MB — videos for YouTube/TikTok can easily exceed the old 100MB.
+  // Override with MAX_FILE_SIZE env var if needed.
+  maxFileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 524288000,
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
   clientOrigins: resolveClientOrigins(),
 };

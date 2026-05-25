@@ -1,15 +1,28 @@
 const mediaService = require('../services/media.service');
+const logger = require('../utils/logger');
 
 async function upload(req, res, next) {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded' });
+      // Multer dropped every file. Most common cause: mime type filter
+      // rejected them (logged in middleware/upload.js as 'Upload rejected').
+      logger.warn(`Upload returned no files. req.body keys: ${Object.keys(req.body).join(',') || '(none)'}`);
+      return res.status(400).json({ error: 'No files uploaded — check that file type is supported (image/* or video/*)' });
     }
+
+    logger.info(`Upload received: ${req.files.length} file(s) totalling ${req.files.reduce((s, f) => s + (f.size || 0), 0)} bytes`);
 
     const results = [];
     for (const file of req.files) {
-      const media = await mediaService.processUpload(file, req.user.userId, req.body.teamId);
-      results.push(media);
+      try {
+        const media = await mediaService.processUpload(file, req.user.userId, req.body.teamId);
+        results.push(media);
+      } catch (perFileErr) {
+        // Log per-file failures with the original name so we know which one
+        // blew up instead of failing the whole batch silently.
+        logger.error(`Upload processing failed for ${file.originalname} (${file.size} bytes, ${file.mimetype}): ${perFileErr.message}`, { stack: perFileErr.stack });
+        throw perFileErr;
+      }
     }
 
     res.status(201).json(results);
