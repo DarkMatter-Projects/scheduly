@@ -99,19 +99,25 @@ export default function EngagePage() {
     if (!selectedId && threads.length > 0) setSelectedId(threads[0].id);
   }, [threads, selectedId]);
 
+  // Invalidates every engage-related query at once so the sidebar nav
+  // badge + header bell + page counts all stay in sync after a mutation.
+  // Each consumer used a slightly different key prefix; the predicate
+  // catches them all instead of needing four separate invalidations.
+  const invalidateEngage = () => {
+    queryClient.invalidateQueries({
+      predicate: (q) => typeof q.queryKey?.[0] === 'string' && q.queryKey[0].startsWith('engage'),
+    });
+  };
+
   const markReadMut = useMutation({
     mutationFn: markThreadRead,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
-      queryClient.invalidateQueries({ queryKey: ['engage-counts'] });
-    },
+    onSuccess: invalidateEngage,
   });
 
   const refreshMut = useMutation({
     mutationFn: refreshEngageInbox,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
-      queryClient.invalidateQueries({ queryKey: ['engage-counts'] });
+      invalidateEngage();
       toast.success('Inbox refreshed');
     },
     onError: (err) => {
@@ -125,8 +131,7 @@ export default function EngagePage() {
   const bulkMut = useMutation({
     mutationFn: ({ ids, action }) => bulkUpdateThreads({ threadIds: ids, action }),
     onSuccess: (data, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
-      queryClient.invalidateQueries({ queryKey: ['engage-counts'] });
+      invalidateEngage();
       setCheckedIds(new Set());
       toast.success(`${data.affected} thread${data.affected === 1 ? '' : 's'} updated`);
     },
@@ -231,8 +236,7 @@ export default function EngagePage() {
         onReply={(body) => {
           if (!selectedId) return;
           return replyToThread(selectedId, body).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['engage-thread', selectedId] });
-            queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
+            invalidateEngage();
             toast.success('Reply queued');
           }, (err) => toast.error(err.response?.data?.error || 'Reply failed'));
         }}
@@ -245,29 +249,26 @@ export default function EngagePage() {
         onAssign={(uid) => {
           if (!selectedId) return;
           return assignThread(selectedId, uid).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['engage-thread', selectedId] });
-            queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
+            invalidateEngage();
             toast.success(uid ? 'Assigned' : 'Unassigned');
           });
         }}
         onStatus={(status, snoozeUntil) => {
           if (!selectedId) return;
           return setThreadStatus(selectedId, status, { snoozeUntil }).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['engage-thread', selectedId] });
-            queryClient.invalidateQueries({ queryKey: ['engage-threads'] });
-            queryClient.invalidateQueries({ queryKey: ['engage-counts'] });
+            invalidateEngage();
           });
         }}
         onAddNote={(body) => {
           if (!selectedId) return;
           return addThreadNote(selectedId, body).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['engage-thread', selectedId] });
+            invalidateEngage();
             toast.success('Note added');
           });
         }}
         onDeleteNote={(noteId) => {
           return deleteThreadNote(noteId).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['engage-thread', selectedId] });
+            invalidateEngage();
           });
         }}
       />
