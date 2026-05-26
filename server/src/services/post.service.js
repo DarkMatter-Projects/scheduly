@@ -215,6 +215,9 @@ async function listPosts({ page = 1, limit = 20, status, teamId, createdBy, sear
     post.thumbnail = media.length > 0
       ? storage.publicUrlFor(media[0].thumbnail_path || media[0].file_path)
       : null;
+    // Pass the mime so the client's Thumbnail can render <video> (with the
+    // first frame as poster) instead of failing as an <img> for video posts.
+    post.thumbnailMime = media.length > 0 ? media[0].mime_type : null;
     post.mediaCount = 0;
     const [mc] = await pool.execute('SELECT COUNT(*) as cnt FROM post_media WHERE post_id = ?', [row.id]);
     post.mediaCount = mc[0].cnt;

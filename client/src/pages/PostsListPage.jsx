@@ -192,6 +192,7 @@ export default function PostsListPage() {
                           <div className="flex items-center gap-3">
                             <Thumbnail
                               src={post.thumbnail}
+                              mimeType={post.thumbnailMime}
                               alt=""
                               className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 object-cover"
                               placeholder={<PenSquare className="w-4 h-4 text-slate-300" />}

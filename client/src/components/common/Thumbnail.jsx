@@ -45,12 +45,15 @@ export default function Thumbnail({
           preload="metadata"
           muted
           playsInline
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover pointer-events-none"
           onError={() => setFailed(true)}
         />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
-          <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur flex items-center justify-center">
-            <Play className="w-3.5 h-3.5 text-white fill-white ml-0.5" />
+        {/* Bottom-right play badge — small enough for 40px tiles, still
+            visible on full-size media library cards. Pointer-events off so
+            clicks pass through to the parent. */}
+        <div className="absolute bottom-0.5 right-0.5 pointer-events-none">
+          <div className="rounded-full bg-black/65 backdrop-blur-sm w-4 h-4 flex items-center justify-center">
+            <Play className="w-2 h-2 text-white fill-white ml-px" />
           </div>
         </div>
       </div>
