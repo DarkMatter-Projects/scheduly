@@ -13,7 +13,7 @@ async function publishPost(postId) {
     `SELECT id, content,
             tiktok_post_mode, tiktok_privacy_level,
             tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
-            youtube_privacy
+            youtube_privacy, youtube_title, youtube_made_for_kids
        FROM posts WHERE id = ?`,
     [postId]
   );
@@ -85,10 +85,11 @@ async function publishPost(postId) {
           post.content,
           mediaFiles,
           {
-            // Sensible defaults — exposed on the composer once we wire UI
-            // controls. Posts default to private until the user explicitly
-            // opts to make them public.
             privacy: post.youtube_privacy || 'private',
+            // Dedicated YouTube title (max 100 chars). Falls back to caption
+            // first line if the user didn't set one.
+            title: post.youtube_title || undefined,
+            madeForKids: !!post.youtube_made_for_kids,
           }
         );
       } else if (target.platform === 'tiktok') {

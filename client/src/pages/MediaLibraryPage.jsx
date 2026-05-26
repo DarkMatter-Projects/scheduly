@@ -212,9 +212,18 @@ export default function MediaLibraryPage({ onSelect, selectable = false }) {
                   )}
                 >
                   {isVideo ? (
-                    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                      <Film className="w-8 h-8 text-gray-400" />
-                    </div>
+                    // Fall back to the video file itself when no thumbnail
+                    // was generated server-side — Thumbnail renders <video
+                    // preload="metadata"> so the browser shows the first
+                    // frame as a poster.
+                    <Thumbnail
+                      src={item.thumbnailUrl || item.url}
+                      mimeType={item.thumbnailUrl ? undefined : item.mimeType}
+                      alt={item.originalName}
+                      className="w-full h-full"
+                      iconSize="w-8 h-8"
+                      placeholder={<Film className="w-8 h-8 text-gray-400" />}
+                    />
                   ) : (
                     <Thumbnail
                       src={item.thumbnailUrl || item.url}

@@ -266,6 +266,8 @@ export default function PostCreatePage() {
   const [tiktokDisableDuet, setTiktokDisableDuet] = useState(false);
   const [tiktokDisableStitch, setTiktokDisableStitch] = useState(false);
   const [youtubePrivacy, setYoutubePrivacy] = useState('private');
+  const [youtubeTitle, setYoutubeTitle] = useState('');
+  const [youtubeMadeForKids, setYoutubeMadeForKids] = useState(false);
   const [autoPublish, setAutoPublish] = useState(true);
   const [scheduleDate, setScheduleDate] = useState(() => {
     const d = new Date();
@@ -397,6 +399,8 @@ export default function PostCreatePage() {
         tiktokDisableDuet,
         tiktokDisableStitch,
         youtubePrivacy,
+        youtubeTitle: youtubeTitle || undefined,
+        youtubeMadeForKids,
       });
 
       if (autoPublish) {
@@ -428,6 +432,8 @@ export default function PostCreatePage() {
         tiktokDisableDuet,
         tiktokDisableStitch,
         youtubePrivacy,
+        youtubeTitle: youtubeTitle || undefined,
+        youtubeMadeForKids,
       });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       toast.success('Saved as draft');
@@ -453,6 +459,7 @@ export default function PostCreatePage() {
   const youtubeMissingVideo = youtubeTargetCount > 0
     && attachedMedia.length > 0
     && !attachedMedia.some(m => (m.mimeType || '').startsWith('video/'));
+  const youtubeMissingTitle = youtubeTargetCount > 0 && !youtubeTitle.trim();
   // Use the strictest applicable limit (Instagram) when any selected target is IG
   const anyIG = selectedAccounts.some(a => a.platform === 'instagram_business');
   const limit = anyIG || selectedAccounts.length === 0 ? IG_LIMIT : FB_LIMIT;
@@ -598,12 +605,18 @@ export default function PostCreatePage() {
               <MessageSquare className="w-4 h-4 text-slate-400 mt-2.5 flex-shrink-0" />
               <div className="flex-1">
                 <div className="bg-slate-50 rounded-xl border border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition">
-                  <div className="px-4 pt-3 text-xs font-medium text-slate-500">Post Caption</div>
+                  <div className="px-4 pt-3 text-xs font-medium text-slate-500">
+                    {youtubeTargetCount > 0 && selectedAccounts.length === youtubeTargetCount
+                      ? 'Video description'
+                      : youtubeTargetCount > 0
+                        ? 'Caption / Video description'
+                        : 'Post Caption'}
+                  </div>
                   <textarea
                     ref={textareaRef}
                     value={content}
                     onChange={e => setContent(e.target.value)}
-                    placeholder="Write your caption..."
+                    placeholder={youtubeTargetCount > 0 ? 'Description that appears under the YouTube video…' : 'Write your caption...'}
                     rows={6}
                     className="w-full px-4 py-2 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none resize-y border-none"
                     style={{ minHeight: '140px' }}
@@ -762,9 +775,26 @@ export default function PostCreatePage() {
               <div className="rounded-xl border border-red-200 bg-red-50/40 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-semibold text-red-900 uppercase tracking-wider">YouTube options</h4>
-                  <span className="text-[10px] text-red-700/70">Caption becomes the video title + description</span>
+                  <span className="text-[10px] text-red-700/70">Caption above becomes the video description</span>
                 </div>
 
+                {/* Title — YouTube's per-video title (max 100 chars) */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Video title <span className="text-slate-400">(required, max 100 chars)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={youtubeTitle}
+                    onChange={(e) => setYoutubeTitle(e.target.value.slice(0, 100))}
+                    maxLength={100}
+                    placeholder="Catchy title viewers will see on YouTube"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-red-500 outline-none"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1 text-right">{youtubeTitle.length}/100</p>
+                </div>
+
+                {/* Visibility */}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Visibility</label>
                   <div className="grid grid-cols-3 gap-2">
@@ -789,10 +819,43 @@ export default function PostCreatePage() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Made for kids — COPPA required */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Audience</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setYoutubeMadeForKids(false)}
+                      className={clsx(
+                        'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                        !youtubeMadeForKids ? 'border-red-300 bg-white text-red-900' : 'border-slate-200 bg-white text-slate-700'
+                      )}
+                    >
+                      <div className="font-semibold">No, it's not made for kids</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Personalised ads, comments, notifications</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setYoutubeMadeForKids(true)}
+                      className={clsx(
+                        'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                        youtubeMadeForKids ? 'border-red-300 bg-white text-red-900' : 'border-slate-200 bg-white text-slate-700'
+                      )}
+                    >
+                      <div className="font-semibold">Yes, it's made for kids</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">COPPA: limits personalisation, comments off</div>
+                    </button>
+                  </div>
                   <p className="text-[10px] text-slate-500 mt-1.5">
-                    Default is Private so accidental publishes never go public. Find uploaded videos in YouTube Studio → Content.
+                    Required by COPPA. YouTube applies this regardless of viewer age, so pick honestly.
                   </p>
                 </div>
+
+                <p className="text-[10px] text-slate-500 pt-1">
+                  Default visibility is Private so accidental publishes don't go public. Find uploaded videos in YouTube Studio → Content.
+                </p>
               </div>
             )}
 
@@ -846,9 +909,10 @@ export default function PostCreatePage() {
 
           <button
             onClick={handleSchedule}
-            disabled={isPending || !content.trim() || selectedAccountIds.length === 0 || youtubeOverQuota || youtubeMissingVideo}
+            disabled={isPending || !content.trim() || selectedAccountIds.length === 0 || youtubeOverQuota || youtubeMissingVideo || youtubeMissingTitle}
             title={
               youtubeMissingVideo ? 'YouTube only accepts videos — attach a video file or remove the YouTube target'
+              : youtubeMissingTitle ? 'YouTube requires a video title — fill it in the YouTube options panel'
               : youtubeOverQuota ? `YouTube daily quota exhausted — ${youtubeQuota?.uploadsRemaining || 0} uploads remaining`
               : undefined
             }

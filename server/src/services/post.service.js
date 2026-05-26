@@ -15,7 +15,7 @@ async function createPost({
   title, content, postType, createdBy, teamId, mediaIds, targetAccountIds,
   tiktokPostMode, tiktokPrivacyLevel,
   tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
-  youtubePrivacy,
+  youtubePrivacy, youtubeTitle, youtubeMadeForKids,
 }) {
   const s = sentiment.analyze(content);
   const [result] = await pool.execute(
@@ -24,8 +24,8 @@ async function createPost({
         post_type, status, created_by, team_id,
         tiktok_post_mode, tiktok_privacy_level,
         tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
-        youtube_privacy)
-     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        youtube_privacy, youtube_title, youtube_made_for_kids)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title || null, content, s.comparative, s.label,
       postType || 'text', createdBy, teamId || null,
@@ -35,6 +35,8 @@ async function createPost({
       tiktokDisableStitch ? 1 : 0,
       tiktokDisableComment ? 1 : 0,
       youtubePrivacy || 'private',
+      youtubeTitle ? String(youtubeTitle).slice(0, 100) : null,
+      youtubeMadeForKids ? 1 : 0,
     ]
   );
 
