@@ -446,7 +446,7 @@ export default function AnalyticsPage() {
           {/* Posts table */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="p-5 border-b border-gray-100">
-              <h3 className="text-sm font-medium text-gray-700">Post Performance</h3>
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Post Performance</h3>
             </div>
 
             {posts.length === 0 ? (
