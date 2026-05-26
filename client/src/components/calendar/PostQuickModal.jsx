@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { X, Calendar, Send, Check, Pencil, MessageSquare, Trash2 } from 'lucide-react';
+import { X, Calendar, Send, Check, Pencil, MessageSquare, Trash2, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { getPost, approvePost, submitForApproval } from '../../api/postsApi';
@@ -10,6 +10,7 @@ import { listComments, addComment, deleteComment } from '../../api/commentsApi';
 import { useAuth } from '../../context/AuthContext';
 import AccountAvatar from '../common/AccountAvatar';
 import { formatRelative } from '../../utils/time';
+import { platformPostUrl, platformPostUrlLabel } from '../../utils/platformPostUrl';
 
 // Quick-look modal for a calendar post. Pulls the full post detail + comments
 // so editors can leave feedback and managers can approve without leaving the
@@ -108,15 +109,34 @@ export default function PostQuickModal({ postId, onClose }) {
                     : <span className="text-slate-400">Not yet scheduled</span>}
               </div>
 
-              {/* Targets */}
+              {/* Targets — for published targets the chip becomes a link to
+                  the post on the platform (when we can construct a stable URL). */}
               {Array.isArray(post.targets) && post.targets.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                  {post.targets.map(t => (
-                    <span key={t.id} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                      <AccountAvatar account={{ id: t.socialAccountId, platform: t.platform }} size={14} />
-                      {t.accountName}
-                    </span>
-                  ))}
+                  {post.targets.map(t => {
+                    const url = t.status === 'published' ? platformPostUrl(t) : null;
+                    const chip = (
+                      <>
+                        <AccountAvatar account={{ id: t.socialAccountId, platform: t.platform }} size={14} />
+                        {t.accountName}
+                        {url && <ExternalLink className="w-2.5 h-2.5 ml-0.5 text-slate-400" />}
+                      </>
+                    );
+                    return url ? (
+                      <a
+                        key={t.id}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={platformPostUrlLabel(t.platform)}
+                        className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      >{chip}</a>
+                    ) : (
+                      <span key={t.id} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                        {chip}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
 

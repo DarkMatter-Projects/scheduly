@@ -7,10 +7,11 @@ import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import {
   ArrowLeft, Trash2, Send, CheckCircle, XCircle, Clock,
-  Edit3, Film, Calendar, RefreshCw,
+  Edit3, Film, Calendar, RefreshCw, ExternalLink,
 } from 'lucide-react';
 import clsx from 'clsx';
 import CommentThread from '../components/posts/CommentThread';
+import { platformPostUrl, platformPostUrlLabel } from '../utils/platformPostUrl';
 
 function localNow() {
   const d = new Date();
@@ -81,6 +82,22 @@ function TargetRow({ target }) {
               <RefreshCw className={clsx('w-3.5 h-3.5', refreshMut.isPending && 'animate-spin')} />
             </button>
           )}
+          {target.status === 'published' && (() => {
+            const url = platformPostUrl(target);
+            if (!url) return null;
+            return (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={platformPostUrlLabel(target.platform)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100"
+              >
+                <ExternalLink className="w-3 h-3" />
+                View
+              </a>
+            );
+          })()}
         </div>
       </div>
       {ttStatus && (

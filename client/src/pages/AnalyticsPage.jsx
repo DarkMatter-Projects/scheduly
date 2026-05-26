@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getOverviewAnalytics, refreshPostInsights, refreshAllInsights } from '../api/analyticsApi';
 import { getAdsOverview } from '../api/adsApi';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { format, subDays, startOfDay } from 'date-fns';
 import { Eye, Users, Heart, MessageSquare, Share2, MousePointer, TrendingUp, BarChart3, Smile, DollarSign, Target, Megaphone, ArrowRight, RefreshCw } from 'lucide-react';
@@ -261,25 +261,38 @@ export default function AnalyticsPage() {
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h3 className="text-sm font-medium text-gray-700 mb-4">Impressions & Reach</h3>
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-slate-500 mb-4">Impressions & Reach</h3>
               {daily.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={daily}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <AreaChart data={daily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    {/* Gradient defs matching the KPI sparkline aesthetic */}
+                    <defs>
+                      <linearGradient id="gradImpressions" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.28} />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradReach" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.28} />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                     <XAxis
                       dataKey="date"
                       tickFormatter={(v) => format(new Date(v), 'MMM d')}
                       tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
                     />
-                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={formatNum} />
+                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={formatNum} axisLine={false} tickLine={false} />
                     <Tooltip
                       labelFormatter={(v) => format(new Date(v), 'MMM d, yyyy')}
                       formatter={(value) => [value.toLocaleString(), undefined]}
                     />
-                    <Legend />
-                    <Line type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="reach" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Area type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={1.5} fill="url(#gradImpressions)" dot={false} isAnimationActive={false} />
+                    <Area type="monotone" dataKey="reach" stroke="#6366f1" strokeWidth={1.5} fill="url(#gradReach)" dot={false} isAnimationActive={false} />
+                  </AreaChart>
                 </ResponsiveContainer>
               ) : (
                 <ChartEmptyState
@@ -291,7 +304,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h3 className="text-sm font-medium text-gray-700 mb-4">Likes & Posts Published</h3>
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-slate-500 mb-4">Likes & Posts Published</h3>
               {daily.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={daily}>
@@ -356,7 +369,7 @@ export default function AnalyticsPage() {
               <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Smile className="w-4 h-4 text-emerald-500" />
-                  <h3 className="text-sm font-medium text-gray-700">Caption Tone</h3>
+                  <h3 className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Caption Tone</h3>
                 </div>
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
@@ -383,7 +396,7 @@ export default function AnalyticsPage() {
 
               {/* By client */}
               <div className="bg-white rounded-xl border border-gray-200 p-5 lg:col-span-2">
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Caption Tone by Client</h3>
+                <h3 className="text-[11px] font-medium uppercase tracking-wide text-slate-500 mb-4">Caption Tone by Client</h3>
                 {sentimentByClient.length === 0 ? (
                   <p className="text-sm text-slate-400 italic py-8 text-center">
                     Assign clients to your social accounts to see this breakdown.
