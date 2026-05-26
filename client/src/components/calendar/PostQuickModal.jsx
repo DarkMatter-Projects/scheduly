@@ -78,6 +78,28 @@ export default function PostQuickModal({ postId, onClose }) {
             {post && <StatusPill status={post.status} />}
           </div>
           <div className="flex items-center gap-1">
+            {/* "View live post" links to the first published target's URL on
+                the platform. Most common case is one target per post; if
+                there are several, the chip row below still shows each one. */}
+            {post && (() => {
+              const publishedWithUrl = (post.targets || [])
+                .filter(t => t.status === 'published')
+                .map(t => ({ t, url: platformPostUrl(t) }))
+                .find(x => x.url);
+              if (!publishedWithUrl) return null;
+              return (
+                <a
+                  href={publishedWithUrl.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded"
+                  title={platformPostUrlLabel(publishedWithUrl.t.platform)}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View live post
+                </a>
+              );
+            })()}
             {post && (
               <Link
                 to={`/posts/${postId}/edit`}
