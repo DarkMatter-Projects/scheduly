@@ -19,6 +19,7 @@ const METRICS = [
   { key: 'saves',               label: 'Saves',               section: 'engagements', category: 'channel', platforms: ['instagram_business'],                          format: 'number',   source: 'post_analytics.saves',          available: true },
   { key: 'clicks',              label: 'Clicks',              section: 'engagements', category: 'channel', platforms: ['facebook_page'],                               format: 'number',   source: 'post_analytics.clicks',         available: true },
   { key: 'engagement_rate',     label: 'Engagement rate',     section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok'], format: 'percent',  source: 'derived.engagement_rate',       available: true },
+  { key: 'interactions',        label: 'Interactions',        section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok'], format: 'number',   source: 'derived.interactions',          available: true },
   { key: 'posts',               label: 'Posts published',     section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok'], format: 'number',   source: 'posts.count',                    available: true },
 
   // ── Paid (ad insights) ──
@@ -51,6 +52,7 @@ function metricFamily(key) {
   if (m.source.startsWith('post_analytics.')) return 'organic';
   if (m.source.startsWith('posts.')) return 'organic';
   if (m.source === 'derived.engagement_rate') return 'organic';
+  if (m.source === 'derived.interactions') return 'organic';
   if (m.source.startsWith('ad_insights.')) return 'paid';
   if (m.source.startsWith('derived.') && ['ctr','cpc','cpm','roas'].includes(key)) return 'paid';
   if (m.source.startsWith('engage_messages.')) return 'engage';

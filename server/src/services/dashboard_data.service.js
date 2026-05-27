@@ -75,6 +75,21 @@ async function totalForMetric(metricKey, channelIds, start, end) {
       );
       return parseFloat(r[0]?.v) || 0;
     }
+    if (metricKey === 'interactions') {
+      // Total interactions = likes + comments + shares + saves, summed.
+      const [r] = await pool.execute(
+        `SELECT COALESCE(SUM(pa.likes), 0)
+              + COALESCE(SUM(pa.comments_count), 0)
+              + COALESCE(SUM(pa.shares), 0)
+              + COALESCE(SUM(pa.saves), 0) AS v
+         FROM post_analytics pa
+         JOIN post_targets pt ON pa.post_target_id = pt.id
+         JOIN posts p ON pt.post_id = p.id
+         WHERE p.published_at BETWEEN ? AND ? ${accountsFilter}`,
+        params
+      );
+      return Number(r[0]?.v) || 0;
+    }
     const col = m.source.split('.')[1]; // e.g. impressions, likes, comments_count
     const [rows] = await pool.execute(
       `SELECT SUM(pa.${col}) AS v
@@ -365,6 +380,59 @@ async function buildChannelComparison(dashboard, widget) {
   return { range: { start, end }, metric: { key, label: m?.label || key, format: m?.format }, rows };
 }
 
+// Multi-metric table — one row per channel, one column per metric, with
+// current value + delta vs the prior window. The "Performance by channel"
+// widget from the reference design.
+async function buildChannelPerformanceTable(dashboard, widget) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
+    ? widget.channelIds.map(Number)
+    : null;
+
+  const params = [];
+  let where = 'sa.is_active = 1';
+  if (channelIds) {
+    where += ` AND sa.id IN (${channelIds.map(() => '?').join(',')})`;
+    params.push(...channelIds);
+  }
+  const [accounts] = await pool.execute(
+    `SELECT id, platform, account_name, profile_picture_url
+     FROM social_accounts sa WHERE ${where}
+     ORDER BY sa.account_name ASC`,
+    params
+  );
+
+  const keys = Array.isArray(widget.metricKeys) && widget.metricKeys.length > 0
+    ? widget.metricKeys
+    : ['impressions','reach','likes','comments','engagement_rate'];
+
+  const columns = keys.map(k => {
+    const m = metric(k);
+    return { key: k, label: m?.label || k, format: m?.format || 'number', invertDelta: !!m?.invertDelta };
+  });
+
+  const rows = [];
+  for (const a of accounts) {
+    const cells = {};
+    for (const k of keys) {
+      const [current, prior] = await Promise.all([
+        totalForMetric(k, [a.id], start, end),
+        totalForMetric(k, [a.id], priorStart, priorEnd),
+      ]);
+      cells[k] = { current, prior };
+    }
+    rows.push({
+      socialAccountId: a.id,
+      accountName: a.account_name,
+      platform: a.platform,
+      profilePictureUrl: a.profile_picture_url,
+      cells,
+    });
+  }
+
+  return { range: { start, end, priorStart, priorEnd }, columns, rows };
+}
+
 // Aggregate a metric across all accounts in scope, grouped by platform
 // (facebook_page / instagram_business / tiktok). One row per platform.
 async function buildNetworkComparison(dashboard, widget) {
@@ -539,6 +607,7 @@ async function buildWidgetData(dashboard, widget) {
     case 'key_metrics':           return buildKeyMetrics(dashboard, widget);
     case 'time_series':           return buildTimeSeries(dashboard, widget);
     case 'channel_comparison':    return buildChannelComparison(dashboard, widget);
+    case 'channel_performance_table': return buildChannelPerformanceTable(dashboard, widget);
     case 'network_comparison':    return buildNetworkComparison(dashboard, widget);
     case 'breakdown':             return buildBreakdown(dashboard, widget);
     case 'content_performance':   return buildContentPerformance(dashboard, widget);

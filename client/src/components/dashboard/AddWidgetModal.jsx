@@ -115,13 +115,14 @@ const CATEGORIES = [
 
 const WIDGETS_BY_CATEGORY = {
   channel: [
-    { key: 'key_metrics',        label: 'Key metrics',        icon: GridIcon,    impl: true },
-    { key: 'time_series',        label: 'Time series',        icon: LineIcon,    impl: true },
-    { key: 'channel_comparison', label: 'Channel comparison', icon: BarChart3,   impl: true },
-    { key: 'network_comparison', label: 'Network comparison', icon: Layers,      impl: true },
-    { key: 'breakdown',          label: 'Breakdown',          icon: BarChart3,   impl: true },
-    { key: 'demographics',       label: 'Demographics',       icon: Smile,       impl: false },
-    { key: 'geographics',        label: 'Geographics',        icon: GridIcon,    impl: false },
+    { key: 'key_metrics',              label: 'Key metrics',              icon: GridIcon,    impl: true },
+    { key: 'time_series',              label: 'Time series',              icon: LineIcon,    impl: true },
+    { key: 'channel_performance_table',label: 'Performance by channel',   icon: GridIcon,    impl: true },
+    { key: 'channel_comparison',       label: 'Channel comparison (bar)', icon: BarChart3,   impl: true },
+    { key: 'network_comparison',       label: 'Network comparison',       icon: Layers,      impl: true },
+    { key: 'breakdown',                label: 'Breakdown',                icon: BarChart3,   impl: true },
+    { key: 'demographics',             label: 'Demographics',             icon: Smile,       impl: false },
+    { key: 'geographics',              label: 'Geographics',              icon: GridIcon,    impl: false },
   ],
   content: [
     { key: 'key_metrics',         label: 'Key metrics',         icon: GridIcon,   impl: true },

@@ -15,11 +15,14 @@ export const DASHBOARD_TEMPLATES = [
     widgets: [
       // Headline KPIs
       { category: 'channel', widgetType: 'key_metrics', title: 'Page key metrics',
-        metricKeys: ['impressions','reach','likes','comments','shares','engagement_rate','posts'],
+        metricKeys: ['impressions','reach','interactions','engagement_rate','posts'],
         width: 12, height: 2 },
-      // Channel comparison — when multiple pages are selected, shows per-account split
-      { category: 'channel', widgetType: 'channel_comparison', title: 'Performance by channel',
-        metricKeys: ['impressions'], width: 12, height: 3 },
+      // Multi-metric per-channel table — followers/net_new_followers stay
+      // empty rows until follower-history ingestion ships; we use
+      // impressions (Views), reach, and interactions for now.
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
+        metricKeys: ['followers','net_new_followers','impressions','reach','interactions'],
+        width: 12, height: 3 },
       // Time series — impressions vs reach
       { category: 'channel', widgetType: 'time_series', title: 'Impressions & Reach',
         metricKeys: ['impressions','reach'], width: 6, height: 3 },
