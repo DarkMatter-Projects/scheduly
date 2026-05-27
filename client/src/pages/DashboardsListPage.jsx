@@ -64,17 +64,24 @@ export default function DashboardsListPage() {
     return list;
   }, [dashboards, search, sort]);
 
-  const handlePickTemplate = (template) => {
+  const handlePickTemplate = (template, accountIds = []) => {
     if (!template.available) return;
     const name = template.key === 'custom'
       ? 'Custom dashboard'
       : template.name;
+    // Pre-populate channelIds on every seed widget with the accounts the
+    // user picked in step 2 — that way widgets immediately render data
+    // for those profiles instead of needing per-widget configuration.
+    const widgets = (template.widgets || []).map(w => ({
+      ...w,
+      channelIds: accountIds.length > 0 ? accountIds : (w.channelIds || []),
+    }));
     createMut.mutate({
       name,
       templateKey: template.key,
       description: template.description,
       clientId: activeClientId || undefined,
-      widgets: template.widgets || [],
+      widgets,
     });
     setShowTemplatePicker(false);
   };
@@ -197,6 +204,7 @@ export default function DashboardsListPage() {
       {showTemplatePicker && (
         <TemplatePickerModal
           onPick={handlePickTemplate}
+          clientId={activeClientId || null}
           onClose={() => setShowTemplatePicker(false)}
         />
       )}

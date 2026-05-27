@@ -11,11 +11,27 @@ export const DASHBOARD_TEMPLATES = [
     name: 'Facebook overview',
     platforms: ['facebook_page'],
     available: true,
-    description: 'Reactions, reach and engagement on your Facebook Pages.',
+    description: 'Reactions, reach, engagement and top content on your Facebook Pages.',
     widgets: [
-      { category: 'channel', widgetType: 'key_metrics', title: 'Page key metrics', metricKeys: ['impressions','reach','likes','comments','engagement_rate'], width: 12, height: 2 },
-      { category: 'channel', widgetType: 'time_series', title: 'Impressions & Reach', metricKeys: ['impressions','reach'], width: 6, height: 3 },
-      { category: 'channel', widgetType: 'time_series', title: 'Engagements over time', metricKeys: ['likes','comments','shares'], width: 6, height: 3 },
+      // Headline KPIs
+      { category: 'channel', widgetType: 'key_metrics', title: 'Page key metrics',
+        metricKeys: ['impressions','reach','likes','comments','shares','engagement_rate','posts'],
+        width: 12, height: 2 },
+      // Channel comparison — when multiple pages are selected, shows per-account split
+      { category: 'channel', widgetType: 'channel_comparison', title: 'Performance by channel',
+        metricKeys: ['impressions'], width: 12, height: 3 },
+      // Time series — impressions vs reach
+      { category: 'channel', widgetType: 'time_series', title: 'Impressions & Reach',
+        metricKeys: ['impressions','reach'], width: 6, height: 3 },
+      // Time series — engagements
+      { category: 'channel', widgetType: 'time_series', title: 'Engagements over time',
+        metricKeys: ['likes','comments','shares'], width: 6, height: 3 },
+      // Time series — clicks
+      { category: 'channel', widgetType: 'time_series', title: 'Daily clicks',
+        metricKeys: ['clicks'], width: 6, height: 3 },
+      // Top posts table
+      { category: 'content', widgetType: 'content_performance', title: 'Top performing posts',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
     ],
   },
   {
@@ -25,9 +41,17 @@ export const DASHBOARD_TEMPLATES = [
     available: true,
     description: 'Reach, saves and engagement rate across your IG accounts.',
     widgets: [
-      { category: 'channel', widgetType: 'key_metrics', title: 'Account key metrics', metricKeys: ['reach','impressions','likes','saves','engagement_rate'], width: 12, height: 2 },
-      { category: 'channel', widgetType: 'time_series', title: 'Reach & impressions', metricKeys: ['reach','impressions'], width: 6, height: 3 },
-      { category: 'channel', widgetType: 'time_series', title: 'Likes, comments, saves', metricKeys: ['likes','comments','saves'], width: 6, height: 3 },
+      { category: 'channel', widgetType: 'key_metrics', title: 'Account key metrics',
+        metricKeys: ['reach','impressions','likes','comments','saves','engagement_rate','posts'],
+        width: 12, height: 2 },
+      { category: 'channel', widgetType: 'channel_comparison', title: 'Performance by channel',
+        metricKeys: ['reach'], width: 12, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Reach & impressions',
+        metricKeys: ['reach','impressions'], width: 6, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Likes, comments, saves',
+        metricKeys: ['likes','comments','saves'], width: 6, height: 3 },
+      { category: 'content', widgetType: 'content_performance', title: 'Top performing posts',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
     ],
   },
   {
@@ -38,9 +62,17 @@ export const DASHBOARD_TEMPLATES = [
     badge: 'Updated',
     description: 'Impressions, likes, shares — both organic and ads.',
     widgets: [
-      { category: 'channel', widgetType: 'key_metrics', title: 'TikTok key metrics', metricKeys: ['impressions','likes','comments','shares'], width: 12, height: 2 },
-      { category: 'channel', widgetType: 'time_series', title: 'Impressions over time', metricKeys: ['impressions'], width: 6, height: 3 },
-      { category: 'channel', widgetType: 'time_series', title: 'Engagements', metricKeys: ['likes','comments','shares'], width: 6, height: 3 },
+      { category: 'channel', widgetType: 'key_metrics', title: 'TikTok key metrics',
+        metricKeys: ['impressions','reach','likes','comments','shares','engagement_rate','posts'],
+        width: 12, height: 2 },
+      { category: 'channel', widgetType: 'channel_comparison', title: 'Performance by channel',
+        metricKeys: ['impressions'], width: 12, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Impressions over time',
+        metricKeys: ['impressions'], width: 6, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Engagements',
+        metricKeys: ['likes','comments','shares'], width: 6, height: 3 },
+      { category: 'content', widgetType: 'content_performance', title: 'Top performing videos',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
     ],
   },
   {
