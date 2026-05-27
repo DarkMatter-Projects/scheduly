@@ -13,14 +13,34 @@ const METRIC_COLORS = [
   '#06b6d4', '#ef4444', '#6366f1', '#22c55e', '#f97316',
 ];
 
+// Tailwind purges class names it can't see at build time. Dynamic strings
+// like `lg:col-span-${n}` get dropped, which is why every widget was
+// collapsing to single-column width. A static lookup keeps the classes
+// in the bundle.
+const COL_SPAN = {
+  1:  'lg:col-span-1',
+  2:  'lg:col-span-2',
+  3:  'lg:col-span-3',
+  4:  'lg:col-span-4',
+  5:  'lg:col-span-5',
+  6:  'lg:col-span-6',
+  7:  'lg:col-span-7',
+  8:  'lg:col-span-8',
+  9:  'lg:col-span-9',
+  10: 'lg:col-span-10',
+  11: 'lg:col-span-11',
+  12: 'lg:col-span-12',
+};
+
 // One renderer that switches on widgetType. Fetches its own data so each
 // widget loads independently (a slow one doesn't block its siblings).
 export default function WidgetRenderer({ widget, canEdit, onRemove }) {
-  const spanClass = `lg:col-span-${Math.max(1, Math.min(12, widget.width || 4))}`;
+  const w = Math.max(1, Math.min(12, widget.width || 4));
+  const spanClass = COL_SPAN[w];
   const heightStyle = { minHeight: `${Math.max(160, (widget.height || 2) * 80)}px` };
 
   return (
-    <div className={clsx('bg-white border border-slate-200 rounded-xl flex flex-col', spanClass)} style={heightStyle}>
+    <div className={clsx('bg-white border border-slate-200 rounded-xl flex flex-col col-span-1 sm:col-span-2', spanClass)} style={heightStyle}>
       <div className="flex items-start justify-between px-4 pt-4">
         <div>
           <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">

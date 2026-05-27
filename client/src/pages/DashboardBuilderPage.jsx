@@ -211,15 +211,30 @@ export default function DashboardBuilderPage() {
 }
 
 function ChannelsSummary({ accounts, dashboard }) {
-  // For this shell, list all active accounts the user can see. The next pass
-  // adds the proper per-dashboard channel picker.
+  // Union of channelIds across every widget on this dashboard. Widgets with
+  // an empty channelIds array implicitly pull from "all" — only count them
+  // if the user opened a built-in custom dashboard with no scoping.
+  const scopedIds = new Set();
+  let anyWidgetUnscoped = false;
+  for (const w of dashboard.widgets || []) {
+    if (Array.isArray(w.channelIds) && w.channelIds.length > 0) {
+      for (const id of w.channelIds) scopedIds.add(Number(id));
+    } else {
+      anyWidgetUnscoped = true;
+    }
+  }
+
   const active = accounts.filter(a => a.isActive);
-  if (active.length === 0) return null;
+  const inScope = scopedIds.size > 0 && !anyWidgetUnscoped
+    ? active.filter(a => scopedIds.has(a.id))
+    : active;
+
+  if (inScope.length === 0) return null;
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex items-center gap-3 flex-wrap">
       <span className="text-xs font-medium text-slate-500">Channels in scope:</span>
-      {active.map(a => {
+      {inScope.map(a => {
         const p = getPlatform(a.platform);
         const Icon = p?.icon;
         return (
