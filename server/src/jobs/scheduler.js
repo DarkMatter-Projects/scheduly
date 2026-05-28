@@ -4,6 +4,7 @@ const { runTokenRefreshJob } = require('./tokenRefreshJob');
 const { runAnalyticsFetchJob } = require('./analyticsFetchJob');
 const { runAdsSyncJob } = require('./adsSyncJob');
 const { runEngageIngestJob } = require('./engageIngestJob');
+const { runFollowerSnapshotJob } = require('./followerSnapshotJob');
 const logger = require('../utils/logger');
 
 function startScheduler() {
@@ -17,6 +18,13 @@ function startScheduler() {
   cron.schedule('0 3 * * *', async () => {
     logger.info('Scheduler: running token refresh job');
     await runTokenRefreshJob();
+  });
+
+  // Snapshot follower counts daily at 5 AM (before analytics fetch so the
+  // Followers / Net new followers cells show today's number on the dashboard).
+  cron.schedule('0 5 * * *', async () => {
+    logger.info('Scheduler: running follower snapshot job');
+    await runFollowerSnapshotJob();
   });
 
   // Fetch analytics for published posts daily at 6 AM
@@ -37,7 +45,7 @@ function startScheduler() {
     await runEngageIngestJob();
   });
 
-  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), token refresh (3 AM), analytics (6 AM), ads sync (7 AM)');
+  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), token refresh (3 AM), follower snapshot (5 AM), analytics (6 AM), ads sync (7 AM)');
 }
 
 module.exports = { startScheduler };

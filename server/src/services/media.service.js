@@ -1,8 +1,41 @@
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const sharp = require('sharp');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const pool = require('../config/db');
 const storage = require('./storage.service');
+
+ffmpeg.setFfmpegPath(ffmpegPath);
+
+// Extract a single frame ~1s into the video and return a 600px-wide JPEG buffer
+function generateVideoThumbnail(videoPath) {
+  return new Promise((resolve, reject) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lb-thumb-'));
+    const tmpFile = 'frame.jpg';
+    ffmpeg(videoPath)
+      .on('error', (err) => {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) {}
+        reject(err);
+      })
+      .on('end', async () => {
+        try {
+          const raw = fs.readFileSync(path.join(tmpDir, tmpFile));
+          const jpg = await sharp(raw)
+            .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 80, progressive: false })
+            .toBuffer();
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+          resolve(jpg);
+        } catch (err) {
+          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) {}
+          reject(err);
+        }
+      })
+      .screenshots({ count: 1, timestamps: ['1'], filename: tmpFile, folder: tmpDir });
+  });
+}
 
 // Instagram requires images to be:
 //   - JPEG, baseline-encoded
@@ -89,9 +122,19 @@ async function processUpload(file, userId, teamId) {
     }
   }
 
+  // Extract a thumbnail frame for videos so the library can show a preview
+  if (isVideo) {
+    try {
+      thumbBuffer = await generateVideoThumbnail(file.path);
+    } catch (err) {
+      console.error('Video thumbnail failed:', err.message);
+    }
+  }
+
   // Storage keys (used for both R2 and local)
   const fileKey = `${isVideo ? 'videos' : 'images'}/${file.filename}`;
-  const thumbKey = thumbBuffer ? `thumbnails/thumb_${file.filename}` : null;
+  const thumbBase = file.filename.replace(/\.[^.]+$/, '');
+  const thumbKey = thumbBuffer ? `thumbnails/thumb_${thumbBase}.jpg` : null;
 
   if (storage.isEnabled()) {
     // Upload to R2

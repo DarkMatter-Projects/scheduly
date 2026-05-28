@@ -17,11 +17,10 @@ export const DASHBOARD_TEMPLATES = [
       { category: 'channel', widgetType: 'key_metrics', title: 'Page key metrics',
         metricKeys: ['impressions','reach','interactions','engagement_rate','posts'],
         width: 12, height: 2 },
-      // Multi-metric per-channel table — followers/net_new_followers stay
-      // empty rows until follower-history ingestion ships; we use
-      // impressions (Views), reach, and interactions for now.
+      // Multi-metric per-channel table — followers + net_new_followers stay
+      // zero until follower_history ingestion ships; the rest pull live.
       { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
-        metricKeys: ['followers','net_new_followers','impressions','reach','interactions'],
+        metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
         width: 12, height: 3 },
       // Time series — impressions vs reach
       { category: 'channel', widgetType: 'time_series', title: 'Impressions & Reach',

@@ -247,4 +247,17 @@ router.get('/instagram/:platformAccountId', authenticate, requireRole('admin'), 
   res.json(results);
 });
 
+// Manual trigger for the daily follower snapshot — useful for backfilling
+// today's row without waiting for the 5 AM cron, and for seeding a
+// freshly-deployed environment so the dashboard cells aren't zero.
+router.post('/run-follower-snapshot', authenticate, requireRole('admin'), async (req, res) => {
+  const { runFollowerSnapshotJob } = require('../jobs/followerSnapshotJob');
+  try {
+    await runFollowerSnapshotJob();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;

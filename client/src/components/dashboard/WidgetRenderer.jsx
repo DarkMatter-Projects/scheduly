@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
 import clsx from 'clsx';
@@ -364,18 +366,34 @@ function SentimentBreakdownBody({ data }) {
 function ChannelPerformanceTableBody({ data }) {
   const rows = data?.rows || [];
   const columns = data?.columns || [];
+  const totals = data?.totals || {};
+  const range = data?.range || {};
   if (rows.length === 0) {
     return <EmptyHint hint="No channels in scope for this widget." />;
   }
   return (
-    <div className="overflow-x-auto h-full -mx-1">
+    <div className="overflow-x-auto overflow-y-visible h-full -mx-1">
       <table className="min-w-full text-xs">
         <thead>
-          <tr className="border-b border-slate-200 text-slate-500 text-[10px] uppercase tracking-wider">
-            <th className="px-2 py-2 text-left font-medium">Channel</th>
-            {columns.map(c => (
-              <th key={c.key} className="px-2 py-2 text-left font-medium whitespace-nowrap">{c.label}</th>
-            ))}
+          {/* Header row: column name above the aggregate total + delta.
+              Mirrors the reference design where the top row is the
+              "all-channels" summary and the per-channel rows sit below. */}
+          <tr className="border-b border-slate-200">
+            <th className="px-2 py-3 text-left">
+              <span className="text-[10px] uppercase tracking-wider font-medium text-slate-500">Channel</span>
+            </th>
+            {columns.map(c => {
+              const t = totals[c.key] || { current: 0, prior: 0 };
+              return (
+                <th key={c.key} className="px-2 py-3 text-left whitespace-nowrap font-normal align-bottom">
+                  <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{c.label}</div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-base font-bold text-slate-900 tabular-nums">{formatCompact(t.current, c.format)}</span>
+                    <DeltaPill current={t.current} prior={t.prior} invertDelta={c.invertDelta} />
+                  </div>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -391,12 +409,7 @@ function ChannelPerformanceTableBody({ data }) {
                 const cell = row.cells?.[c.key] || { current: 0, prior: 0 };
                 return (
                   <td key={c.key} className="px-2 py-3 whitespace-nowrap">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-sm font-semibold text-slate-900 tabular-nums">
-                        {formatValue(cell.current, c.format)}
-                      </span>
-                      <DeltaPill current={cell.current} prior={cell.prior} invertDelta={c.invertDelta} />
-                    </div>
+                    <CellWithHover row={row} column={c} cell={cell} range={range} compact />
                   </td>
                 );
               })}
@@ -406,6 +419,118 @@ function ChannelPerformanceTableBody({ data }) {
       </table>
     </div>
   );
+}
+
+// Short form used in the table cells / header — "222,7K" instead of "222,734".
+function formatCompact(value, format) {
+  const n = Number(value) || 0;
+  if (format === 'percent')    return `${n.toFixed(2)}%`;
+  if (format === 'multiplier') return `${n.toFixed(2)}x`;
+  if (format === 'currency') {
+    return n.toLocaleString(undefined, { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2 });
+  }
+  if (Math.abs(n) >= 1000) {
+    return n.toLocaleString(undefined, { notation: 'compact', maximumFractionDigits: 2 });
+  }
+  return n.toLocaleString();
+}
+
+// Cell + on-hover popover. Renders the popover in a portal so it can
+// escape the table's overflow-x-auto without getting clipped.
+function CellWithHover({ row, column, cell, range, compact }) {
+  const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (!open || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    // Place popover above the cell, centred. The popover is fixed-positioned
+    // so it floats above any parent overflow.
+    setPos({ top: r.top + window.scrollY - 8, left: r.left + window.scrollX + r.width / 2 });
+  }, [open]);
+
+  // Stack value above delta when in compact mode so per-channel rows match
+  // the reference design (number on top, ▲/▼ % beneath).
+  return (
+    <>
+      <div
+        ref={ref}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        className={clsx('cursor-default', compact ? 'flex flex-col' : 'flex items-baseline gap-1.5')}
+      >
+        <span className="text-sm font-semibold text-slate-900 tabular-nums leading-tight">
+          {compact ? formatCompact(cell.current, column.format) : formatValue(cell.current, column.format)}
+        </span>
+        <DeltaPill current={cell.current} prior={cell.prior} invertDelta={column.invertDelta} />
+      </div>
+      {open && createPortal(
+        <CellHoverCard row={row} column={column} cell={cell} range={range} pos={pos} />,
+        document.body
+      )}
+    </>
+  );
+}
+
+function CellHoverCard({ row, column, cell, range, pos }) {
+  const Icon = PLATFORM_ICON[row.platform];
+  const pct = cell.prior > 0
+    ? ((cell.current - cell.prior) / Math.abs(cell.prior)) * 100
+    : (cell.current > 0 ? 100 : 0);
+  const isUp = pct > 0;
+  const good = column.invertDelta ? !isUp : isUp;
+  const priorWindow = (range.priorStartDay && range.priorEndDay)
+    ? `${formatRangeDate(range.priorStartDay)} - ${formatRangeDate(range.priorEndDay)}`
+    : (range.priorStart && range.priorEnd
+        ? `${formatRangeDate(String(range.priorStart).slice(0,10))} - ${formatRangeDate(String(range.priorEnd).slice(0,10))}`
+        : 'the previous period');
+
+  const scopeLabel = column.scope === 'engage'  ? 'Engage metric'
+                   : column.scope === 'content' ? 'Content metric'
+                   :                              'Channel metric';
+  const scopeFooter = column.scope === 'engage'
+    ? 'Inbox activity within date range'
+    : column.scope === 'content'
+      ? 'Activity within date range on posts published in this range'
+      : 'Activity within date range on any post or elsewhere on channel';
+
+  return (
+    <div
+      style={{ position: 'absolute', top: pos.top, left: pos.left, transform: 'translate(-50%, -100%)', zIndex: 60 }}
+      className="w-72 pointer-events-none"
+    >
+      <div className="bg-white border border-slate-200 rounded-lg shadow-xl p-3 text-left">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+          {Icon ? <Icon className="w-3 h-3 text-slate-500" /> : null}
+          <span>{column.label}</span>
+        </div>
+        <div className="mt-1.5 text-2xl font-bold text-slate-900 tabular-nums">
+          {formatValue(cell.current, column.format)}
+        </div>
+        {(cell.prior > 0 || cell.current > 0) && (
+          <div className={clsx('mt-0.5 text-[11px] font-medium', good ? 'text-emerald-600' : 'text-rose-600')}>
+            {isUp ? '▲' : '▼'} {Math.abs(pct).toFixed(0)}% compared to the previous period ({priorWindow})
+          </div>
+        )}
+        {column.description && (
+          <p className="mt-2 text-[11px] leading-snug text-slate-600">{column.description}</p>
+        )}
+        <div className="mt-2.5 flex items-center justify-between">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {scopeLabel}
+          </span>
+          <span className="text-[10px] text-slate-400">{scopeFooter}</span>
+        </div>
+      </div>
+      <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45" />
+    </div>
+  );
+}
+
+function formatRangeDate(d) {
+  try { return format(new Date(d), 'd MMM yyyy'); } catch { return d; }
 }
 
 function ChannelAvatar({ row }) {

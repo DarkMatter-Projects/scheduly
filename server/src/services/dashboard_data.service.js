@@ -46,6 +46,51 @@ async function totalForMetric(metricKey, channelIds, start, end) {
   const m = metric(metricKey);
   if (!m || m.available === false) return 0;
 
+  // Followers data lives in follower_history (daily snapshots). Until the
+  // ingestion job ships there are no rows, so this returns 0 — the cells
+  // render as zeros with no delta rather than as errors.
+  if (metricFamily(metricKey) === 'followers') {
+    const accountsFilter = channelIds && channelIds.length > 0
+      ? `AND fh.social_account_id IN (${channelIds.map(() => '?').join(',')})`
+      : '';
+    try {
+      if (metricKey === 'followers') {
+        // Latest snapshot on or before `end`, summed across accounts in scope.
+        const [rows] = await pool.execute(
+          `SELECT COALESCE(SUM(latest.followers_count), 0) AS v
+           FROM (
+             SELECT fh.social_account_id, fh.followers_count
+             FROM follower_history fh
+             JOIN (
+               SELECT social_account_id, MAX(snapshot_date) AS d
+               FROM follower_history
+               WHERE snapshot_date <= ?
+               GROUP BY social_account_id
+             ) lx ON lx.social_account_id = fh.social_account_id AND lx.d = fh.snapshot_date
+             WHERE 1=1 ${accountsFilter}
+           ) latest`,
+          [end.slice(0, 10), ...(channelIds || [])]
+        );
+        return Number(rows[0]?.v) || 0;
+      }
+      if (metricKey === 'net_new_followers') {
+        // (latest in range) - (latest at/before priorEnd), per account, summed.
+        // Simpler: count rows in range and sum delta_count if column exists.
+        const [rows] = await pool.execute(
+          `SELECT COALESCE(SUM(fh.delta_count), 0) AS v
+           FROM follower_history fh
+           WHERE fh.snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+          [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+        );
+        return Number(rows[0]?.v) || 0;
+      }
+    } catch {
+      // Table likely doesn't exist yet — fall through to 0.
+      return 0;
+    }
+    return 0;
+  }
+
   if (metricFamily(metricKey) === 'organic') {
     // post_analytics rows per post_target. Sum across the targets that
     // belong to the requested social_accounts.
@@ -89,6 +134,21 @@ async function totalForMetric(metricKey, channelIds, start, end) {
         params
       );
       return Number(r[0]?.v) || 0;
+    }
+    if (metricKey === 'reach_daily_avg') {
+      // Total reach across posts in the period, divided by number of days
+      // in the range. Gives a stable per-day number even when reach is
+      // sparse (a few big posts can otherwise dominate).
+      const [r] = await pool.execute(
+        `SELECT COALESCE(SUM(pa.reach), 0) AS v
+         FROM post_analytics pa
+         JOIN post_targets pt ON pa.post_target_id = pt.id
+         JOIN posts p ON pt.post_id = p.id
+         WHERE p.published_at BETWEEN ? AND ? ${accountsFilter}`,
+        params
+      );
+      const days = Math.max(1, Math.round((new Date(end) - new Date(start)) / 86400000) + 1);
+      return Math.round((Number(r[0]?.v) || 0) / days);
     }
     const col = m.source.split('.')[1]; // e.g. impressions, likes, comments_count
     const [rows] = await pool.execute(
@@ -384,7 +444,7 @@ async function buildChannelComparison(dashboard, widget) {
 // current value + delta vs the prior window. The "Performance by channel"
 // widget from the reference design.
 async function buildChannelPerformanceTable(dashboard, widget) {
-  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const { start, end, priorStart, priorEnd, startDay, endDay, priorStartDay, priorEndDay } = resolveRange(dashboard);
   const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
     ? widget.channelIds.map(Number)
     : null;
@@ -402,13 +462,24 @@ async function buildChannelPerformanceTable(dashboard, widget) {
     params
   );
 
+  // Default columns match the "Performance by channel" reference design.
+  // Old widgets without an explicit metricKeys list fall through to this
+  // set so they pick up the new layout without needing to be recreated.
   const keys = Array.isArray(widget.metricKeys) && widget.metricKeys.length > 0
     ? widget.metricKeys
-    : ['impressions','reach','likes','comments','engagement_rate'];
+    : ['followers','net_new_followers','views','reach_daily_avg','interactions'];
 
   const columns = keys.map(k => {
     const m = metric(k);
-    return { key: k, label: m?.label || k, format: m?.format || 'number', invertDelta: !!m?.invertDelta };
+    return {
+      key: k,
+      label: m?.label || k,
+      format: m?.format || 'number',
+      invertDelta: !!m?.invertDelta,
+      description: m?.description || '',
+      scope: m?.scope || 'channel',
+      category: m?.category || 'channel',
+    };
   });
 
   const rows = [];
@@ -430,7 +501,39 @@ async function buildChannelPerformanceTable(dashboard, widget) {
     });
   }
 
-  return { range: { start, end, priorStart, priorEnd }, columns, rows };
+  // Aggregate totals across every account in scope, for the header row.
+  // For rate-style metrics (percent / multiplier) summing makes no sense, so
+  // we re-query across the union of channel ids instead — gives a true
+  // weighted total rather than an average of per-channel values.
+  const totalsChannelIds = accounts.map(a => a.id);
+  const totals = {};
+  for (const k of keys) {
+    const m = metric(k);
+    const isRate = m && (m.format === 'percent' || m.format === 'multiplier');
+    if (isRate || totalsChannelIds.length === 0) {
+      const [current, prior] = await Promise.all([
+        totalForMetric(k, totalsChannelIds.length ? totalsChannelIds : null, start, end),
+        totalForMetric(k, totalsChannelIds.length ? totalsChannelIds : null, priorStart, priorEnd),
+      ]);
+      totals[k] = { current, prior };
+    } else {
+      // Sum the per-row cells we already computed — saves a duplicate query.
+      let current = 0;
+      let prior = 0;
+      for (const r of rows) {
+        current += Number(r.cells[k]?.current) || 0;
+        prior   += Number(r.cells[k]?.prior)   || 0;
+      }
+      totals[k] = { current, prior };
+    }
+  }
+
+  return {
+    range: { start, end, priorStart, priorEnd, startDay, endDay, priorStartDay, priorEndDay },
+    columns,
+    totals,
+    rows,
+  };
 }
 
 // Aggregate a metric across all accounts in scope, grouped by platform
