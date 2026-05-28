@@ -4,14 +4,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Pencil, Plus, Share2, Trash2, LayoutGrid, Copy, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
+import { SortableContext, useSortable, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 import {
-  getDashboard, updateDashboard, deleteWidget, createShareLink, revokeShareLink, addWidget,
+  getDashboard, updateDashboard, deleteWidget, createShareLink, revokeShareLink, addWidget, reorderWidgets,
 } from '../api/dashboardsApi';
 import { listAccounts } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
 import { getPlatform } from '../utils/platforms';
 import AddWidgetModal from '../components/dashboard/AddWidgetModal';
-import WidgetRenderer from '../components/dashboard/WidgetRenderer';
+import WidgetRenderer, { COL_SPAN } from '../components/dashboard/WidgetRenderer';
 import DateRangePicker from '../components/dashboard/DateRangePicker';
 
 export default function DashboardBuilderPage() {
@@ -93,6 +97,17 @@ export default function DashboardBuilderPage() {
       setShowAddWidget(false);
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to add widget'),
+  });
+
+  const reorderWidgetsMut = useMutation({
+    mutationFn: (orderedIds) => reorderWidgets(id, orderedIds),
+    // No invalidate on success — the optimistic update is the truth and a
+    // refetch would briefly flash the old order. On error we DO refetch to
+    // pick up the server state.
+    onError: () => {
+      toast.error('Failed to save widget order');
+      queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
+    },
   });
 
   if (isLoading || !dashboard) {
@@ -204,16 +219,21 @@ export default function DashboardBuilderPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
-          {dashboard.widgets.map(w => (
-            <WidgetRenderer
-              key={w.id}
-              widget={w}
-              canEdit={canEdit}
-              onRemove={() => removeWidgetMut.mutate(w.id)}
-            />
-          ))}
-        </div>
+        <WidgetGrid
+          dashboard={dashboard}
+          canEdit={canEdit}
+          onRemove={(id) => removeWidgetMut.mutate(id)}
+          onReorder={(orderedIds) => {
+            // Optimistic: rewrite the dashboard cache so the new order shows
+            // immediately, then persist. Roll back on failure.
+            queryClient.setQueryData(['dashboard', id], (old) => {
+              if (!old) return old;
+              const byId = new Map(old.widgets.map(w => [w.id, w]));
+              return { ...old, widgets: orderedIds.map(wid => byId.get(wid)).filter(Boolean) };
+            });
+            reorderWidgetsMut.mutate(orderedIds);
+          }}
+        />
       )}
 
       {showAddWidget && (
@@ -222,6 +242,83 @@ export default function DashboardBuilderPage() {
           onSave={(w) => addWidgetMut.mutate(w)}
         />
       )}
+    </div>
+  );
+}
+
+// Sortable wrapper around the widget grid. Tracks pointer drags via
+// dnd-kit and calls onReorder(orderedIds) once on drop. Re-uses the
+// existing 12-column grid layout so widget widths still respect their
+// `width` prop in WidgetRenderer.
+function WidgetGrid({ dashboard, canEdit, onRemove, onReorder }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  );
+
+  const ids = dashboard.widgets.map(w => w.id);
+
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = ids.indexOf(active.id);
+    const newIndex = ids.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextIds = arrayMove(ids, oldIndex, newIndex);
+    onReorder(nextIds);
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={ids} strategy={rectSortingStrategy}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+          {dashboard.widgets.map(w => (
+            <SortableWidget
+              key={w.id}
+              widget={w}
+              canEdit={canEdit}
+              onRemove={() => onRemove(w.id)}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+// Single grid cell that wires dnd-kit's drag transform onto the widget
+// and exposes a small grip handle in the corner. Only the handle is
+// draggable so the editable title / chart tooltips inside the widget
+// stay clickable.
+function SortableWidget({ widget, canEdit, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
+  const w = Math.max(1, Math.min(12, widget.width || 4));
+  const spanClass = COL_SPAN[w];
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 30 : undefined,
+    opacity: isDragging ? 0.85 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={`group/widget relative col-span-1 sm:col-span-2 ${spanClass}`}>
+      {canEdit && (
+        <button
+          {...attributes}
+          {...listeners}
+          type="button"
+          aria-label="Drag to reorder"
+          title="Drag to reorder"
+          className="absolute -top-2 -left-2 z-20 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-700 hover:border-slate-300 cursor-grab active:cursor-grabbing opacity-0 group-hover/widget:opacity-100 transition-opacity"
+          style={{ opacity: isDragging ? 1 : undefined }}
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {/* Inner widget renders its own card markup; its col-span class is a
+          no-op here because its parent (this wrapper) is the grid child,
+          not a grid itself. */}
+      <WidgetRenderer widget={widget} canEdit={canEdit} onRemove={onRemove} />
     </div>
   );
 }

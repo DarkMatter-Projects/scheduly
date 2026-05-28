@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import clsx from 'clsx';
 import { Trash2, AlertTriangle, Pencil, Inbox, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, AlignLeft } from 'lucide-react';
 import { getWidgetData, updateWidget } from '../../api/dashboardsApi';
+import { uploadMedia } from '../../api/mediaApi';
 import KpiCard from '../common/KpiCard';
 import ChartEmptyState from '../common/ChartEmptyState';
 import { FacebookIcon, InstagramIcon, TiktokIcon } from '../common/SocialIcons';
@@ -19,7 +20,7 @@ const METRIC_COLORS = [
 // like `lg:col-span-${n}` get dropped, which is why every widget was
 // collapsing to single-column width. A static lookup keeps the classes
 // in the bundle.
-const COL_SPAN = {
+export const COL_SPAN = {
   1:  'lg:col-span-1',
   2:  'lg:col-span-2',
   3:  'lg:col-span-3',
