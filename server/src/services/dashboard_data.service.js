@@ -1,6 +1,24 @@
 const pool = require('../config/db');
 const { metric, metricFamily } = require('./dashboard_metrics');
 
+// Resolve which social_account ids a widget should pull from. Order:
+//   1. The widget's own channel_ids (explicit user selection)
+//   2. The dashboard's effective scope (union of every widget's channel_ids,
+//      computed once in the controller and attached as effectiveChannelIds)
+//   3. null = "all accessible accounts" (legacy fallback for widgets/dashboards
+//      that never had a scope set at all)
+// Returning null preserves the old behaviour for the unscoped case; returning
+// a list scopes the SQL via the IN clause.
+function resolveChannelIds(dashboard, widget) {
+  if (Array.isArray(widget.channelIds) && widget.channelIds.length > 0) {
+    return widget.channelIds.map(Number);
+  }
+  if (Array.isArray(dashboard?.effectiveChannelIds) && dashboard.effectiveChannelIds.length > 0) {
+    return dashboard.effectiveChannelIds.map(Number);
+  }
+  return null;
+}
+
 // Resolve the two ends of a comparison window. If the dashboard is configured
 // with a relative range like '30d', we compute it relative to "now"; if the
 // dashboard has explicit range_start/end we use those.
@@ -362,9 +380,7 @@ async function dailySeries(metricKey, channelIds, start, end) {
 async function buildKeyMetrics(dashboard, widget) {
   const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
   const keys = Array.isArray(widget.metricKeys) ? widget.metricKeys : [];
-  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
-    ? widget.channelIds.map(Number)
-    : null;
+  const channelIds = resolveChannelIds(dashboard, widget);
 
   const out = [];
   for (const key of keys) {
@@ -391,9 +407,7 @@ async function buildKeyMetrics(dashboard, widget) {
 async function buildTimeSeries(dashboard, widget) {
   const { start, end } = resolveRange(dashboard);
   const keys = Array.isArray(widget.metricKeys) ? widget.metricKeys : [];
-  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
-    ? widget.channelIds.map(Number)
-    : null;
+  const channelIds = resolveChannelIds(dashboard, widget);
 
   const series = [];
   for (const key of keys) {
@@ -407,9 +421,7 @@ async function buildTimeSeries(dashboard, widget) {
 
 async function buildChannelComparison(dashboard, widget) {
   const { start, end } = resolveRange(dashboard);
-  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
-    ? widget.channelIds.map(Number)
-    : null;
+  const channelIds = resolveChannelIds(dashboard, widget);
   const key = (widget.metricKeys && widget.metricKeys[0]) || 'impressions';
   const m = metric(key);
 
@@ -445,9 +457,7 @@ async function buildChannelComparison(dashboard, widget) {
 // widget from the reference design.
 async function buildChannelPerformanceTable(dashboard, widget) {
   const { start, end, priorStart, priorEnd, startDay, endDay, priorStartDay, priorEndDay } = resolveRange(dashboard);
-  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
-    ? widget.channelIds.map(Number)
-    : null;
+  const channelIds = resolveChannelIds(dashboard, widget);
 
   const params = [];
   let where = 'sa.is_active = 1';
@@ -540,9 +550,7 @@ async function buildChannelPerformanceTable(dashboard, widget) {
 // (facebook_page / instagram_business / tiktok). One row per platform.
 async function buildNetworkComparison(dashboard, widget) {
   const { start, end } = resolveRange(dashboard);
-  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
-    ? widget.channelIds.map(Number)
-    : null;
+  const channelIds = resolveChannelIds(dashboard, widget);
   const key = (widget.metricKeys && widget.metricKeys[0]) || 'impressions';
   const m = metric(key);
 
@@ -583,9 +591,7 @@ async function buildBreakdown(dashboard, widget) {
 // Top-N posts by the chosen metric, with key insight columns alongside.
 async function buildContentPerformance(dashboard, widget) {
   const { start, end } = resolveRange(dashboard);
-  const channelIds = Array.isArray(widget.channelIds) && widget.channelIds.length > 0
-    ? widget.channelIds.map(Number)
-    : null;
+  const channelIds = resolveChannelIds(dashboard, widget);
   const sortKey = (widget.metricKeys && widget.metricKeys[0]) || 'engagement_rate';
   const m = metric(sortKey);
 

@@ -131,7 +131,23 @@ async function getWidgetData(req, res, next) {
     const [drows] = await pool.execute('SELECT * FROM dashboards WHERE id = ?', [widget.dashboard_id]);
     if (drows.length === 0) return res.status(404).json({ error: 'Dashboard not found' });
 
-    const data = await buildWidgetData(drows[0], widget);
+    // Dashboard-level scope = union of every widget's channelIds. Widgets
+    // without their own channelIds fall back to this so the table doesn't
+    // leak channels the user never picked for this dashboard.
+    const [allWidgets] = await pool.execute(
+      'SELECT channel_ids FROM dashboard_widgets WHERE dashboard_id = ?',
+      [widget.dashboard_id]
+    );
+    const scopeSet = new Set();
+    for (const w of allWidgets) {
+      try {
+        const ids = w.channel_ids ? JSON.parse(w.channel_ids) : [];
+        for (const id of ids) scopeSet.add(Number(id));
+      } catch { /* ignore malformed JSON */ }
+    }
+    const dashboard = { ...drows[0], effectiveChannelIds: [...scopeSet] };
+
+    const data = await buildWidgetData(dashboard, widget);
     res.json(data);
   } catch (err) { next(err); }
 }
