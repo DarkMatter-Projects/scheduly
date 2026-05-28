@@ -136,6 +136,7 @@ async function getWidgetData(req, res, next) {
     // an array/object or a string. parseJsonish handles both, plus null.
     widget.channelIds = parseJsonish(widget.channel_ids) || [];
     widget.metricKeys = parseJsonish(widget.metric_keys) || [];
+    widget.config     = parseJsonish(widget.config) || {};
 
     const [drows] = await pool.execute('SELECT * FROM dashboards WHERE id = ?', [widget.dashboard_id]);
     if (drows.length === 0) return res.status(404).json({ error: 'Dashboard not found' });

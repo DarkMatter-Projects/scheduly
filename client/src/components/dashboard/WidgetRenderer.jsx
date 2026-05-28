@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
 import clsx from 'clsx';
-import { Trash2, AlertTriangle, Pencil } from 'lucide-react';
+import { Trash2, AlertTriangle, Pencil, Inbox, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, AlignLeft } from 'lucide-react';
 import { getWidgetData, updateWidget } from '../../api/dashboardsApi';
 import KpiCard from '../common/KpiCard';
 import ChartEmptyState from '../common/ChartEmptyState';
@@ -90,6 +90,11 @@ function WidgetBody({ widget }) {
     case 'content_performance':   return <ContentPerformanceBody data={data} />;
     case 'sentiment_breakdown':   return <SentimentBreakdownBody data={data} />;
     case 'sentiment_trend':       return <SentimentTrendBody data={data} />;
+    case 'text_block':            return <TextBlockBody data={data} widget={widget} />;
+    case 'label_performance':
+    case 'paid_performance':
+    case 'followers_by_country':
+    case 'reaction_breakdown':    return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -97,6 +102,115 @@ function WidgetBody({ widget }) {
         </div>
       );
   }
+}
+
+// Friendly empty state for widget types that don't have data ingestion yet
+// (label_performance, paid_performance, followers_by_country, etc.).
+function NoDataPlaceholder() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-10">
+      <Inbox className="w-12 h-12 mb-3" strokeWidth={1} />
+      <p className="text-sm">No data available for the specified period and channels selected</p>
+    </div>
+  );
+}
+
+// ── Text block widget ──
+
+// Minimal rich-text editor: contenteditable + execCommand toolbar.
+// Saves the HTML on blur via updateWidget(config: { html }). Not building on
+// a heavy editor library here — execCommand covers the formatting buttons in
+// the reference toolbar and avoids a 100KB+ dependency for what's a static
+// content block on a dashboard.
+function TextBlockBody({ data, widget }) {
+  const queryClient = useQueryClient();
+  const editorRef = useRef(null);
+  const initialHtml = (widget.config && widget.config.html) ?? data?.html ?? '';
+  const [dirty, setDirty] = useState(false);
+
+  // Seed editor with stored html once; never overwrite on rerender so the
+  // user's cursor + selection survive React's reconciliation.
+  useEffect(() => {
+    if (editorRef.current && !editorRef.current.dataset.seeded) {
+      editorRef.current.innerHTML = initialHtml;
+      editorRef.current.dataset.seeded = '1';
+    }
+  }, [initialHtml]);
+
+  const mut = useMutation({
+    mutationFn: (html) => updateWidget(widget.id, { config: { ...(widget.config || {}), html } }),
+    onSuccess: () => queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'dashboard' }),
+  });
+
+  const save = () => {
+    if (!dirty || !editorRef.current) return;
+    mut.mutate(editorRef.current.innerHTML);
+    setDirty(false);
+  };
+
+  // execCommand is deprecated but still the path of least resistance for a
+  // tiny in-app editor — every modern browser still supports the basics.
+  const cmd = (command, value) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+    setDirty(true);
+  };
+  const cmdLink = () => {
+    const url = window.prompt('Link URL');
+    if (url) cmd('createLink', url);
+  };
+  const cmdImage = () => {
+    const url = window.prompt('Image URL');
+    if (url) cmd('insertImage', url);
+  };
+  const cmdHeading = (e) => {
+    const tag = e.target.value;
+    cmd('formatBlock', tag);
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center gap-1 border-b border-slate-200 pb-2 mb-2 text-slate-600">
+        <select onChange={cmdHeading} defaultValue="p" className="text-xs border border-slate-200 rounded px-1 py-0.5">
+          <option value="p">Normal</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+        </select>
+        <ToolbarBtn icon={Bold}          onClick={() => cmd('bold')}            label="Bold" />
+        <ToolbarBtn icon={Italic}        onClick={() => cmd('italic')}          label="Italic" />
+        <ToolbarBtn icon={UnderlineIcon} onClick={() => cmd('underline')}       label="Underline" />
+        <ToolbarBtn icon={AlignLeft}     onClick={() => cmd('justifyLeft')}     label="Align" />
+        <ToolbarBtn icon={ListOrdered}   onClick={() => cmd('insertOrderedList')} label="Numbered list" />
+        <ToolbarBtn icon={List}          onClick={() => cmd('insertUnorderedList')} label="Bulleted list" />
+        <ToolbarBtn icon={LinkIcon}      onClick={cmdLink}                      label="Insert link" />
+        <ToolbarBtn icon={ImageIcon}     onClick={cmdImage}                     label="Insert image (URL)" />
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={() => setDirty(true)}
+        onBlur={save}
+        className="flex-1 outline-none text-sm text-slate-700 leading-relaxed px-1 prose prose-sm max-w-none"
+        style={{ minHeight: 80 }}
+      />
+    </div>
+  );
+}
+
+function ToolbarBtn({ icon: Icon, onClick, label }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className="p-1 rounded hover:bg-slate-100 text-slate-600"
+    >
+      <Icon className="w-3.5 h-3.5" />
+    </button>
+  );
 }
 
 // ── Key metrics ──
@@ -149,21 +263,25 @@ function TimeSeriesBody({ data }) {
     return row;
   });
 
-  // Single-metric charts (Daily followers, Daily views, etc.) render as a
-  // soft area chart with a gradient so the headline trend reads clearly.
-  // Multi-metric charts keep the multi-line look so series can be compared.
-  if (series.length === 1) {
-    const s = series[0];
-    const color = '#6366f1';
-    const gid = `area-${s.key}`;
+  // 1-2 metrics render as soft area charts with gradients (matches the
+  // reference design's Organic vs Paid / Follower vs Non-follower charts).
+  // 3+ metrics use the multi-line layout — overlapping areas at that count
+  // read as noise rather than comparison.
+  if (series.length <= 2) {
+    const palette = ['#6366f1', '#ec4899'];
     return (
       <ResponsiveContainer width="100%" height="100%" minHeight={180}>
         <AreaChart data={merged} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <defs>
-            <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-              <stop offset="100%" stopColor={color} stopOpacity={0.02} />
-            </linearGradient>
+            {series.map((s, i) => {
+              const color = palette[i % palette.length];
+              return (
+                <linearGradient key={s.key} id={`area-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+                </linearGradient>
+              );
+            })}
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
           <XAxis
@@ -175,17 +293,26 @@ function TimeSeriesBody({ data }) {
           />
           <YAxis
             tick={{ fontSize: 10, fill: '#94a3b8' }}
-            tickFormatter={(v) => formatCompact(v, s.format || 'number')}
+            tickFormatter={(v) => formatCompact(v, series[0]?.format || 'number')}
             tickLine={false}
             axisLine={false}
             width={50}
           />
           <Tooltip
             labelFormatter={(v) => { try { return format(new Date(v), 'MMM d, yyyy'); } catch { return v; } }}
-            formatter={(v) => [formatValue(v, s.format || 'number'), s.label]}
+            formatter={(v, name) => {
+              const s = series.find(x => x.key === name);
+              return [formatValue(v, s?.format || 'number'), s?.label || name];
+            }}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
-          <Area type="monotone" dataKey={s.key} name={s.label} stroke={color} strokeWidth={2} fill={`url(#${gid})`} isAnimationActive={false} />
+          {series.map((s, i) => {
+            const color = palette[i % palette.length];
+            return (
+              <Area key={s.key} type="monotone" dataKey={s.key} name={s.label}
+                    stroke={color} strokeWidth={2} fill={`url(#area-${s.key})`} isAnimationActive={false} />
+            );
+          })}
         </AreaChart>
       </ResponsiveContainer>
     );

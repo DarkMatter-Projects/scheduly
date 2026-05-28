@@ -159,13 +159,29 @@ export default function DashboardBuilderPage() {
             </button>
           )}
           {canEdit && (
-            <button
-              onClick={() => setShowAddWidget(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add widget
-            </button>
+            <>
+              <button
+                onClick={() => addWidgetMut.mutate({
+                  category: 'channel',
+                  widgetType: 'text_block',
+                  title: 'Text / images',
+                  width: 12,
+                  height: 2,
+                  config: { html: '' },
+                })}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add text / images
+              </button>
+              <button
+                onClick={() => setShowAddWidget(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add widget
+              </button>
+            </>
           )}
         </div>
       </div>

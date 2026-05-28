@@ -224,6 +224,16 @@ async function totalForMetric(metricKey, channelIds, start, end) {
       ]);
       return a + b + c;
     }
+    if (metricKey === 'paid_reach_daily_avg') {
+      const [a, b, c] = await Promise.all([
+        sumIn('meta_ad_insights', 'reach'),
+        sumIn('google_ad_insights', 'reach').catch(() => 0),
+        sumIn('tiktok_ad_insights', 'reach').catch(() => 0),
+      ]);
+      const total = a + b + c;
+      const days = Math.max(1, Math.round((new Date(end) - new Date(start)) / 86400000) + 1);
+      return Math.round(total / days);
+    }
     // Derived ones — recompute from sums.
     const [spend, impressions, clicks, conversionValue] = await Promise.all([
       totalForMetric('spend', channelIds, start, end),
@@ -776,6 +786,15 @@ async function buildWidgetData(dashboard, widget) {
     case 'content_performance':   return buildContentPerformance(dashboard, widget);
     case 'sentiment_breakdown':   return buildSentimentBreakdown(dashboard);
     case 'sentiment_trend':       return buildSentimentTrend(dashboard);
+    // Static-content widgets — config holds the payload, no DB query needed.
+    case 'text_block':            return { html: (widget.config && widget.config.html) || '' };
+    // Placeholders for widget types whose underlying data we don't collect
+    // yet (Meta Page-level breakdowns, label system, etc.). The client
+    // recognises the name and renders the friendly "no data" empty state.
+    case 'label_performance':
+    case 'paid_performance':
+    case 'followers_by_country':
+    case 'reaction_breakdown':    return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

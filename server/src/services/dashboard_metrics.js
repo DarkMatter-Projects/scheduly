@@ -32,6 +32,43 @@ const METRICS = [
   { key: 'reach_daily_avg',     label: 'Reach (daily) avg.',  section: 'distribution', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok'], format: 'number',   source: 'derived.reach_daily_avg',       available: true,
     scope: 'channel',
     description: 'The daily number of people who had a post from your channel enter their feed. Use the daily visualisation or average to get accurate metrics.' },
+  { key: 'organic_views',       label: 'Organic views',       section: 'distribution', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok'], format: 'number',   source: 'post_analytics.impressions',    available: true,
+    scope: 'content',
+    description: 'Impressions on posts published organically (i.e. not promoted through ads) during the period.' },
+  { key: 'paid_views',          label: 'Paid views',          section: 'distribution', category: 'channel', platforms: ['meta_ads','google_ads','tiktok_ads'],          format: 'number',   source: 'ad_insights.impressions',       available: true,
+    scope: 'channel',
+    description: 'Impressions served from paid ad campaigns during the period.' },
+  { key: 'follower_views',      label: 'Follower views',      section: 'distribution', category: 'channel', platforms: ['facebook_page'],                               format: 'number',   source: 'derived.follower_views',        available: false,
+    scope: 'channel',
+    description: 'Views from users who follow your Page. Requires page_impressions_by_user_type ingestion (coming soon).' },
+  { key: 'non_follower_views',  label: 'Non-Follower views',  section: 'distribution', category: 'channel', platforms: ['facebook_page'],                               format: 'number',   source: 'derived.non_follower_views',    available: false,
+    scope: 'channel',
+    description: 'Views from users who do not follow your Page. Requires page_impressions_by_user_type ingestion (coming soon).' },
+  { key: 'paid_reach_daily_avg', label: 'Paid reach (daily) avg.', section: 'distribution', category: 'channel', platforms: ['meta_ads','google_ads','tiktok_ads'],     format: 'number',   source: 'derived.paid_reach_daily_avg',  available: true,
+    scope: 'channel',
+    description: 'The daily number of people reached by paid ad campaigns. Calculated as total ad reach divided by days in the range.' },
+  { key: 'viral_reach_daily_avg', label: 'Viral reach (daily) avg.', section: 'distribution', category: 'channel', platforms: ['facebook_page'],                        format: 'number',   source: 'derived.viral_reach_daily_avg', available: false,
+    scope: 'channel',
+    description: 'Reach attributed to viral content (shares, friend stories). Requires page_impressions_viral_unique ingestion (coming soon).' },
+  { key: 'non_viral_reach_daily_avg', label: 'Non-viral reach (daily) avg.', section: 'distribution', category: 'channel', platforms: ['facebook_page'],               format: 'number',   source: 'derived.non_viral_reach_daily_avg', available: false,
+    scope: 'channel',
+    description: 'Reach from non-viral sources (direct fans, ads). Requires page_impressions_viral_unique ingestion (coming soon).' },
+  { key: 'reactions',           label: 'Reactions',           section: 'engagements', category: 'channel', platforms: ['facebook_page'],                                format: 'number',   source: 'post_analytics.likes',          available: true,
+    scope: 'content',
+    description: 'Total reactions across all types (Like, Love, Haha, Wow, Sad, Angry) on posts published in the period.' },
+
+  // ── Video (Page-level video insights — not yet collected) ──
+  { key: 'video_watch_time',    label: 'Watch time',          section: 'video',       category: 'channel', platforms: ['facebook_page'],                                format: 'number',   source: 'derived.video_watch_time',      available: false,
+    scope: 'content',
+    description: 'Total seconds of video watch time. Requires page_video_views ingestion (coming soon).' },
+  { key: 'video_viewers',       label: 'Video viewers',       section: 'video',       category: 'channel', platforms: ['facebook_page'],                                format: 'number',   source: 'derived.video_viewers',         available: false,
+    scope: 'content',
+    description: 'Unique users who watched any video in the period. Requires page_video_views_unique ingestion (coming soon).' },
+
+  // ── Audience demographics (per-country fan breakdown — not yet collected) ──
+  { key: 'fans_by_country',     label: 'Followers by country', section: 'fans',       category: 'channel', platforms: ['facebook_page','instagram_business'],          format: 'number',   source: 'derived.fans_by_country',       available: false,
+    scope: 'channel',
+    description: 'Follower counts broken down by country. Requires page_fans_country ingestion (coming soon).' },
 
   // ── Engagements ──
   { key: 'likes',               label: 'Likes',               section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok'], format: 'number',   source: 'post_analytics.likes',          available: true,
@@ -115,7 +152,7 @@ function metricFamily(key) {
   if (m.source === 'derived.reach_daily_avg') return 'organic';
   if (m.source.startsWith('follower_history.')) return 'followers';
   if (m.source.startsWith('ad_insights.')) return 'paid';
-  if (m.source.startsWith('derived.') && ['ctr','cpc','cpm','roas'].includes(key)) return 'paid';
+  if (m.source.startsWith('derived.') && ['ctr','cpc','cpm','roas','paid_reach_daily_avg'].includes(key)) return 'paid';
   if (m.source.startsWith('engage_messages.')) return 'engage';
   if (m.source === 'derived.engage_negative_rate') return 'engage';
   return null;

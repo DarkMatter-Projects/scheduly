@@ -13,27 +13,64 @@ export const DASHBOARD_TEMPLATES = [
     available: true,
     description: 'Reactions, reach, engagement and top content on your Facebook Pages.',
     widgets: [
-      // Per-channel summary table — always first
+      // 1. Per-channel summary table
       { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
         metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
         width: 12, height: 3 },
-      // Full-width follower trend
+      // 2. Full-width follower trend
       { category: 'channel', widgetType: 'time_series', title: 'Daily followers',
         metricKeys: ['followers'], width: 12, height: 3 },
-      // Views KPI alongside its daily trend
+      // 3. Views + Daily views
       { category: 'channel', widgetType: 'key_metrics', title: 'Views',
         metricKeys: ['views'], width: 4, height: 3 },
       { category: 'channel', widgetType: 'time_series', title: 'Daily views',
         metricKeys: ['views'], width: 8, height: 3 },
-      // Time series — engagements
-      { category: 'channel', widgetType: 'time_series', title: 'Engagements over time',
-        metricKeys: ['likes','comments','shares'], width: 6, height: 3 },
-      // Time series — clicks
-      { category: 'channel', widgetType: 'time_series', title: 'Daily clicks',
-        metricKeys: ['clicks'], width: 6, height: 3 },
-      // Top posts table
-      { category: 'content', widgetType: 'content_performance', title: 'Top performing posts',
+      // 4. Organic vs Paid views
+      { category: 'channel', widgetType: 'key_metrics', title: 'Organic vs Paid views',
+        metricKeys: ['organic_views','paid_views'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily Organic vs Paid views',
+        metricKeys: ['organic_views','paid_views'], width: 8, height: 3 },
+      // 5. Follower vs Non-Follower (Meta page-level breakdowns — empty
+      //    until page_impressions_by_user_type ingestion ships)
+      { category: 'channel', widgetType: 'key_metrics', title: 'Follower vs Non Follower',
+        metricKeys: ['follower_views','non_follower_views'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily Follower vs Non Follower Views',
+        metricKeys: ['follower_views','non_follower_views'], width: 8, height: 3 },
+      // 6. Average daily page reach (organic + paid)
+      { category: 'channel', widgetType: 'key_metrics', title: 'Average daily page reach',
+        metricKeys: ['reach_daily_avg','paid_reach_daily_avg'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily reach',
+        metricKeys: ['reach_daily_avg','paid_reach_daily_avg'], width: 8, height: 3 },
+      // 7. Viral vs Non-viral reach (empty until viral_unique ingestion)
+      { category: 'channel', widgetType: 'key_metrics', title: 'Viral vs. Non-viral (daily) avg',
+        metricKeys: ['non_viral_reach_daily_avg','viral_reach_daily_avg'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily non-viral and viral reach',
+        metricKeys: ['non_viral_reach_daily_avg','viral_reach_daily_avg'], width: 8, height: 3 },
+      // 8. Page interactions + Reactions breakdown (per-reaction-type bar
+      //    chart needs post_reactions_by_type_total per post — empty for now)
+      { category: 'channel', widgetType: 'key_metrics', title: 'Page interactions',
+        metricKeys: ['interactions','reactions'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'reaction_breakdown', title: 'Reactions',
+        width: 8, height: 3 },
+      // 9. Daily interactions trend
+      { category: 'channel', widgetType: 'time_series', title: 'Daily interactions',
+        metricKeys: ['interactions'], width: 12, height: 3 },
+      // 10. Label performance (needs label/tag system on posts)
+      { category: 'content', widgetType: 'label_performance', title: 'Label performance',
+        width: 12, height: 4 },
+      // 11. Content performance — top posts table
+      { category: 'content', widgetType: 'content_performance', title: 'Content performance',
         metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      // 12. Paid performance table (needs ad-level per-post breakdown)
+      { category: 'content', widgetType: 'paid_performance', title: 'Paid performance',
+        width: 12, height: 4 },
+      // 13. Video consumption (Watch time + Video viewers — empty until
+      //     page_video_views_unique ingestion ships)
+      { category: 'channel', widgetType: 'time_series', title: 'Video consumption',
+        metricKeys: ['video_watch_time','video_viewers'], width: 12, height: 3 },
+      // 14. Followers by country (needs page_fans_country ingestion)
+      { category: 'channel', widgetType: 'followers_by_country', title: 'Followers by country',
+        width: 12, height: 4 },
     ],
   },
   {
