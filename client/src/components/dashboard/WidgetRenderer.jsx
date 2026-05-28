@@ -45,9 +45,6 @@ export default function WidgetRenderer({ widget, canEdit, onRemove }) {
     <div className={clsx('bg-white border border-slate-200 rounded-xl flex flex-col col-span-1 sm:col-span-2', spanClass)} style={heightStyle}>
       <div className="flex items-start justify-between px-4 pt-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">
-            {widget.category} · {(widget.widgetType || '').replace(/_/g, ' ')}
-          </p>
           <EditableTitle widget={widget} canEdit={canEdit} />
         </div>
         {canEdit && (
