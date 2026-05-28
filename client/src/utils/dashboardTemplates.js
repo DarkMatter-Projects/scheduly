@@ -13,18 +13,22 @@ export const DASHBOARD_TEMPLATES = [
     available: true,
     description: 'Reactions, reach, engagement and top content on your Facebook Pages.',
     widgets: [
-      // Headline KPIs
-      { category: 'channel', widgetType: 'key_metrics', title: 'Page key metrics',
-        metricKeys: ['impressions','reach','interactions','engagement_rate','posts'],
-        width: 12, height: 2 },
-      // Multi-metric per-channel table — followers + net_new_followers stay
-      // zero until follower_history ingestion ships; the rest pull live.
+      // Per-channel summary table — always first
       { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
         metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
         width: 12, height: 3 },
-      // Time series — impressions vs reach
-      { category: 'channel', widgetType: 'time_series', title: 'Impressions & Reach',
-        metricKeys: ['impressions','reach'], width: 6, height: 3 },
+      // Full-width follower trend
+      { category: 'channel', widgetType: 'time_series', title: 'Daily followers',
+        metricKeys: ['followers'], width: 12, height: 3 },
+      // Views KPI alongside its daily trend
+      { category: 'channel', widgetType: 'key_metrics', title: 'Views',
+        metricKeys: ['views'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily views',
+        metricKeys: ['views'], width: 8, height: 3 },
+      // Headline KPIs further down
+      { category: 'channel', widgetType: 'key_metrics', title: 'Page key metrics',
+        metricKeys: ['impressions','reach','interactions','engagement_rate','posts'],
+        width: 12, height: 2 },
       // Time series — engagements
       { category: 'channel', widgetType: 'time_series', title: 'Engagements over time',
         metricKeys: ['likes','comments','shares'], width: 6, height: 3 },

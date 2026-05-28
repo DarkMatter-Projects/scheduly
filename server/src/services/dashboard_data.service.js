@@ -285,6 +285,28 @@ async function dailySeries(metricKey, channelIds, start, end) {
   const m = metric(metricKey);
   if (!m || m.available === false) return [];
 
+  if (metricFamily(metricKey) === 'followers') {
+    // Snapshots are per-account per-day; the chart sums across accounts on
+    // each date. delta_count is the daily change (today - yesterday).
+    const accountsFilter = channelIds && channelIds.length > 0
+      ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+      : '';
+    try {
+      const col = metricKey === 'net_new_followers' ? 'delta_count' : 'followers_count';
+      const agg = metricKey === 'net_new_followers' ? 'SUM' : 'SUM';
+      const [rows] = await pool.execute(
+        `SELECT snapshot_date AS date, ${agg}(${col}) AS v
+         FROM follower_history
+         WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}
+         GROUP BY snapshot_date ORDER BY snapshot_date ASC`,
+        [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+      );
+      return rows.map(r => ({ date: r.date, value: Number(r.v) || 0 }));
+    } catch {
+      return [];
+    }
+  }
+
   if (metricFamily(metricKey) === 'organic') {
     const accountsFilter = channelIds && channelIds.length > 0
       ? `AND pt.social_account_id IN (${channelIds.map(() => '?').join(',')})`
@@ -312,6 +334,38 @@ async function dailySeries(metricKey, channelIds, start, end) {
         params
       );
       return rows.map(r => ({ date: r.date, value: parseFloat(r.v) || 0 }));
+    }
+    if (metricKey === 'interactions') {
+      // Derived: likes + comments + shares + saves per day. No interactions
+      // column in post_analytics so we sum the components inline.
+      const [rows] = await pool.execute(
+        `SELECT DATE(p.published_at) AS date,
+                COALESCE(SUM(pa.likes), 0)
+              + COALESCE(SUM(pa.comments_count), 0)
+              + COALESCE(SUM(pa.shares), 0)
+              + COALESCE(SUM(pa.saves), 0) AS v
+         FROM post_analytics pa
+         JOIN post_targets pt ON pa.post_target_id = pt.id
+         JOIN posts p ON pt.post_id = p.id
+         WHERE p.published_at BETWEEN ? AND ? ${accountsFilter}
+         GROUP BY DATE(p.published_at) ORDER BY date ASC`,
+        params
+      );
+      return rows.map(r => ({ date: r.date, value: Number(r.v) || 0 }));
+    }
+    if (metricKey === 'reach_daily_avg') {
+      // Per-day reach. The "daily avg" framing only applies to totals — the
+      // per-day series is just the daily reach value.
+      const [rows] = await pool.execute(
+        `SELECT DATE(p.published_at) AS date, SUM(pa.reach) AS v
+         FROM post_analytics pa
+         JOIN post_targets pt ON pa.post_target_id = pt.id
+         JOIN posts p ON pt.post_id = p.id
+         WHERE p.published_at BETWEEN ? AND ? ${accountsFilter}
+         GROUP BY DATE(p.published_at) ORDER BY date ASC`,
+        params
+      );
+      return rows.map(r => ({ date: r.date, value: Number(r.v) || 0 }));
     }
     const col = m.source.split('.')[1];
     const [rows] = await pool.execute(

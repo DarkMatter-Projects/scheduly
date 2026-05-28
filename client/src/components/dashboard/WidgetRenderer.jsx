@@ -1,11 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
 import clsx from 'clsx';
-import { Trash2, AlertTriangle } from 'lucide-react';
-import { getWidgetData } from '../../api/dashboardsApi';
+import { Trash2, AlertTriangle, Pencil } from 'lucide-react';
+import { getWidgetData, updateWidget } from '../../api/dashboardsApi';
 import KpiCard from '../common/KpiCard';
 import ChartEmptyState from '../common/ChartEmptyState';
 import { FacebookIcon, InstagramIcon, TiktokIcon } from '../common/SocialIcons';
@@ -44,13 +44,11 @@ export default function WidgetRenderer({ widget, canEdit, onRemove }) {
   return (
     <div className={clsx('bg-white border border-slate-200 rounded-xl flex flex-col col-span-1 sm:col-span-2', spanClass)} style={heightStyle}>
       <div className="flex items-start justify-between px-4 pt-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">
             {widget.category} · {(widget.widgetType || '').replace(/_/g, ' ')}
           </p>
-          <h4 className="text-sm font-semibold text-slate-900 mt-0.5">
-            {widget.title || titleFor(widget)}
-          </h4>
+          <EditableTitle widget={widget} canEdit={canEdit} />
         </div>
         {canEdit && (
           <button
@@ -153,6 +151,48 @@ function TimeSeriesBody({ data }) {
     }
     return row;
   });
+
+  // Single-metric charts (Daily followers, Daily views, etc.) render as a
+  // soft area chart with a gradient so the headline trend reads clearly.
+  // Multi-metric charts keep the multi-line look so series can be compared.
+  if (series.length === 1) {
+    const s = series[0];
+    const color = '#6366f1';
+    const gid = `area-${s.key}`;
+    return (
+      <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+        <AreaChart data={merged} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={(v) => { try { return format(new Date(v), 'MMM d'); } catch { return v; } }}
+            tick={{ fontSize: 10, fill: '#94a3b8' }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: '#94a3b8' }}
+            tickFormatter={(v) => formatCompact(v, s.format || 'number')}
+            tickLine={false}
+            axisLine={false}
+            width={50}
+          />
+          <Tooltip
+            labelFormatter={(v) => { try { return format(new Date(v), 'MMM d, yyyy'); } catch { return v; } }}
+            formatter={(v) => [formatValue(v, s.format || 'number'), s.label]}
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
+          <Area type="monotone" dataKey={s.key} name={s.label} stroke={color} strokeWidth={2} fill={`url(#${gid})`} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    );
+  }
 
   return (
     <ResponsiveContainer width="100%" height="100%" minHeight={180}>
@@ -656,6 +696,81 @@ function ContentPerformanceBody({ data }) {
         <p className="text-[10px] text-slate-400 mt-2 px-2">Top 10 by {sortBy.label}</p>
       )}
     </div>
+  );
+}
+
+// ── Editable widget title ──
+
+// Click the title (or pencil) to swap in an input; blur or Enter saves
+// via PUT /dashboards/widgets/:id, Escape cancels. Optimistic update so
+// the new title shows immediately while the request flies.
+function EditableTitle({ widget, canEdit }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(widget.title || titleFor(widget));
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    setValue(widget.title || titleFor(widget));
+  }, [widget.title, widget.widgetType]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const mut = useMutation({
+    mutationFn: (title) => updateWidget(widget.id, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'dashboard' });
+    },
+  });
+
+  const commit = () => {
+    const trimmed = (value || '').trim();
+    const next = trimmed || titleFor(widget);
+    setValue(next);
+    setEditing(false);
+    if (next !== (widget.title || titleFor(widget))) {
+      mut.mutate(next);
+    }
+  };
+
+  if (!canEdit) {
+    return <h4 className="text-sm font-semibold text-slate-900 mt-0.5">{value}</h4>;
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') {
+            setValue(widget.title || titleFor(widget));
+            setEditing(false);
+          }
+        }}
+        className="text-sm font-semibold text-slate-900 mt-0.5 w-full bg-white border border-blue-300 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-400"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title="Click to rename"
+      className="group flex items-center gap-1 mt-0.5 text-left"
+    >
+      <h4 className="text-sm font-semibold text-slate-900 group-hover:text-blue-700">{value}</h4>
+      <Pencil className="w-3 h-3 text-slate-300 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+    </button>
   );
 }
 
