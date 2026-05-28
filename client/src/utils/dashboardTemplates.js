@@ -25,10 +25,6 @@ export const DASHBOARD_TEMPLATES = [
         metricKeys: ['views'], width: 4, height: 3 },
       { category: 'channel', widgetType: 'time_series', title: 'Daily views',
         metricKeys: ['views'], width: 8, height: 3 },
-      // Headline KPIs further down
-      { category: 'channel', widgetType: 'key_metrics', title: 'Page key metrics',
-        metricKeys: ['impressions','reach','interactions','engagement_rate','posts'],
-        width: 12, height: 2 },
       // Time series — engagements
       { category: 'channel', widgetType: 'time_series', title: 'Engagements over time',
         metricKeys: ['likes','comments','shares'], width: 6, height: 3 },
