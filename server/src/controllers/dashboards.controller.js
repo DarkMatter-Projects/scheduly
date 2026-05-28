@@ -3,6 +3,14 @@ const dashboardService = require('../services/dashboard.service');
 const { buildWidgetData } = require('../services/dashboard_data.service');
 const { METRICS } = require('../services/dashboard_metrics');
 
+// JSON columns come back from mysql2 already parsed in recent versions but as
+// strings in older configs. Tolerate both, plus null.
+function parseJsonish(value) {
+  if (value == null) return null;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
 async function list(req, res, next) {
   try {
     const { clientId } = req.query;
@@ -124,9 +132,10 @@ async function getWidgetData(req, res, next) {
     );
     if (wrows.length === 0) return res.status(404).json({ error: 'Widget not found' });
     const widget = wrows[0];
-    // Decode JSON columns inline so the resolver can use them directly.
-    try { widget.channelIds = widget.channel_ids ? JSON.parse(widget.channel_ids) : []; } catch { widget.channelIds = []; }
-    try { widget.metricKeys = widget.metric_keys ? JSON.parse(widget.metric_keys) : []; } catch { widget.metricKeys = []; }
+    // mysql2 already auto-parses JSON columns, so the raw value is either
+    // an array/object or a string. parseJsonish handles both, plus null.
+    widget.channelIds = parseJsonish(widget.channel_ids) || [];
+    widget.metricKeys = parseJsonish(widget.metric_keys) || [];
 
     const [drows] = await pool.execute('SELECT * FROM dashboards WHERE id = ?', [widget.dashboard_id]);
     if (drows.length === 0) return res.status(404).json({ error: 'Dashboard not found' });
@@ -140,10 +149,8 @@ async function getWidgetData(req, res, next) {
     );
     const scopeSet = new Set();
     for (const w of allWidgets) {
-      try {
-        const ids = w.channel_ids ? JSON.parse(w.channel_ids) : [];
-        for (const id of ids) scopeSet.add(Number(id));
-      } catch { /* ignore malformed JSON */ }
+      const ids = parseJsonish(w.channel_ids) || [];
+      for (const id of ids) scopeSet.add(Number(id));
     }
     const dashboard = { ...drows[0], effectiveChannelIds: [...scopeSet] };
 
