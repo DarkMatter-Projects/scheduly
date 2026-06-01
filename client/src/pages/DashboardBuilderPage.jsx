@@ -418,6 +418,21 @@ function SortableWidget({ widget, canEdit, gridRef, onRemove, onResize }) {
   );
 }
 
+// Widget types that don't query per-channel data — static content blocks
+// and dashboard-wide aggregations. They legitimately have no channelIds,
+// so ChannelsSummary must skip them when deciding "is anything unscoped",
+// otherwise adding e.g. a text/images block expands the displayed scope to
+// every active account.
+const NON_SCOPED_WIDGET_TYPES = new Set([
+  'text_block',
+  'sentiment_breakdown',
+  'sentiment_trend',
+  'label_performance',
+  'paid_performance',
+  'followers_by_country',
+  'reaction_breakdown',
+]);
+
 function ChannelsSummary({ accounts, dashboard }) {
   // Union of channelIds across every widget on this dashboard. Widgets with
   // an empty channelIds array implicitly pull from "all" — only count them
@@ -425,6 +440,7 @@ function ChannelsSummary({ accounts, dashboard }) {
   const scopedIds = new Set();
   let anyWidgetUnscoped = false;
   for (const w of dashboard.widgets || []) {
+    if (NON_SCOPED_WIDGET_TYPES.has(w.widgetType)) continue;
     if (Array.isArray(w.channelIds) && w.channelIds.length > 0) {
       for (const id of w.channelIds) scopedIds.add(Number(id));
     } else {
