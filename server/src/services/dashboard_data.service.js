@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { metric, metricFamily } = require('./dashboard_metrics');
+const storage = require('./storage.service');
 
 // Resolve which social_account ids a widget should pull from. Order:
 //   1. The widget's own channel_ids (explicit user selection)
@@ -677,6 +678,9 @@ async function buildContentPerformance(dashboard, widget) {
     : '';
   const params = [start, end, ...(channelIds || [])];
 
+  // Join the post's first media (by sort_order) so the client can show its
+  // thumbnail. Correlated subquery instead of a window function so this
+  // works on MySQL 5.7 as well as 8.x.
   const [rows] = await pool.execute(
     `SELECT p.id AS post_id,
             p.content,
@@ -690,11 +694,20 @@ async function buildContentPerformance(dashboard, widget) {
             pa.shares,
             pa.saves,
             pa.engagement_rate,
+            m.file_path       AS media_file_path,
+            m.thumbnail_path  AS media_thumb_path,
+            m.mime_type       AS media_mime,
             ${sortCol} AS sort_val
      FROM post_analytics pa
      JOIN post_targets pt ON pa.post_target_id = pt.id
      JOIN posts p         ON pt.post_id = p.id
      JOIN social_accounts sa ON pt.social_account_id = sa.id
+     LEFT JOIN media m ON m.id = (
+       SELECT pm.media_id FROM post_media pm
+       WHERE pm.post_id = p.id
+       ORDER BY pm.sort_order ASC, pm.media_id ASC
+       LIMIT 1
+     )
      WHERE p.published_at BETWEEN ? AND ?
        ${accountsFilter}
      ORDER BY sort_val DESC
@@ -705,21 +718,33 @@ async function buildContentPerformance(dashboard, widget) {
   return {
     range: { start, end },
     sortBy: { key: sortKey, label: m?.label || sortKey, format: m?.format },
-    rows: rows.map(r => ({
-      postId: r.post_id,
-      content: r.content,
-      publishedAt: r.published_at,
-      platform: r.platform,
-      accountName: r.account_name,
-      impressions: Number(r.impressions) || 0,
-      reach: Number(r.reach) || 0,
-      likes: Number(r.likes) || 0,
-      comments: Number(r.comments) || 0,
-      shares: Number(r.shares) || 0,
-      saves: Number(r.saves) || 0,
-      engagementRate: parseFloat(r.engagement_rate) || 0,
-      sortValue: Number(r.sort_val) || 0,
-    })),
+    rows: rows.map(r => {
+      // For videos prefer the generated thumbnail; for images use the
+      // file itself. Fall back to null when there's no media attached so
+      // the client falls back to the platform icon.
+      const isVideo = (r.media_mime || '').startsWith('video/');
+      const path = isVideo
+        ? (r.media_thumb_path || null)
+        : (r.media_file_path  || null);
+      const thumbnailUrl = path ? storage.publicUrlFor(path) : null;
+      return {
+        postId: r.post_id,
+        content: r.content,
+        publishedAt: r.published_at,
+        platform: r.platform,
+        accountName: r.account_name,
+        thumbnailUrl,
+        mediaMime: r.media_mime || null,
+        impressions: Number(r.impressions) || 0,
+        reach: Number(r.reach) || 0,
+        likes: Number(r.likes) || 0,
+        comments: Number(r.comments) || 0,
+        shares: Number(r.shares) || 0,
+        saves: Number(r.saves) || 0,
+        engagementRate: parseFloat(r.engagement_rate) || 0,
+        sortValue: Number(r.sort_val) || 0,
+      };
+    }),
   };
 }
 
