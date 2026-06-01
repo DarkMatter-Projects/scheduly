@@ -827,6 +827,22 @@ const PLATFORM_ICON = {
   tiktok: TiktokIcon,
 };
 
+// Metadata for the Content Performance table columns — drives the
+// per-cell hover popovers (label, format, description, scope) the same
+// way Performance by Channel's column metadata does.
+const CONTENT_COLUMNS = [
+  { key: 'interactions',    label: 'Interactions',     format: 'number',     scope: 'content',
+    description: 'The Reactions, Comments, Shares, Saves (IG, X, PI and TikTok), Reposts (IG) and clicks (FB, LI, X and PI) on a post.' },
+  { key: 'views',           label: 'Views',            format: 'number',     scope: 'content',
+    description: 'Total number of times the post/reel has been seen. For IG stories, the Impressions value is shown.' },
+  { key: 'reachAvg',        label: 'Reach avg.',       format: 'number',     scope: 'content',
+    description: 'The number of people that saw the post/story/reel in their feed. Use the average to get accurate aggregated number of people reached on average per published post. TikTok data can take up to 48 hours.' },
+  { key: 'frequency',       label: 'Frequency',        format: 'multiplier', scope: 'content',
+    description: 'On average how many times a person saw your post. Facebook Impressions is replaced by Views from November 13th 2025. Instagram Impressions is replaced by Views from January 2025. Formula: Impressions (Views) / Reach' },
+  { key: 'interactionRate', label: 'Interaction rate', format: 'percent',    scope: 'content',
+    description: 'Total Engagements and Clicks as a percentage of the impressions. Facebook Impressions is replaced by Views from November 13th 2025. Instagram Impressions is replaced by Views from January 2025. Formula: 100 * (Engagements + Clicks (FB, LI, X and PI)) / Impressions(Views)' },
+];
+
 function ContentPerformanceBody({ data }) {
   const rows = data?.rows || [];
   if (rows.length === 0) return <ChartEmptyState height={180} title="No posts in range" hint="Publish posts in the selected period to see top performers." />;
@@ -845,16 +861,14 @@ function ContentPerformanceBody({ data }) {
   });
 
   return (
-    <div className="overflow-auto h-full -mx-1">
+    <div className="overflow-auto overflow-y-visible h-full -mx-1">
       <table className="min-w-full text-xs">
         <thead className="sticky top-0 bg-white border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px]">
           <tr>
             <th className="px-2 py-2 text-left font-semibold">Post</th>
-            <th className="px-2 py-2 text-right font-semibold">Interactions</th>
-            <th className="px-2 py-2 text-right font-semibold">Views</th>
-            <th className="px-2 py-2 text-right font-semibold">Reach avg.</th>
-            <th className="px-2 py-2 text-right font-semibold">Frequency</th>
-            <th className="px-2 py-2 text-right font-semibold">Interaction rate</th>
+            {CONTENT_COLUMNS.map(c => (
+              <th key={c.key} className="px-2 py-2 text-right font-semibold whitespace-nowrap">{c.label}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -875,11 +889,11 @@ function ContentPerformanceBody({ data }) {
                     </div>
                   </div>
                 </td>
-                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{r.interactions.toLocaleString()}</td>
-                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{formatCompact(r.views, 'number')}</td>
-                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{formatCompact(r.reachAvg, 'number')}</td>
-                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{r.frequency.toFixed(2)}X</td>
-                <td className="px-2 py-2 text-right tabular-nums text-slate-700">{r.interactionRate.toFixed(2)}%</td>
+                {CONTENT_COLUMNS.map(c => (
+                  <td key={c.key} className="px-2 py-2 text-right tabular-nums text-slate-700">
+                    <ContentCellHover platform={r.platform} column={c} value={r[c.key]} />
+                  </td>
+                ))}
               </tr>
             );
           })}
@@ -888,6 +902,76 @@ function ContentPerformanceBody({ data }) {
       {sortBy && (
         <p className="text-[10px] text-slate-400 mt-2 px-2">Top 10 by {sortBy.label}</p>
       )}
+    </div>
+  );
+}
+
+// Per-cell hover popover for Content Performance — same shape as
+// CellHoverCard on the Performance-by-channel table (column label +
+// big value + description + scope badge), minus the delta sentence
+// since per-post values don't have a "previous period" to compare to.
+function ContentCellHover({ platform, column, value }) {
+  const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (!open || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    setPos({ top: r.top + window.scrollY - 8, left: r.left + window.scrollX + r.width / 2 });
+  }, [open]);
+
+  const display = column.format === 'multiplier'
+    ? `${(Number(value) || 0).toFixed(2)}X`
+    : column.format === 'percent'
+      ? `${(Number(value) || 0).toFixed(2)}%`
+      : formatCompact(value, 'number');
+
+  return (
+    <>
+      <span
+        ref={ref}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        className="cursor-default"
+      >
+        {display}
+      </span>
+      {open && createPortal(
+        <ContentHoverCard platform={platform} column={column} value={value} display={display} pos={pos} />,
+        document.body
+      )}
+    </>
+  );
+}
+
+function ContentHoverCard({ platform, column, value, display, pos }) {
+  const Icon = PLATFORM_ICON[platform];
+  const scopeLabel = column.scope === 'engage'  ? 'Engage metric'
+                   : column.scope === 'content' ? 'Content metric'
+                   :                              'Channel metric';
+  return (
+    <div
+      style={{ position: 'absolute', top: pos.top, left: pos.left, transform: 'translate(-50%, -100%)', zIndex: 60 }}
+      className="w-72 pointer-events-none"
+    >
+      <div className="bg-white border border-slate-200 rounded-lg shadow-xl p-3 text-left">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+          {Icon ? <Icon className="w-3 h-3 text-slate-500" /> : null}
+          <span>{column.label}</span>
+        </div>
+        <div className="mt-1.5 text-2xl font-bold text-slate-900 tabular-nums">{display}</div>
+        {column.description && (
+          <p className="mt-2 text-[11px] leading-snug text-slate-600">{column.description}</p>
+        )}
+        <div className="mt-2.5">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {scopeLabel}
+          </span>
+        </div>
+      </div>
+      <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45" />
     </div>
   );
 }
