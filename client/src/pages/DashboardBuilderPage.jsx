@@ -176,14 +176,28 @@ export default function DashboardBuilderPage() {
           {canEdit && (
             <>
               <button
-                onClick={() => addWidgetMut.mutate({
-                  category: 'channel',
-                  widgetType: 'text_block',
-                  title: 'Text / images',
-                  width: 12,
-                  height: 2,
-                  config: { html: '' },
-                })}
+                onClick={async () => {
+                  // Add the widget, then immediately reorder so it sits at
+                  // the very top of the dashboard rather than the bottom
+                  // (server's addWidget puts new widgets at MAX(position)+1).
+                  try {
+                    const created = await addWidget(id, {
+                      category: 'channel',
+                      widgetType: 'text_block',
+                      title: 'Text / images',
+                      width: 12,
+                      height: 2,
+                      config: { html: '' },
+                    });
+                    const currentIds = (dashboard.widgets || []).map(w => w.id);
+                    const newOrder = [created.id, ...currentIds];
+                    reorderWidgetsMut.mutate(newOrder, {
+                      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard', id] }),
+                    });
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Failed to add text block');
+                  }
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
               >
                 <Plus className="w-3.5 h-3.5" />
