@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, ArrowLeft, Check, Lock, BarChart3, Activity, Smile, LineChart as LineIcon, GridIcon, Layers, PieChart as PieIcon } from 'lucide-react';
+import { X, ArrowLeft, Check, Lock, AlertTriangle, BarChart3, Activity, Smile, LineChart as LineIcon, GridIcon, Layers, PieChart as PieIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { listAvailableMetrics } from '../../api/dashboardsApi';
+import { FacebookIcon, InstagramIcon, TiktokIcon, LinkedinIcon, YoutubeIcon, PinterestIcon } from '../common/SocialIcons';
 
 // Two-step modal: pick widget type, then pick the metrics that feed it.
 // onSave receives { category, widgetType, title, metricKeys, width, height }.
@@ -269,9 +270,15 @@ function MetricStep({ title, setTitle, grouped, picked, toggle, onSave }) {
                       </div>
                       <span className="text-sm text-slate-800">{m.label}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider">
-                      {disabled && <span className="text-amber-600">Coming soon</span>}
-                      <span>{m.platforms.length} {m.platforms.length === 1 ? 'platform' : 'platforms'}</span>
+                    <div className="flex items-center gap-3 text-[10px] text-slate-400 uppercase tracking-wider">
+                      {m.deprecated && (
+                        <span className="flex items-center gap-1 normal-case tracking-normal text-amber-700">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span className="text-[11px]">Deprecated Facebook metric</span>
+                        </span>
+                      )}
+                      {disabled && !m.deprecated && <span className="text-amber-600">Coming soon</span>}
+                      <PlatformIcons platforms={m.platforms} />
                     </div>
                   </button>
                 );
@@ -293,5 +300,31 @@ function MetricStep({ title, setTitle, grouped, picked, toggle, onSave }) {
         </button>
       </div>
     </>
+  );
+}
+
+const PLATFORM_ICON_MAP = {
+  facebook_page:      FacebookIcon,
+  instagram_business: InstagramIcon,
+  tiktok:             TiktokIcon,
+  linkedin:           LinkedinIcon,
+  youtube:            YoutubeIcon,
+  pinterest:          PinterestIcon,
+};
+
+// Render the small platform icons on the right of each metric row.
+// X / Twitter has no dedicated icon component yet — show a tiny "X" label so
+// the metric's platform support still reads.
+function PlatformIcons({ platforms = [] }) {
+  return (
+    <span className="flex items-center gap-1.5 text-slate-400">
+      {platforms.map(p => {
+        if (p === 'twitter' || p === 'x') {
+          return <span key={p} className="text-[10px] font-bold w-3.5 text-center">X</span>;
+        }
+        const Icon = PLATFORM_ICON_MAP[p];
+        return Icon ? <Icon key={p} className="w-3.5 h-3.5" /> : null;
+      })}
+    </span>
   );
 }
