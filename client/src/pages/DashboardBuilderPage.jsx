@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Pencil, Plus, Share2, Trash2, LayoutGrid, Copy, ExternalLink } from 'lucide-react';
@@ -7,9 +7,9 @@ import clsx from 'clsx';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, MoveDiagonal2 } from 'lucide-react';
 import {
-  getDashboard, updateDashboard, deleteWidget, createShareLink, revokeShareLink, addWidget, reorderWidgets,
+  getDashboard, updateDashboard, deleteWidget, createShareLink, revokeShareLink, addWidget, reorderWidgets, updateWidget,
 } from '../api/dashboardsApi';
 import { listAccounts } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
@@ -106,6 +106,14 @@ export default function DashboardBuilderPage() {
     // pick up the server state.
     onError: () => {
       toast.error('Failed to save widget order');
+      queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
+    },
+  });
+
+  const resizeWidgetMut = useMutation({
+    mutationFn: ({ widgetId, width, height }) => updateWidget(widgetId, { width, height }),
+    onError: () => {
+      toast.error('Failed to save widget size');
       queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
     },
   });
@@ -236,7 +244,7 @@ export default function DashboardBuilderPage() {
         <WidgetGrid
           dashboard={dashboard}
           canEdit={canEdit}
-          onRemove={(id) => removeWidgetMut.mutate(id)}
+          onRemove={(wid) => removeWidgetMut.mutate(wid)}
           onReorder={(orderedIds) => {
             // Optimistic: rewrite the dashboard cache so the new order shows
             // immediately, then persist. Roll back on failure.
@@ -246,6 +254,16 @@ export default function DashboardBuilderPage() {
               return { ...old, widgets: orderedIds.map(wid => byId.get(wid)).filter(Boolean) };
             });
             reorderWidgetsMut.mutate(orderedIds);
+          }}
+          onResize={(widgetId, width, height) => {
+            queryClient.setQueryData(['dashboard', id], (old) => {
+              if (!old) return old;
+              return {
+                ...old,
+                widgets: old.widgets.map(w => w.id === widgetId ? { ...w, width, height } : w),
+              };
+            });
+            resizeWidgetMut.mutate({ widgetId, width, height });
           }}
         />
       )}
@@ -264,10 +282,11 @@ export default function DashboardBuilderPage() {
 // dnd-kit and calls onReorder(orderedIds) once on drop. Re-uses the
 // existing 12-column grid layout so widget widths still respect their
 // `width` prop in WidgetRenderer.
-function WidgetGrid({ dashboard, canEdit, onRemove, onReorder }) {
+function WidgetGrid({ dashboard, canEdit, onRemove, onReorder, onResize }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
+  const gridRef = useRef(null);
 
   const ids = dashboard.widgets.map(w => w.id);
 
@@ -284,13 +303,15 @@ function WidgetGrid({ dashboard, canEdit, onRemove, onReorder }) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={ids} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+        <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
           {dashboard.widgets.map(w => (
             <SortableWidget
               key={w.id}
               widget={w}
               canEdit={canEdit}
+              gridRef={gridRef}
               onRemove={() => onRemove(w.id)}
+              onResize={(width, height) => onResize(w.id, width, height)}
             />
           ))}
         </div>
@@ -303,15 +324,59 @@ function WidgetGrid({ dashboard, canEdit, onRemove, onReorder }) {
 // and exposes a small grip handle in the corner. Only the handle is
 // draggable so the editable title / chart tooltips inside the widget
 // stay clickable.
-function SortableWidget({ widget, canEdit, onRemove }) {
+function SortableWidget({ widget, canEdit, gridRef, onRemove, onResize }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
-  const w = Math.max(1, Math.min(12, widget.width || 4));
+  // Draft size during a resize gesture — committed to the server on mouseup.
+  const [draft, setDraft] = useState(null);
+  const w = draft?.width  ?? Math.max(1, Math.min(12, widget.width  || 4));
+  const h = draft?.height ?? Math.max(1, widget.height || 2);
   const spanClass = COL_SPAN[w];
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: draft ? 'none' : transition, // drop transitions while resizing
     zIndex: isDragging ? 30 : undefined,
     opacity: isDragging ? 0.85 : 1,
+  };
+
+  // Resize gesture: measure one grid column from the grid container, then
+  // map dx/dy onto column/row deltas. Row height matches WidgetRenderer's
+  // minHeight calc (row = 80 px).
+  const handleResizePointerDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const grid = gridRef.current;
+    if (!grid) return;
+    const gridWidth = grid.clientWidth;
+    // 12 columns with gap-4 (16px) between them — same gap repeated 11 times.
+    const gap = 16;
+    const colWidth = (gridWidth - gap * 11) / 12;
+    const rowHeight = 80;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = w;
+    const startH = h;
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      const dw = Math.round(dx / (colWidth + gap));
+      const dh = Math.round(dy / rowHeight);
+      const nextW = Math.max(2, Math.min(12, startW + dw));
+      const nextH = Math.max(2, Math.min(12, startH + dh));
+      setDraft({ width: nextW, height: nextH });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setDraft((d) => {
+        if (d && (d.width !== widget.width || d.height !== widget.height)) {
+          onResize(d.width, d.height);
+        }
+        return null;
+      });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   return (
@@ -332,7 +397,23 @@ function SortableWidget({ widget, canEdit, onRemove }) {
       {/* Inner widget renders its own card markup; its col-span class is a
           no-op here because its parent (this wrapper) is the grid child,
           not a grid itself. */}
-      <WidgetRenderer widget={widget} canEdit={canEdit} onRemove={onRemove} />
+      <WidgetRenderer widget={{ ...widget, height: h }} canEdit={canEdit} onRemove={onRemove} />
+      {canEdit && (
+        <div
+          onPointerDown={handleResizePointerDown}
+          aria-label="Drag to resize"
+          title="Drag to resize"
+          className="absolute bottom-1 right-1 z-20 w-5 h-5 flex items-center justify-center text-slate-300 hover:text-slate-700 cursor-nwse-resize opacity-0 group-hover/widget:opacity-100 transition-opacity"
+          style={{ opacity: draft ? 1 : undefined }}
+        >
+          <MoveDiagonal2 className="w-3.5 h-3.5" />
+        </div>
+      )}
+      {draft && (
+        <div className="absolute top-1 right-1 z-30 text-[10px] font-semibold text-slate-600 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-sm">
+          {draft.width} × {draft.height}
+        </div>
+      )}
     </div>
   );
 }
