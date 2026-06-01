@@ -37,7 +37,13 @@ export default function AddWidgetModal({ onSave, onClose }) {
   };
 
   // Widget types whose data source is fixed — they don't need user-picked metrics.
-  const NO_METRIC_WIDGETS = new Set(['sentiment_breakdown', 'sentiment_trend']);
+  const NO_METRIC_WIDGETS = new Set([
+    'sentiment_breakdown', 'sentiment_trend',
+    // Placeholder widgets that don't query metric data yet — let the user
+    // add them to the canvas without forcing a metric pick.
+    'demographics', 'geographics', 'label_performance',
+    'paid_performance', 'followers_by_country', 'reaction_breakdown',
+  ]);
   const requiresMetrics = !NO_METRIC_WIDGETS.has(widgetType);
 
   const handleSave = () => {
@@ -121,15 +127,15 @@ const WIDGETS_BY_CATEGORY = {
     { key: 'channel_comparison',       label: 'Channel comparison (bar)', icon: BarChart3,   impl: true },
     { key: 'network_comparison',       label: 'Network comparison',       icon: Layers,      impl: true },
     { key: 'breakdown',                label: 'Breakdown',                icon: BarChart3,   impl: true },
-    { key: 'demographics',             label: 'Demographics',             icon: Smile,       impl: false },
-    { key: 'geographics',              label: 'Geographics',              icon: GridIcon,    impl: false },
+    { key: 'demographics',             label: 'Demographics',             icon: Smile,       impl: true },
+    { key: 'geographics',              label: 'Geographics',              icon: GridIcon,    impl: true },
   ],
   content: [
     { key: 'key_metrics',         label: 'Key metrics',         icon: GridIcon,   impl: true },
     { key: 'time_series',         label: 'Time series',         icon: LineIcon,   impl: true },
     { key: 'channel_comparison',  label: 'Channel comparison',  icon: BarChart3,  impl: true },
     { key: 'content_performance', label: 'Content performance', icon: BarChart3,  impl: true },
-    { key: 'label_performance',   label: 'Label performance',   icon: BarChart3,  impl: false },
+    { key: 'label_performance',   label: 'Label performance',   icon: BarChart3,  impl: true },
   ],
   engage: [
     { key: 'key_metrics',          label: 'Key metrics',          icon: GridIcon,   impl: true },
@@ -137,7 +143,7 @@ const WIDGETS_BY_CATEGORY = {
     { key: 'channel_comparison',   label: 'Channel comparison',   icon: BarChart3,  impl: true },
     { key: 'sentiment_breakdown',  label: 'Sentiment breakdown',  icon: PieIcon,    impl: true },
     { key: 'sentiment_trend',      label: 'Sentiment over time',  icon: LineIcon,   impl: true },
-    { key: 'label_performance',    label: 'Label performance',    icon: BarChart3,  impl: false },
+    { key: 'label_performance',    label: 'Label performance',    icon: BarChart3,  impl: true },
   ],
 };
 

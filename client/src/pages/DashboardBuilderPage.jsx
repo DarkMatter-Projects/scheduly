@@ -431,6 +431,8 @@ const NON_SCOPED_WIDGET_TYPES = new Set([
   'paid_performance',
   'followers_by_country',
   'reaction_breakdown',
+  'demographics',
+  'geographics',
 ]);
 
 function ChannelsSummary({ accounts, dashboard }) {

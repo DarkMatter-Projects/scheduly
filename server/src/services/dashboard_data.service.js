@@ -819,7 +819,9 @@ async function buildWidgetData(dashboard, widget) {
     case 'label_performance':
     case 'paid_performance':
     case 'followers_by_country':
-    case 'reaction_breakdown':    return { placeholder: true };
+    case 'reaction_breakdown':
+    case 'demographics':
+    case 'geographics':           return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

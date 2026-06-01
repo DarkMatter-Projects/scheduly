@@ -96,7 +96,9 @@ function WidgetBody({ widget }) {
     case 'label_performance':
     case 'paid_performance':
     case 'followers_by_country':
-    case 'reaction_breakdown':    return <NoDataPlaceholder />;
+    case 'reaction_breakdown':
+    case 'demographics':
+    case 'geographics':           return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
