@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { Trash2, AlertTriangle, Pencil, Inbox, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, AlignLeft } from 'lucide-react';
 import { getWidgetData, updateWidget } from '../../api/dashboardsApi';
 import { uploadMedia } from '../../api/mediaApi';
+import toast from 'react-hot-toast';
 import KpiCard from '../common/KpiCard';
 import ChartEmptyState from '../common/ChartEmptyState';
 import { FacebookIcon, InstagramIcon, TiktokIcon } from '../common/SocialIcons';
@@ -126,8 +127,11 @@ function NoDataPlaceholder() {
 function TextBlockBody({ data, widget }) {
   const queryClient = useQueryClient();
   const editorRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const savedRangeRef = useRef(null);
   const initialHtml = (widget.config && widget.config.html) ?? data?.html ?? '';
   const [dirty, setDirty] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Seed editor with stored html once; never overwrite on rerender so the
   // user's cursor + selection survive React's reconciliation.
@@ -160,9 +164,49 @@ function TextBlockBody({ data, widget }) {
     const url = window.prompt('Link URL');
     if (url) cmd('createLink', url);
   };
+  // Picking an image opens the OS file dialog rather than asking for a URL.
+  // The current caret position is captured first because clicking on the
+  // file input blurs the editor and clears the selection — we restore it
+  // before calling insertImage so the image lands where the user pointed.
   const cmdImage = () => {
-    const url = window.prompt('Image URL');
-    if (url) cmd('insertImage', url);
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    } else {
+      savedRangeRef.current = null;
+    }
+    fileInputRef.current?.click();
+  };
+  const onFilePicked = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow picking the same file again later
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Pick an image file');
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await uploadMedia([file]);
+      // uploadMedia returns either an array of media records or an object
+      // wrapping one. Normalize.
+      const list = Array.isArray(res) ? res : (res.media || res.uploaded || res.files || [res]);
+      const url = list[0]?.url || list[0]?.publicUrl;
+      if (!url) throw new Error('Upload returned no URL');
+      // Restore the caret to where it was when the user clicked the image
+      // button, then insert the <img> there.
+      editorRef.current?.focus();
+      if (savedRangeRef.current) {
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(savedRangeRef.current);
+      }
+      cmd('insertImage', url);
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || 'Image upload failed');
+    } finally {
+      setUploading(false);
+    }
   };
   const cmdHeading = (e) => {
     const tag = e.target.value;
@@ -185,7 +229,15 @@ function TextBlockBody({ data, widget }) {
         <ToolbarBtn icon={ListOrdered}   onClick={() => cmd('insertOrderedList')} label="Numbered list" />
         <ToolbarBtn icon={List}          onClick={() => cmd('insertUnorderedList')} label="Bulleted list" />
         <ToolbarBtn icon={LinkIcon}      onClick={cmdLink}                      label="Insert link" />
-        <ToolbarBtn icon={ImageIcon}     onClick={cmdImage}                     label="Insert image (URL)" />
+        <ToolbarBtn icon={ImageIcon}     onClick={cmdImage}                     label={uploading ? 'Uploading…' : 'Upload image'} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={onFilePicked}
+          className="hidden"
+        />
+        {uploading && <span className="text-[10px] text-slate-400 ml-1">Uploading…</span>}
       </div>
       <div
         ref={editorRef}
