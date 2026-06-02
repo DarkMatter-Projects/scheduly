@@ -433,14 +433,14 @@ const NON_SCOPED_WIDGET_TYPES = new Set([
   'reaction_breakdown',
   'demographics',
   'geographics',
-  'metric_by_post_type',
-  'metric_by_post_type_over_time',
-  'follow_non_follow_split',
-  'top_err_profiles',
+  // These are now real scope-aware widgets (Phase 1 + Phase 3).
+  // 'metric_by_post_type', 'metric_by_post_type_over_time',
+  // 'top_err_profiles', 'engagements_by_profile', 'follow_non_follow_split'
+  // all read channelIds — they should contribute to the dashboard's
+  // displayed scope, so they're NOT skipped here.
   'reels_performance',
   'story_performance',
   'fans_by_age_gender',
-  'engagements_by_profile',
 ]);
 
 function ChannelsSummary({ accounts, dashboard }) {

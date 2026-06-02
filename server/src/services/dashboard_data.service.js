@@ -65,6 +65,54 @@ async function totalForMetric(metricKey, channelIds, start, end) {
   const m = metric(metricKey);
   if (!m || m.available === false) return 0;
 
+  // Page-level insights from channel_insights_daily (engaged_users,
+  // profile_views, profile_taps, follower_views, non_follower_views).
+  // Each one is a daily SUM across the range; rates are computed from
+  // the daily reach_unique column.
+  const CI_COLUMN = {
+    engaged_users_daily_avg: 'engaged_users',
+    channel_profile_views:   'profile_views',
+    profile_taps:            'profile_taps',
+    follower_views:          'follower_views',
+    non_follower_views:      'non_follower_views',
+  };
+  if (CI_COLUMN[metricKey]) {
+    const accountsFilter = channelIds && channelIds.length > 0
+      ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+      : '';
+    try {
+      const col = CI_COLUMN[metricKey];
+      const [rows] = await pool.execute(
+        `SELECT COALESCE(SUM(${col}), 0) AS v
+         FROM channel_insights_daily
+         WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+        [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+      );
+      return Number(rows[0]?.v) || 0;
+    } catch {
+      return 0;
+    }
+  }
+  if (metricKey === 'engaged_users_rate') {
+    // engaged_users / reach_unique * 100 across the range.
+    const accountsFilter = channelIds && channelIds.length > 0
+      ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+      : '';
+    try {
+      const [rows] = await pool.execute(
+        `SELECT COALESCE(SUM(engaged_users),0) AS e, COALESCE(SUM(reach_unique),0) AS r
+         FROM channel_insights_daily
+         WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+        [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+      );
+      const e = Number(rows[0]?.e) || 0;
+      const r = Number(rows[0]?.r) || 0;
+      return r > 0 ? (e / r) * 100 : 0;
+    } catch {
+      return 0;
+    }
+  }
+
   // Followers data lives in follower_history (daily snapshots). Until the
   // ingestion job ships there are no rows, so this returns 0 — the cells
   // render as zeros with no delta rather than as errors.
@@ -917,6 +965,27 @@ async function buildEngagementsByProfile(dashboard, widget) {
   };
 }
 
+// Follow vs Non-follow view split — single-call summary from
+// channel_insights_daily.follower_views / non_follower_views. Rendered
+// as a horizontal bar chart on the IG/FB templates.
+async function buildFollowNonFollowSplit(dashboard, widget) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const [follower, nonFollower, followerPrior, nonFollowerPrior] = await Promise.all([
+    totalForMetric('follower_views',     channelIds, start, end),
+    totalForMetric('non_follower_views', channelIds, start, end),
+    totalForMetric('follower_views',     channelIds, priorStart, priorEnd),
+    totalForMetric('non_follower_views', channelIds, priorStart, priorEnd),
+  ]);
+  return {
+    range: { start, end, priorStart, priorEnd },
+    rows: [
+      { key: 'follower',     label: 'Follower',     current: follower,    prior: followerPrior },
+      { key: 'non_follower', label: 'Non-follower', current: nonFollower, prior: nonFollowerPrior },
+    ],
+  };
+}
+
 // Aggregate a metric across all accounts in scope, grouped by platform
 // (facebook_page / instagram_business / tiktok). One row per platform.
 async function buildNetworkComparison(dashboard, widget) {
@@ -1132,7 +1201,7 @@ async function buildWidgetData(dashboard, widget) {
     case 'metric_by_post_type_over_time':  return buildMetricByPostTypeOverTime(dashboard, widget);
     case 'top_err_profiles':               return buildTopErrProfiles(dashboard, widget);
     case 'engagements_by_profile':         return buildEngagementsByProfile(dashboard, widget);
-    case 'follow_non_follow_split':
+    case 'follow_non_follow_split':        return buildFollowNonFollowSplit(dashboard, widget);
     case 'reels_performance':
     case 'story_performance':
     case 'fans_by_age_gender':             return { placeholder: true };

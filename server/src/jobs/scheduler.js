@@ -5,6 +5,7 @@ const { runAnalyticsFetchJob } = require('./analyticsFetchJob');
 const { runAdsSyncJob } = require('./adsSyncJob');
 const { runEngageIngestJob } = require('./engageIngestJob');
 const { runFollowerSnapshotJob } = require('./followerSnapshotJob');
+const { runChannelInsightsJob } = require('./channelInsightsJob');
 const logger = require('../utils/logger');
 
 function startScheduler() {
@@ -27,6 +28,13 @@ function startScheduler() {
     await runFollowerSnapshotJob();
   });
 
+  // Pull yesterday's page-level insights (engaged users, profile views,
+  // profile taps, follow/non-follow split) at 5:15 AM.
+  cron.schedule('15 5 * * *', async () => {
+    logger.info('Scheduler: running channel insights job');
+    await runChannelInsightsJob();
+  });
+
   // Fetch analytics for published posts daily at 6 AM
   cron.schedule('0 6 * * *', async () => {
     logger.info('Scheduler: running analytics fetch job');
@@ -45,7 +53,7 @@ function startScheduler() {
     await runEngageIngestJob();
   });
 
-  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), token refresh (3 AM), follower snapshot (5 AM), analytics (6 AM), ads sync (7 AM)');
+  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), token refresh (3 AM), follower snapshot (5 AM), channel insights (5:15 AM), analytics (6 AM), ads sync (7 AM)');
 }
 
 module.exports = { startScheduler };

@@ -97,6 +97,7 @@ function WidgetBody({ widget }) {
     case 'metric_by_post_type_over_time':  return <MetricByPostTypeOverTimeBody data={data} />;
     case 'top_err_profiles':               return <TopErrProfilesBody data={data} />;
     case 'engagements_by_profile':         return <EngagementsByProfileBody data={data} />;
+    case 'follow_non_follow_split':        return <FollowNonFollowBody data={data} />;
     case 'label_performance':
     case 'paid_performance':
     case 'followers_by_country':
@@ -1176,6 +1177,28 @@ function EngagementsByProfileBody({ data }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+// ── Follow vs Non-follow (horizontal bar) ──
+
+function FollowNonFollowBody({ data }) {
+  const rows = data?.rows || [];
+  const anyValue = rows.some(r => Number(r.current) > 0);
+  if (!anyValue) {
+    return <ChartEmptyState height={160} title="No data in range" hint="Follow / non-follow view split appears once page insights are ingested." />;
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+      <BarChart data={rows.map(r => ({ name: r.label, value: Number(r.current) || 0 }))}
+                layout="vertical" margin={{ top: 8, right: 32, left: 4, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} />
+        <Tooltip formatter={(v) => [formatCompact(v, 'number'), 'Views']} />
+        <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} label={{ position: 'right', fontSize: 10, fill: '#64748b', formatter: (v) => formatCompact(v, 'number') }} />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 

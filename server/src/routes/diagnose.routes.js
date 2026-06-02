@@ -260,4 +260,17 @@ router.post('/run-follower-snapshot', authenticate, requireRole('admin'), async 
   }
 });
 
+// Same shape but for the page-level channel insights job (engaged users,
+// profile views/taps, follow/non-follow split). Hit this after a fresh
+// deploy so the new widgets don't sit empty for a day.
+router.post('/run-channel-insights', authenticate, requireRole('admin'), async (req, res) => {
+  const { runChannelInsightsJob } = require('../jobs/channelInsightsJob');
+  try {
+    await runChannelInsightsJob();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;
