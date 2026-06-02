@@ -353,11 +353,7 @@ export const DASHBOARD_TEMPLATES = [
     available: true,
     description: 'Followers, impressions, engagement and audience demographics on your LinkedIn Pages.',
     widgets: [
-      // 1. Per-channel summary table
-      { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
-        metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
-        width: 12, height: 3 },
-      // 2. Distribution KPI + Channel engagements KPI
+      // 1. Distribution KPI + Channel engagements KPI
       { category: 'channel', widgetType: 'key_metrics', title: 'Distribution',
         metricKeys: ['impressions','reach_daily_avg'], width: 6, height: 3 },
       { category: 'channel', widgetType: 'key_metrics', title: 'Channel engagements',
@@ -395,12 +391,9 @@ export const DASHBOARD_TEMPLATES = [
         width: 6, height: 4 },
       { category: 'channel', widgetType: 'fans_by_association', title: 'Fans by association',
         width: 6, height: 4 },
-      // 11. Fans by country
+      // Last: Fans by country
       { category: 'channel', widgetType: 'followers_by_country', title: 'Fans by country',
         width: 12, height: 5 },
-      // Last: Engagements by Profile
-      { category: 'channel', widgetType: 'engagements_by_profile', title: 'Engagements by Profile',
-        width: 12, height: 3 },
     ],
   },
   {
