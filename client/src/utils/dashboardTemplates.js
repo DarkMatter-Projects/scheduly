@@ -176,11 +176,16 @@ export const DASHBOARD_TEMPLATES = [
     badge: 'Updated',
     description: 'Impressions, likes, shares — both organic and ads.',
     widgets: [
+      // Per-channel summary table — mirrors the Facebook & Instagram templates
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
+        metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
+        width: 12, height: 3 },
+      // Full-width follower trend
+      { category: 'channel', widgetType: 'time_series', title: 'Daily followers',
+        metricKeys: ['followers'], width: 12, height: 3 },
       { category: 'channel', widgetType: 'key_metrics', title: 'TikTok key metrics',
         metricKeys: ['impressions','reach','likes','comments','shares','engagement_rate','posts'],
         width: 12, height: 2 },
-      { category: 'channel', widgetType: 'channel_comparison', title: 'Performance by channel',
-        metricKeys: ['impressions'], width: 12, height: 3 },
       { category: 'channel', widgetType: 'time_series', title: 'Impressions over time',
         metricKeys: ['impressions'], width: 6, height: 3 },
       { category: 'channel', widgetType: 'time_series', title: 'Engagements',
