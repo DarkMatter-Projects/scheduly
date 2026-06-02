@@ -100,13 +100,13 @@ function WidgetBody({ widget }) {
     case 'follow_non_follow_split':        return <FollowNonFollowBody data={data} />;
     case 'followers_by_country':           return <FollowersByCountryBody data={data} />;
     case 'fans_by_age_gender':             return <FansByAgeGenderBody data={data} />;
+    case 'reels_performance':              return <PostTypePerformanceBody data={data} label="Reel"  />;
+    case 'story_performance':              return <PostTypePerformanceBody data={data} label="Story" />;
     case 'label_performance':
     case 'paid_performance':
     case 'reaction_breakdown':
     case 'demographics':
-    case 'geographics':
-    case 'reels_performance':
-    case 'story_performance':              return <NoDataPlaceholder />;
+    case 'geographics':                    return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -1175,6 +1175,69 @@ function EngagementsByProfileBody({ data }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── Reels / Story performance (card grid filtered by post_type) ──
+
+function PostTypePerformanceBody({ data, label }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0) {
+    return <ChartEmptyState height={200} title={`No ${label}s in range`} hint={`Publish ${label}s in the selected period to see them here.`} />;
+  }
+  // Aggregate top-row totals (Posts / Views / Reach avg. / Engagements / ER reach).
+  const totalPosts = rows.length;
+  const totalViews = rows.reduce((s, r) => s + (r.views || 0), 0);
+  const totalReach = rows.reduce((s, r) => s + (r.reach || 0), 0);
+  const totalEngagements = rows.reduce((s, r) => s + (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.saves || 0), 0);
+  const avgReach = totalPosts > 0 ? totalReach / totalPosts : 0;
+  const errReach = totalReach > 0 ? (totalEngagements / totalReach) * 100 : 0;
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="border-b border-slate-200 pb-3 mb-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+        <SummaryStat label="Posts"       value={totalPosts.toLocaleString()} />
+        <SummaryStat label="Views"       value={formatCompact(totalViews, 'number')} />
+        <SummaryStat label="Reach avg."  value={formatCompact(avgReach, 'number')} />
+        <SummaryStat label="Engagements" value={formatCompact(totalEngagements, 'number')} />
+        <SummaryStat label="ER (reach)"  value={`${errReach.toFixed(2)}%`} />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 overflow-auto">
+        {rows.map(r => {
+          const isVideo = (r.mediaMime || '').startsWith('video/');
+          const interactions = (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.saves || 0);
+          const er = r.reach > 0 ? (interactions / r.reach) * 100 : 0;
+          return (
+            <div key={r.postId} className="border border-slate-200 rounded-lg p-2.5 flex flex-col gap-2 bg-white">
+              <div className="text-[10px] text-slate-400">{r.publishedAt ? format(new Date(r.publishedAt), 'd MMM HH:mm') : ''}</div>
+              {r.thumbnailUrl ? (
+                isVideo
+                  ? <video src={r.thumbnailUrl} preload="metadata" className="w-full h-32 object-cover rounded bg-slate-100" muted />
+                  : <img src={r.thumbnailUrl} alt="" className="w-full h-32 object-cover rounded bg-slate-100" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-full h-32 rounded bg-slate-100" />
+              )}
+              <div className="text-xs text-slate-800 line-clamp-2">{r.content || '(no caption)'}</div>
+              <dl className="text-[11px] text-slate-600 grid grid-cols-2 gap-x-2 gap-y-0.5 mt-auto">
+                <dt>Views</dt>          <dd className="text-right font-semibold text-slate-900">{formatCompact(r.views, 'number')}</dd>
+                <dt>Reach</dt>          <dd className="text-right font-semibold text-slate-900">{formatCompact(r.reach, 'number')}</dd>
+                <dt>Engagements</dt>    <dd className="text-right font-semibold text-slate-900">{interactions.toLocaleString()}</dd>
+                <dt>ER (reach)</dt>     <dd className="text-right font-semibold text-slate-900">{er.toFixed(2)}%</dd>
+              </dl>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SummaryStat({ label, value }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{label}</div>
+      <div className="text-base font-bold text-slate-900 tabular-nums truncate">{value}</div>
     </div>
   );
 }

@@ -965,6 +965,79 @@ async function buildEngagementsByProfile(dashboard, widget) {
   };
 }
 
+// Top posts in the range whose post_type is in the supplied list.
+// Drives the Reels performance + Story performance cards. Same column
+// shape as content_performance so the client can reuse the renderer.
+async function buildPostTypePerformance(dashboard, widget, types) {
+  const { start, end } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND pt.social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  const typePlaceholders = types.map(() => '?').join(',');
+  const params = [start, end, ...(channelIds || []), ...types];
+
+  const [rows] = await pool.execute(
+    `SELECT p.id AS post_id,
+            p.content,
+            p.post_type,
+            p.published_at,
+            sa.platform,
+            sa.account_name,
+            pa.impressions,
+            pa.reach,
+            pa.likes,
+            pa.comments_count AS comments,
+            pa.shares,
+            pa.saves,
+            pa.engagement_rate,
+            m.file_path       AS media_file_path,
+            m.thumbnail_path  AS media_thumb_path,
+            m.mime_type       AS media_mime
+     FROM post_analytics pa
+     JOIN post_targets pt ON pa.post_target_id = pt.id
+     JOIN posts p         ON pt.post_id = p.id
+     JOIN social_accounts sa ON pt.social_account_id = sa.id
+     LEFT JOIN media m ON m.id = (
+       SELECT pm.media_id FROM post_media pm
+       WHERE pm.post_id = p.id
+       ORDER BY pm.sort_order ASC, pm.media_id ASC
+       LIMIT 1
+     )
+     WHERE p.published_at BETWEEN ? AND ?
+       ${accountsFilter}
+       AND p.post_type IN (${typePlaceholders})
+     ORDER BY pa.reach DESC
+     LIMIT 12`,
+    params
+  );
+
+  return {
+    range: { start, end },
+    rows: rows.map(r => {
+      const isVideo = (r.media_mime || '').startsWith('video/');
+      const path = isVideo ? (r.media_thumb_path || null) : (r.media_file_path || null);
+      return {
+        postId: r.post_id,
+        content: r.content,
+        postType: r.post_type,
+        publishedAt: r.published_at,
+        platform: r.platform,
+        accountName: r.account_name,
+        thumbnailUrl: path ? storage.publicUrlFor(path) : null,
+        mediaMime: r.media_mime || null,
+        views: Number(r.impressions) || 0,
+        reach: Number(r.reach) || 0,
+        likes: Number(r.likes) || 0,
+        comments: Number(r.comments) || 0,
+        shares: Number(r.shares) || 0,
+        saves: Number(r.saves) || 0,
+        engagementRate: parseFloat(r.engagement_rate) || 0,
+      };
+    }),
+  };
+}
+
 // Fans by demographic dimension (country or gender_age). Reads the
 // latest snapshot per (account, dimension_key) within or before the
 // end of range, sums fans across all in-scope accounts, returns rows
@@ -1250,8 +1323,8 @@ async function buildWidgetData(dashboard, widget) {
     case 'follow_non_follow_split':        return buildFollowNonFollowSplit(dashboard, widget);
     case 'followers_by_country':           return buildFansByDimension(dashboard, widget, 'country');
     case 'fans_by_age_gender':             return buildFansByDimension(dashboard, widget, 'gender_age');
-    case 'reels_performance':
-    case 'story_performance':              return { placeholder: true };
+    case 'reels_performance':              return buildPostTypePerformance(dashboard, widget, ['reel','video']);
+    case 'story_performance':              return buildPostTypePerformance(dashboard, widget, ['story']);
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }
