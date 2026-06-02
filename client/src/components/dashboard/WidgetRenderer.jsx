@@ -93,20 +93,20 @@ function WidgetBody({ widget }) {
     case 'sentiment_breakdown':   return <SentimentBreakdownBody data={data} />;
     case 'sentiment_trend':       return <SentimentTrendBody data={data} />;
     case 'text_block':            return <TextBlockBody data={data} widget={widget} />;
+    case 'metric_by_post_type':            return <MetricByPostTypeBody data={data} />;
+    case 'metric_by_post_type_over_time':  return <MetricByPostTypeOverTimeBody data={data} />;
+    case 'top_err_profiles':               return <TopErrProfilesBody data={data} />;
+    case 'engagements_by_profile':         return <EngagementsByProfileBody data={data} />;
     case 'label_performance':
     case 'paid_performance':
     case 'followers_by_country':
     case 'reaction_breakdown':
     case 'demographics':
     case 'geographics':
-    case 'metric_by_post_type':
-    case 'metric_by_post_type_over_time':
     case 'follow_non_follow_split':
-    case 'top_err_profiles':
     case 'reels_performance':
     case 'story_performance':
-    case 'fans_by_age_gender':
-    case 'engagements_by_profile': return <NoDataPlaceholder />;
+    case 'fans_by_age_gender':             return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -1006,6 +1006,175 @@ function PostThumb({ url, isVideo, Icon }) {
   return (
     <div className="w-10 h-10 rounded bg-slate-100 flex items-center justify-center flex-shrink-0">
       {Icon ? <Icon className="w-4 h-4 text-slate-400" /> : null}
+    </div>
+  );
+}
+
+// ── Metric by post type (bar chart) ──
+
+// Friendly labels for the post_type enum + future Reel/Story values.
+const POST_TYPE_LABEL = {
+  text:     'Text',
+  image:    'Photo or video',
+  video:    'Photo or video',
+  carousel: 'Carousel',
+  reel:     'Reel',
+  story:    'Story',
+};
+
+function MetricByPostTypeBody({ data }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0) {
+    return <ChartEmptyState height={180} title="No data in range" hint="Publish posts in the selected period to see the breakdown." />;
+  }
+  const metric = data?.metric;
+  const display = rows.map(r => ({
+    name: POST_TYPE_LABEL[r.postType] || r.postType,
+    value: Number(r.current) || 0,
+  }));
+  return (
+    <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+      <BarChart data={display} margin={{ top: 16, right: 16, left: 4, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} />
+        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => formatCompact(v, metric?.format || 'number')} tickLine={false} axisLine={false} width={50} />
+        <Tooltip formatter={(v) => [formatValue(v, metric?.format || 'number'), metric?.label || 'Value']} />
+        <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} label={{ position: 'top', fontSize: 10, fill: '#64748b', formatter: (v) => formatCompact(v, metric?.format || 'number') }} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Metric by post type over time (multi-series line chart) ──
+
+function MetricByPostTypeOverTimeBody({ data }) {
+  const series = data?.series || [];
+  const hasData = series.some(s => (s.points || []).some(p => Number(p.value) > 0));
+  if (!hasData) {
+    return <ChartEmptyState height={200} title="No data in range" hint="Publish posts in the selected period to see the per-post-type trend." />;
+  }
+  const allDates = new Set();
+  series.forEach(s => (s.points || []).forEach(p => allDates.add(String(p.date).slice(0,10))));
+  const dates = [...allDates].sort();
+  const merged = dates.map(d => {
+    const row = { date: d };
+    for (const s of series) {
+      const hit = (s.points || []).find(p => String(p.date).slice(0,10) === d);
+      row[s.key] = hit ? hit.value : 0;
+    }
+    return row;
+  });
+  const POST_COLORS = { image: '#06b6d4', video: '#06b6d4', text: '#94a3b8', carousel: '#10b981', reel: '#8b5cf6', story: '#ec4899' };
+  return (
+    <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+      <LineChart data={merged}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+        <XAxis dataKey="date" tickFormatter={(v) => { try { return format(new Date(v), 'MMM d'); } catch { return v; } }} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+        <Tooltip labelFormatter={(v) => { try { return format(new Date(v), 'MMM d, yyyy'); } catch { return v; } }} />
+        <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
+        {series.map((s, i) => (
+          <Line key={s.key} type="monotone" dataKey={s.key} name={POST_TYPE_LABEL[s.key] || s.key} stroke={POST_COLORS[s.key] || METRIC_COLORS[i % METRIC_COLORS.length]} strokeWidth={2} dot={false} isAnimationActive={false} />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Top ERR Profiles (channel table ranked by engagement_rate_reach) ──
+
+function TopErrProfilesBody({ data }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0) return <EmptyHint hint="No channels in scope." />;
+  const total = data?.total || { current: 0, prior: 0 };
+  return (
+    <div className="h-full flex flex-col">
+      <div className="border-b border-slate-200 pb-2 mb-2 flex items-baseline justify-between">
+        <span className="text-[10px] uppercase tracking-wider font-medium text-slate-500">Engagement rate (reach)</span>
+        <span className="flex items-baseline gap-1.5">
+          <span className="text-base font-bold text-slate-900 tabular-nums">{Number(total.current).toFixed(2)}%</span>
+          <DeltaPill current={total.current} prior={total.prior} />
+        </span>
+      </div>
+      <div className="overflow-auto -mx-1">
+        <table className="min-w-full text-xs">
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.socialAccountId} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="px-2 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ChannelAvatar row={r} />
+                    <span className="text-slate-800 truncate">{r.accountName}</span>
+                  </div>
+                </td>
+                <td className="px-2 py-2 text-right whitespace-nowrap">
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm font-semibold text-slate-900 tabular-nums leading-tight">{Number(r.current).toFixed(2)}%</span>
+                    <DeltaPill current={r.current} prior={r.prior} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Engagements by Profile (per-channel table, columns per post type) ──
+
+function EngagementsByProfileBody({ data }) {
+  const rows = data?.rows || [];
+  const columns = data?.columns || [];
+  const totals = data?.totals || {};
+  if (rows.length === 0) return <EmptyHint hint="No channels in scope." />;
+  return (
+    <div className="overflow-auto overflow-y-visible h-full -mx-1">
+      <table className="min-w-full text-xs">
+        <thead>
+          <tr className="border-b border-slate-200">
+            <th className="px-2 py-3 text-left">
+              <span className="text-[10px] uppercase tracking-wider font-medium text-slate-500">Channel</span>
+            </th>
+            {columns.map(c => {
+              const t = totals[c] || { current: 0, prior: 0 };
+              return (
+                <th key={c} className="px-2 py-3 text-left whitespace-nowrap font-normal align-bottom">
+                  <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{(POST_TYPE_LABEL[c] || c) + ' engagements'}</div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-base font-bold text-slate-900 tabular-nums">{formatCompact(t.current, 'number')}</span>
+                    <DeltaPill current={t.current} prior={t.prior} />
+                  </div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.socialAccountId} className="border-b border-slate-100 hover:bg-slate-50">
+              <td className="px-2 py-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ChannelAvatar row={r} />
+                  <span className="text-slate-800 font-medium truncate">{r.accountName}</span>
+                </div>
+              </td>
+              {columns.map(c => {
+                const cell = r.cells?.[c] || { current: 0, prior: 0 };
+                return (
+                  <td key={c} className="px-2 py-3 whitespace-nowrap">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-slate-900 tabular-nums leading-tight">{formatCompact(cell.current, 'number')}</span>
+                      <DeltaPill current={cell.current} prior={cell.prior} />
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

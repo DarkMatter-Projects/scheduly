@@ -635,6 +635,288 @@ async function buildChannelPerformanceTable(dashboard, widget) {
   };
 }
 
+// Top profiles ranked by Engagement Rate (Reach). Each row is one
+// social account with its ERR and delta vs prior period — used by the
+// "Top ERR Profiles" widget on the IG template.
+async function buildTopErrProfiles(dashboard, widget) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const params = [];
+  let where = 'sa.is_active = 1';
+  if (channelIds) {
+    where += ` AND sa.id IN (${channelIds.map(() => '?').join(',')})`;
+    params.push(...channelIds);
+  }
+  const [accounts] = await pool.execute(
+    `SELECT id, platform, account_name, profile_picture_url
+     FROM social_accounts sa WHERE ${where} ORDER BY sa.account_name ASC`,
+    params
+  );
+
+  const rows = [];
+  for (const a of accounts) {
+    const [current, prior] = await Promise.all([
+      totalForMetric('engagement_rate_reach', [a.id], start, end),
+      totalForMetric('engagement_rate_reach', [a.id], priorStart, priorEnd),
+    ]);
+    rows.push({
+      socialAccountId: a.id,
+      accountName: a.account_name,
+      platform: a.platform,
+      profilePictureUrl: a.profile_picture_url,
+      current,
+      prior,
+    });
+  }
+  rows.sort((a, b) => b.current - a.current);
+
+  // Header pill — engagement rate aggregated across the whole scope.
+  const [totalCurrent, totalPrior] = await Promise.all([
+    totalForMetric('engagement_rate_reach', accounts.map(a => a.id), start, end),
+    totalForMetric('engagement_rate_reach', accounts.map(a => a.id), priorStart, priorEnd),
+  ]);
+  return {
+    range: { start, end, priorStart, priorEnd },
+    total: { current: totalCurrent, prior: totalPrior },
+    rows,
+  };
+}
+
+// Aggregate a metric grouped by posts.post_type. Drives the "X by post
+// type" bar charts on the IG template. The metricKey controls which
+// metric is summed; only post_analytics-backed metrics make sense.
+async function buildMetricByPostType(dashboard, widget) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const key = (widget.metricKeys && widget.metricKeys[0]) || 'interactions';
+  const m = metric(key);
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND pt.social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+
+  // Pull post-type breakdown for both windows in one round-trip per window.
+  // Interactions / engagement_rate_reach are derived — handle them inline
+  // instead of via totalForMetric (which doesn't accept a post_type filter).
+  const COMPONENT = {
+    interactions:        `(COALESCE(SUM(pa.likes),0)+COALESCE(SUM(pa.comments_count),0)+COALESCE(SUM(pa.shares),0)+COALESCE(SUM(pa.saves),0))`,
+    impressions:         `COALESCE(SUM(pa.impressions),0)`,
+    views:               `COALESCE(SUM(pa.impressions),0)`,
+    organic_views:       `COALESCE(SUM(pa.impressions),0)`,
+    reach:               `COALESCE(SUM(pa.reach),0)`,
+    reach_daily_avg:     `COALESCE(SUM(pa.reach),0)`, // div-by-days happens later
+    likes:               `COALESCE(SUM(pa.likes),0)`,
+    comments:            `COALESCE(SUM(pa.comments_count),0)`,
+    shares:              `COALESCE(SUM(pa.shares),0)`,
+    saves:               `COALESCE(SUM(pa.saves),0)`,
+  };
+  const expr = COMPONENT[key];
+  const isRate = m?.format === 'percent';
+
+  async function fetchByType(s, e) {
+    if (isRate) {
+      // For rate metrics return interactions and reach per post_type so we
+      // can compute pct = interactions/reach*100 client-side.
+      const [rows] = await pool.execute(
+        `SELECT p.post_type AS type,
+                (COALESCE(SUM(pa.likes),0)+COALESCE(SUM(pa.comments_count),0)+COALESCE(SUM(pa.shares),0)+COALESCE(SUM(pa.saves),0)) AS i,
+                COALESCE(SUM(pa.reach),0) AS r,
+                COALESCE(SUM(pa.impressions),0) AS v
+         FROM post_analytics pa
+         JOIN post_targets pt ON pa.post_target_id = pt.id
+         JOIN posts p ON pt.post_id = p.id
+         WHERE p.published_at BETWEEN ? AND ? ${accountsFilter}
+         GROUP BY p.post_type`,
+        [s, e, ...(channelIds || [])]
+      );
+      return rows.map(r => {
+        const i = Number(r.i) || 0;
+        const reach = Number(r.r) || 0;
+        const views = Number(r.v) || 0;
+        let value = 0;
+        if (key === 'engagement_rate_reach' || key === 'interaction_rate_reach') {
+          value = reach > 0 ? (i / reach) * 100 : 0;
+        } else if (key === 'interaction_rate') {
+          value = views > 0 ? (i / views) * 100 : 0;
+        }
+        return { type: r.type, value };
+      });
+    }
+    if (!expr) return [];
+    const [rows] = await pool.execute(
+      `SELECT p.post_type AS type, ${expr} AS v
+       FROM post_analytics pa
+       JOIN post_targets pt ON pa.post_target_id = pt.id
+       JOIN posts p ON pt.post_id = p.id
+       WHERE p.published_at BETWEEN ? AND ? ${accountsFilter}
+       GROUP BY p.post_type`,
+      [s, e, ...(channelIds || [])]
+    );
+    return rows.map(r => ({ type: r.type, value: Number(r.v) || 0 }));
+  }
+
+  const [currentByType, priorByType] = await Promise.all([
+    fetchByType(start, end),
+    fetchByType(priorStart, priorEnd),
+  ]);
+
+  // Stitch the two windows together so the client always gets one entry per
+  // post_type present in either window.
+  const types = new Set([...currentByType.map(r => r.type), ...priorByType.map(r => r.type)]);
+  const rows = [...types].filter(Boolean).map(type => {
+    const cur = currentByType.find(r => r.type === type)?.value || 0;
+    const pri = priorByType.find(r => r.type === type)?.value || 0;
+    return { postType: type, current: cur, prior: pri };
+  });
+  rows.sort((a, b) => b.current - a.current);
+  return {
+    range: { start, end, priorStart, priorEnd },
+    metric: { key, label: m?.label || key, format: m?.format || 'number' },
+    rows,
+  };
+}
+
+// Same as buildMetricByPostType but daily — one series per post type
+// over the date range. Drives the "X by post type over time" line/area
+// charts.
+async function buildMetricByPostTypeOverTime(dashboard, widget) {
+  const { start, end } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const key = (widget.metricKeys && widget.metricKeys[0]) || 'interactions';
+  const m = metric(key);
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND pt.social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  const params = [start, end, ...(channelIds || [])];
+
+  const EXPR = {
+    interactions:    `(COALESCE(SUM(pa.likes),0)+COALESCE(SUM(pa.comments_count),0)+COALESCE(SUM(pa.shares),0)+COALESCE(SUM(pa.saves),0))`,
+    impressions:     `COALESCE(SUM(pa.impressions),0)`,
+    views:           `COALESCE(SUM(pa.impressions),0)`,
+    reach:           `COALESCE(SUM(pa.reach),0)`,
+    reach_daily_avg: `COALESCE(SUM(pa.reach),0)`,
+    likes:           `COALESCE(SUM(pa.likes),0)`,
+    comments:        `COALESCE(SUM(pa.comments_count),0)`,
+    shares:          `COALESCE(SUM(pa.shares),0)`,
+  };
+  const expr = EXPR[key] || `COALESCE(SUM(pa.impressions),0)`;
+
+  const [rows] = await pool.execute(
+    `SELECT DATE(p.published_at) AS date, p.post_type AS type, ${expr} AS v
+     FROM post_analytics pa
+     JOIN post_targets pt ON pa.post_target_id = pt.id
+     JOIN posts p ON pt.post_id = p.id
+     WHERE p.published_at BETWEEN ? AND ? ${accountsFilter}
+     GROUP BY DATE(p.published_at), p.post_type
+     ORDER BY date ASC`,
+    params
+  );
+
+  // Build distinct dates + post types so the client can render a stacked
+  // multi-series chart.
+  const dates = [...new Set(rows.map(r => String(r.date).slice(0,10)))].sort();
+  const types = [...new Set(rows.map(r => r.type).filter(Boolean))];
+  const series = types.map(type => ({
+    key: type,
+    label: type,
+    points: dates.map(d => {
+      const hit = rows.find(r => r.type === type && String(r.date).slice(0,10) === d);
+      return { date: d, value: hit ? Number(hit.v) || 0 : 0 };
+    }),
+  }));
+  return {
+    range: { start, end },
+    metric: { key, label: m?.label || key, format: m?.format || 'number' },
+    series,
+  };
+}
+
+// Per-channel breakdown of engagement metrics by post type. Each row is
+// one social account; columns are post_type-prefixed engagement counts.
+async function buildEngagementsByProfile(dashboard, widget) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const params = [];
+  let where = 'sa.is_active = 1';
+  if (channelIds) {
+    where += ` AND sa.id IN (${channelIds.map(() => '?').join(',')})`;
+    params.push(...channelIds);
+  }
+  const [accounts] = await pool.execute(
+    `SELECT id, platform, account_name, profile_picture_url
+     FROM social_accounts sa WHERE ${where} ORDER BY sa.account_name ASC`,
+    params
+  );
+
+  // Sum interactions per (social_account, post_type) for both windows in
+  // one query each (avoids N*M round-trips).
+  async function fetchByAccountType(s, e) {
+    const [rows] = await pool.execute(
+      `SELECT pt.social_account_id AS sid, p.post_type AS type,
+              (COALESCE(SUM(pa.likes),0)+COALESCE(SUM(pa.comments_count),0)+COALESCE(SUM(pa.shares),0)+COALESCE(SUM(pa.saves),0)) AS v
+       FROM post_analytics pa
+       JOIN post_targets pt ON pa.post_target_id = pt.id
+       JOIN posts p ON pt.post_id = p.id
+       WHERE p.published_at BETWEEN ? AND ?
+         ${channelIds ? `AND pt.social_account_id IN (${channelIds.map(() => '?').join(',')})` : ''}
+       GROUP BY pt.social_account_id, p.post_type`,
+      [s, e, ...(channelIds || [])]
+    );
+    const map = new Map();
+    for (const r of rows) {
+      const k = `${r.sid}|${r.type}`;
+      map.set(k, Number(r.v) || 0);
+    }
+    return map;
+  }
+  const [curMap, priMap] = await Promise.all([
+    fetchByAccountType(start, end),
+    fetchByAccountType(priorStart, priorEnd),
+  ]);
+
+  // Column set = union of post_types observed in either window.
+  const types = new Set();
+  for (const k of [...curMap.keys(), ...priMap.keys()]) {
+    const t = k.split('|')[1];
+    if (t) types.add(t);
+  }
+  const columns = [...types];
+
+  const rows = accounts.map(a => {
+    const cells = {};
+    for (const t of columns) {
+      cells[t] = {
+        current: curMap.get(`${a.id}|${t}`) || 0,
+        prior:   priMap.get(`${a.id}|${t}`) || 0,
+      };
+    }
+    return {
+      socialAccountId: a.id,
+      accountName: a.account_name,
+      platform: a.platform,
+      profilePictureUrl: a.profile_picture_url,
+      cells,
+    };
+  });
+
+  // Totals row (sum across accounts).
+  const totals = {};
+  for (const t of columns) {
+    let c = 0, p = 0;
+    for (const r of rows) {
+      c += r.cells[t].current;
+      p += r.cells[t].prior;
+    }
+    totals[t] = { current: c, prior: p };
+  }
+
+  return {
+    range: { start, end, priorStart, priorEnd },
+    columns,
+    totals,
+    rows,
+  };
+}
+
 // Aggregate a metric across all accounts in scope, grouped by platform
 // (facebook_page / instagram_business / tiktok). One row per platform.
 async function buildNetworkComparison(dashboard, widget) {
@@ -846,14 +1128,14 @@ async function buildWidgetData(dashboard, widget) {
     case 'reaction_breakdown':
     case 'demographics':
     case 'geographics':
-    case 'metric_by_post_type':
-    case 'metric_by_post_type_over_time':
+    case 'metric_by_post_type':            return buildMetricByPostType(dashboard, widget);
+    case 'metric_by_post_type_over_time':  return buildMetricByPostTypeOverTime(dashboard, widget);
+    case 'top_err_profiles':               return buildTopErrProfiles(dashboard, widget);
+    case 'engagements_by_profile':         return buildEngagementsByProfile(dashboard, widget);
     case 'follow_non_follow_split':
-    case 'top_err_profiles':
     case 'reels_performance':
     case 'story_performance':
-    case 'fans_by_age_gender':
-    case 'engagements_by_profile': return { placeholder: true };
+    case 'fans_by_age_gender':             return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }
