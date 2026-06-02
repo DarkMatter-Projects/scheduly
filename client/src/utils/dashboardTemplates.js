@@ -180,9 +180,11 @@ export const DASHBOARD_TEMPLATES = [
       { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
         metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
         width: 12, height: 3 },
-      // Full-width follower trend
-      { category: 'channel', widgetType: 'time_series', title: 'Daily followers',
-        metricKeys: ['followers'], width: 12, height: 3 },
+      // Fans KPI (stacked Followers + Net new followers) + Daily fans chart
+      { category: 'channel', widgetType: 'key_metrics', title: 'Fans',
+        metricKeys: ['followers','net_new_followers'], width: 4, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily fans',
+        metricKeys: ['followers'], width: 8, height: 4 },
       // Video views KPI + daily trend (every TikTok post is a video, so
       // `views` IS video views).
       { category: 'channel', widgetType: 'key_metrics', title: 'Video views',
