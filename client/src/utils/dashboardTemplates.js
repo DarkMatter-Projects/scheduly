@@ -234,12 +234,6 @@ export const DASHBOARD_TEMPLATES = [
       { category: 'channel', widgetType: 'key_metrics', title: 'TikTok key metrics',
         metricKeys: ['impressions','reach','likes','comments','shares','engagement_rate','posts'],
         width: 12, height: 2 },
-      { category: 'channel', widgetType: 'time_series', title: 'Impressions over time',
-        metricKeys: ['impressions'], width: 6, height: 3 },
-      { category: 'channel', widgetType: 'time_series', title: 'Engagements',
-        metricKeys: ['likes','comments','shares'], width: 6, height: 3 },
-      { category: 'content', widgetType: 'content_performance', title: 'Top performing videos',
-        metricKeys: ['engagement_rate'], width: 12, height: 4 },
     ],
   },
   {
