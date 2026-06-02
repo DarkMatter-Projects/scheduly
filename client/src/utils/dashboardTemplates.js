@@ -80,11 +80,15 @@ export const DASHBOARD_TEMPLATES = [
     available: true,
     description: 'Reach, saves and engagement rate across your IG accounts.',
     widgets: [
+      // Per-channel summary table — mirrors the Facebook template
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
+        metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
+        width: 12, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily followers',
+        metricKeys: ['followers'], width: 12, height: 3 },
       { category: 'channel', widgetType: 'key_metrics', title: 'Account key metrics',
         metricKeys: ['reach','impressions','likes','comments','saves','engagement_rate','posts'],
         width: 12, height: 2 },
-      { category: 'channel', widgetType: 'channel_comparison', title: 'Performance by channel',
-        metricKeys: ['reach'], width: 12, height: 3 },
       { category: 'channel', widgetType: 'time_series', title: 'Reach & impressions',
         metricKeys: ['reach','impressions'], width: 6, height: 3 },
       { category: 'channel', widgetType: 'time_series', title: 'Likes, comments, saves',
