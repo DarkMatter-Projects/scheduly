@@ -1043,20 +1043,38 @@ async function buildEngagementsByProfile(dashboard, widget) {
     fetchByAccountType(priorStart, priorEnd),
   ]);
 
-  // Column set = union of post_types observed in either window.
-  const types = new Set();
+  // Always include the four baseline IG post-type columns + a Paid
+  // column so the widget structure matches the reference design even
+  // when a profile has no posts in a category yet.
+  const BASELINE_COLUMNS = ['reel', 'story', 'image', 'carousel'];
+  const observed = new Set();
   for (const k of [...curMap.keys(), ...priMap.keys()]) {
     const t = k.split('|')[1];
-    if (t) types.add(t);
+    if (t) observed.add(t);
   }
-  const columns = [...types];
+  // Collapse 'video' into 'image' (both render as "Photo or video").
+  const wantsImage = observed.has('image') || observed.has('video');
+  const columns = [...new Set([
+    ...BASELINE_COLUMNS,
+    ...(wantsImage ? ['image'] : []),
+    ...[...observed].filter(t => !['video','image'].includes(t)),
+  ])];
+
+  // Helper: pull cell value for a given account + display column,
+  // collapsing 'video' rows into the 'image' bucket.
+  const cellValue = (map, accountId, displayCol) => {
+    if (displayCol === 'image') {
+      return (map.get(`${accountId}|image`) || 0) + (map.get(`${accountId}|video`) || 0);
+    }
+    return map.get(`${accountId}|${displayCol}`) || 0;
+  };
 
   const rows = accounts.map(a => {
     const cells = {};
     for (const t of columns) {
       cells[t] = {
-        current: curMap.get(`${a.id}|${t}`) || 0,
-        prior:   priMap.get(`${a.id}|${t}`) || 0,
+        current: cellValue(curMap, a.id, t),
+        prior:   cellValue(priMap, a.id, t),
       };
     }
     return {
@@ -1078,6 +1096,30 @@ async function buildEngagementsByProfile(dashboard, widget) {
     }
     totals[t] = { current: c, prior: p };
   }
+
+  // Paid column: attribute ad clicks (best proxy for "engagements" we
+  // have in meta_ad_insights) to a dashboard-wide total since the schema
+  // doesn't tie ad accounts back to a specific social_account_id.
+  try {
+    const sumClicks = async (s, e) => {
+      const [r] = await pool.execute(
+        `SELECT COALESCE(SUM(clicks),0) AS v
+         FROM meta_ad_insights
+         WHERE level='account' AND date_start BETWEEN ? AND ?`,
+        [s, e]
+      );
+      return Number(r[0]?.v) || 0;
+    };
+    const [paidCur, paidPri] = await Promise.all([
+      sumClicks(start, end),
+      sumClicks(priorStart, priorEnd),
+    ]);
+    columns.push('paid');
+    totals.paid = { current: paidCur, prior: paidPri };
+    // Per-row paid cells remain null because we can't attribute ad
+    // spend to a specific social profile from our schema.
+    for (const r of rows) r.cells.paid = { current: null, prior: null };
+  } catch { /* ignore — ads optional */ }
 
   return {
     range: { start, end, priorStart, priorEnd },

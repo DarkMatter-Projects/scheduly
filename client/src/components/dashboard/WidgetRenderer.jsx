@@ -1145,6 +1145,7 @@ function EngagementsByProfileBody({ data }) {
   const columns = data?.columns || [];
   const totals = data?.totals || {};
   if (rows.length === 0) return <EmptyHint hint="No channels in scope." />;
+  const columnHeader = (c) => (c === 'paid' ? 'Paid' : (POST_TYPE_LABEL[c] || c)) + ' engagements';
   return (
     <div className="overflow-auto overflow-y-visible h-full -mx-1">
       <table className="min-w-full text-xs">
@@ -1157,7 +1158,7 @@ function EngagementsByProfileBody({ data }) {
               const t = totals[c] || { current: 0, prior: 0 };
               return (
                 <th key={c} className="px-2 py-3 text-left whitespace-nowrap font-normal align-bottom">
-                  <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{(POST_TYPE_LABEL[c] || c) + ' engagements'}</div>
+                  <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{columnHeader(c)}</div>
                   <div className="flex items-baseline gap-1.5 mt-0.5">
                     <span className="text-base font-bold text-slate-900 tabular-nums">{formatCompact(t.current, 'number')}</span>
                     <DeltaPill current={t.current} prior={t.prior} />
@@ -1178,6 +1179,17 @@ function EngagementsByProfileBody({ data }) {
               </td>
               {columns.map(c => {
                 const cell = r.cells?.[c] || { current: 0, prior: 0 };
+                // Per-row Paid cells are intentionally null (we can't tie
+                // ad spend back to a specific social account from the
+                // current schema). Show "N/A" so the column reads as
+                // intentional rather than zero.
+                if (cell.current == null) {
+                  return (
+                    <td key={c} className="px-2 py-3 whitespace-nowrap">
+                      <span className="text-sm text-slate-400 tabular-nums">N/A</span>
+                    </td>
+                  );
+                }
                 return (
                   <td key={c} className="px-2 py-3 whitespace-nowrap">
                     <div className="flex flex-col">
