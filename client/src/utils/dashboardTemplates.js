@@ -309,10 +309,37 @@ export const DASHBOARD_TEMPLATES = [
   {
     key: 'fans_overview',
     name: 'Fans overview',
-    platforms: ['facebook_page','instagram_business','tiktok'],
-    available: false,
-    description: 'Follower growth, demographics and geographics across your accounts. Requires demographic insights (coming soon).',
-    widgets: [],
+    platforms: ['facebook_page','instagram_business','linkedin','twitter','tiktok','youtube'],
+    available: true,
+    description: 'Follower growth, demographics and geographics across every connected channel.',
+    widgets: [
+      // 1. Fans + Fans dynamics
+      { category: 'channel', widgetType: 'key_metrics', title: 'Fans',
+        metricKeys: ['followers'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'key_metrics', title: 'Fans dynamics',
+        metricKeys: ['net_new_followers','followers_increase','followers_decrease'],
+        width: 8, height: 3 },
+      // 2. Total fans (full width)
+      { category: 'channel', widgetType: 'time_series', title: 'Total fans',
+        metricKeys: ['followers'], width: 12, height: 4 },
+      // 3. Fans by channel (table)
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Fans by channel',
+        metricKeys: ['followers','net_new_followers','followers_increase','followers_decrease'],
+        width: 12, height: 3 },
+      // 4. Fans online (placeholder hourly bar chart)
+      { category: 'channel', widgetType: 'fans_online_hourly', title: 'Fans online avg.',
+        width: 12, height: 4 },
+      // 5. Fans by age and gender
+      { category: 'channel', widgetType: 'fans_by_age_gender', title: 'Fans by age and gender',
+        width: 12, height: 4 },
+      // 6. Fans by geography (map + country list)
+      { category: 'channel', widgetType: 'followers_by_country', title: 'Fans by geography',
+        width: 12, height: 5 },
+      // 7. Fan development (time series of gain/loss/paid/unpaid)
+      { category: 'channel', widgetType: 'time_series', title: 'Fan development',
+        metricKeys: ['followers_increase','followers_decrease','paid_fans_increase','unpaid_fans_increase'],
+        width: 12, height: 4 },
+    ],
   },
   {
     key: 'distribution_overview',
@@ -400,9 +427,37 @@ export const DASHBOARD_TEMPLATES = [
     key: 'twitter_overview',
     name: 'Twitter / X overview',
     platforms: ['twitter'],
-    available: false,
-    description: 'Impressions, engagements and follower growth. X integration coming soon.',
-    widgets: [],
+    available: true,
+    description: 'Followers, tweets, engagements and audience for your X (Twitter) channels.',
+    widgets: [
+      // 1. Followers KPI + Tweets and retweets KPI
+      { category: 'channel', widgetType: 'key_metrics', title: 'Followers',
+        metricKeys: ['followers','net_new_followers','following'], width: 8, height: 3 },
+      { category: 'channel', widgetType: 'key_metrics', title: 'Tweets and retweets',
+        metricKeys: ['net_tweets_retweets'], width: 4, height: 3 },
+      // 2. Daily charts side-by-side
+      { category: 'channel', widgetType: 'time_series', title: 'Daily net followers',
+        metricKeys: ['net_new_followers'], width: 6, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily tweets and retweets',
+        metricKeys: ['net_tweets_retweets'], width: 6, height: 3 },
+      // 3. Label performance
+      { category: 'content', widgetType: 'label_performance', title: 'Label performance',
+        width: 12, height: 4 },
+      // 4. Tweets performance + Organic + Paid
+      { category: 'content', widgetType: 'content_performance', title: 'Tweets performance',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      { category: 'content', widgetType: 'content_performance', title: 'Organic tweets performance',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      { category: 'content', widgetType: 'paid_performance', title: 'Paid tweets performance',
+        width: 12, height: 4 },
+      // 5. Video performance (placeholder)
+      { category: 'content', widgetType: 'video_performance', title: 'Video performance',
+        width: 12, height: 4 },
+      // 6. Performance by channel (table)
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
+        metricKeys: ['followers','net_new_followers','net_tweets_retweets','net_listed'],
+        width: 12, height: 3 },
+    ],
   },
   {
     key: 'youtube_overview',
