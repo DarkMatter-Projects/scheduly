@@ -48,6 +48,7 @@ export default function AddWidgetModal({ onSave, onClose }) {
     'follow_non_follow_split', 'top_err_profiles',
     'reels_performance', 'story_performance',
     'fans_by_age_gender', 'engagements_by_profile',
+    'views_from_source', 'fans_online_hourly',
   ]);
   const requiresMetrics = !NO_METRIC_WIDGETS.has(widgetType);
 

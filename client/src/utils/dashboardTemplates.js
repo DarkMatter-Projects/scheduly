@@ -183,6 +183,52 @@ export const DASHBOARD_TEMPLATES = [
       // Full-width follower trend
       { category: 'channel', widgetType: 'time_series', title: 'Daily followers',
         metricKeys: ['followers'], width: 12, height: 3 },
+      // Video views KPI + daily trend (every TikTok post is a video, so
+      // `views` IS video views).
+      { category: 'channel', widgetType: 'key_metrics', title: 'Video views',
+        metricKeys: ['views'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily video views',
+        metricKeys: ['views'], width: 8, height: 3 },
+      // Average Daily Reach KPI + Reach over time
+      { category: 'channel', widgetType: 'key_metrics', title: 'Average Daily Reach',
+        metricKeys: ['reach_daily_avg'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Reach over time',
+        metricKeys: ['reach_daily_avg'], width: 8, height: 3 },
+      // Label performance (placeholder until label/tag system ships)
+      { category: 'content', widgetType: 'label_performance', title: 'Label performance',
+        width: 12, height: 4 },
+      // Content performance + Organic performance (organic === post_analytics
+      // data, which is everything we collect today since paid breakdowns
+      // need ad_insights post-level join we haven't built yet).
+      { category: 'content', widgetType: 'content_performance', title: 'Content performance',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      { category: 'content', widgetType: 'content_performance', title: 'Organic performance',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      // Paid performance (placeholder — needs ad post-level join)
+      { category: 'content', widgetType: 'paid_performance', title: 'Paid performance',
+        width: 12, height: 4 },
+      // Views from source (For You / Following / Profile / Sound / Hashtag /
+      // Discovery breakdown — placeholder until TikTok Display Insights
+      // ingestion adds video_views_by_source)
+      { category: 'content', widgetType: 'views_from_source', title: 'Views from source',
+        width: 12, height: 3 },
+      // Most engaging — content_performance sorted by engagement_rate
+      { category: 'content', widgetType: 'content_performance', title: 'Most engaging',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      // Post engagements over time (Reactions / Comments / Shares / Saves)
+      { category: 'content', widgetType: 'time_series', title: 'Post engagements over time',
+        metricKeys: ['reactions','comments','shares','saves'], width: 12, height: 3 },
+      // Fans online by hour of day (placeholder — needs follower_online ingestion)
+      { category: 'channel', widgetType: 'fans_online_hourly', title: 'Fans online (UTC)',
+        width: 12, height: 4 },
+      // Fans gender breakdown + Profile views trend
+      { category: 'channel', widgetType: 'fans_by_age_gender', title: 'Fans gender',
+        width: 6, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Profile views',
+        metricKeys: ['channel_profile_views'], width: 6, height: 4 },
+      // Fans by countries (map + list — same as followers_by_country)
+      { category: 'channel', widgetType: 'followers_by_country', title: 'Fans by countries',
+        width: 12, height: 5 },
       { category: 'channel', widgetType: 'key_metrics', title: 'TikTok key metrics',
         metricKeys: ['impressions','reach','likes','comments','shares','engagement_rate','posts'],
         width: 12, height: 2 },

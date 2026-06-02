@@ -441,6 +441,8 @@ const NON_SCOPED_WIDGET_TYPES = new Set([
   'reels_performance',
   'story_performance',
   'fans_by_age_gender',
+  'views_from_source',
+  'fans_online_hourly',
 ]);
 
 function ChannelsSummary({ accounts, dashboard }) {

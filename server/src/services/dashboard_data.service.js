@@ -1512,6 +1512,8 @@ async function buildWidgetData(dashboard, widget) {
     case 'fans_by_age_gender':             return buildFansByDimension(dashboard, widget, 'gender_age');
     case 'reels_performance':              return buildPostTypePerformance(dashboard, widget, ['reel','video']);
     case 'story_performance':              return buildPostTypePerformance(dashboard, widget, ['story']);
+    case 'views_from_source':              return { placeholder: true };
+    case 'fans_online_hourly':             return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

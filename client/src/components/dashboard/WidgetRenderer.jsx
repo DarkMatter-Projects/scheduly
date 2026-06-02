@@ -106,7 +106,9 @@ function WidgetBody({ widget }) {
     case 'paid_performance':
     case 'reaction_breakdown':
     case 'demographics':
-    case 'geographics':                    return <NoDataPlaceholder />;
+    case 'geographics':
+    case 'views_from_source':
+    case 'fans_online_hourly':             return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
