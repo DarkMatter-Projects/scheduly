@@ -52,6 +52,12 @@ export default function AddWidgetModal({ onSave, onClose }) {
     'engage_volume_by_network', 'engage_sentiment_by_network',
     'engage_sentiment_by_channel', 'engage_sentiment_by_label',
     'engage_sentiment_kpi_group',
+    'net_new_subscribers_by_country', 'shares_by_source',
+    'engagements_by_country', 'top_sources_by_views',
+    'video_views_by_country', 'watch_time_by_country',
+    'longform_videos_performance', 'shorts_performance',
+    'video_performance', 'fans_by_function', 'fans_by_seniority',
+    'fans_by_association',
   ]);
   const requiresMetrics = !NO_METRIC_WIDGETS.has(widgetType);
 

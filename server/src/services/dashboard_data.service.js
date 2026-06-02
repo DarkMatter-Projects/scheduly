@@ -151,6 +151,26 @@ async function totalForMetric(metricKey, channelIds, start, end) {
         );
         return Number(rows[0]?.v) || 0;
       }
+      if (metricKey === 'followers_increase') {
+        // Sum of positive daily deltas — best proxy for follower gain
+        // when the platform doesn't return separate gained/lost numbers.
+        const [rows] = await pool.execute(
+          `SELECT COALESCE(SUM(CASE WHEN fh.delta_count > 0 THEN fh.delta_count ELSE 0 END), 0) AS v
+           FROM follower_history fh
+           WHERE fh.snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+          [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+        );
+        return Number(rows[0]?.v) || 0;
+      }
+      if (metricKey === 'followers_decrease') {
+        const [rows] = await pool.execute(
+          `SELECT COALESCE(SUM(CASE WHEN fh.delta_count < 0 THEN -fh.delta_count ELSE 0 END), 0) AS v
+           FROM follower_history fh
+           WHERE fh.snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+          [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+        );
+        return Number(rows[0]?.v) || 0;
+      }
     } catch {
       // Table likely doesn't exist yet — fall through to 0.
       return 0;
@@ -1520,7 +1540,19 @@ async function buildWidgetData(dashboard, widget) {
     case 'engage_sentiment_by_network':
     case 'engage_sentiment_by_channel':
     case 'engage_sentiment_by_label':
-    case 'engage_sentiment_kpi_group':     return { placeholder: true };
+    case 'engage_sentiment_kpi_group':
+    case 'net_new_subscribers_by_country':
+    case 'shares_by_source':
+    case 'engagements_by_country':
+    case 'top_sources_by_views':
+    case 'video_views_by_country':
+    case 'watch_time_by_country':
+    case 'longform_videos_performance':
+    case 'shorts_performance':
+    case 'video_performance':
+    case 'fans_by_function':
+    case 'fans_by_seniority':
+    case 'fans_by_association':            return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

@@ -113,7 +113,19 @@ function WidgetBody({ widget }) {
     case 'engage_sentiment_by_network':
     case 'engage_sentiment_by_channel':
     case 'engage_sentiment_by_label':
-    case 'engage_sentiment_kpi_group':     return <NoDataPlaceholder />;
+    case 'engage_sentiment_kpi_group':
+    case 'net_new_subscribers_by_country':
+    case 'shares_by_source':
+    case 'engagements_by_country':
+    case 'top_sources_by_views':
+    case 'video_views_by_country':
+    case 'watch_time_by_country':
+    case 'longform_videos_performance':
+    case 'shorts_performance':
+    case 'video_performance':
+    case 'fans_by_function':
+    case 'fans_by_seniority':
+    case 'fans_by_association':            return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
