@@ -825,7 +825,8 @@ async function buildMetricByPostType(dashboard, widget) {
 
 // Same as buildMetricByPostType but daily — one series per post type
 // over the date range. Drives the "X by post type over time" line/area
-// charts.
+// charts. Handles count + rate metrics; rate metrics compute
+// interactions/reach per (day, post_type).
 async function buildMetricByPostTypeOverTime(dashboard, widget) {
   const { start, end } = resolveRange(dashboard);
   const channelIds = resolveChannelIds(dashboard, widget);
@@ -836,20 +837,20 @@ async function buildMetricByPostTypeOverTime(dashboard, widget) {
     : '';
   const params = [start, end, ...(channelIds || [])];
 
-  const EXPR = {
-    interactions:    `(COALESCE(SUM(pa.likes),0)+COALESCE(SUM(pa.comments_count),0)+COALESCE(SUM(pa.shares),0)+COALESCE(SUM(pa.saves),0))`,
-    impressions:     `COALESCE(SUM(pa.impressions),0)`,
-    views:           `COALESCE(SUM(pa.impressions),0)`,
-    reach:           `COALESCE(SUM(pa.reach),0)`,
-    reach_daily_avg: `COALESCE(SUM(pa.reach),0)`,
-    likes:           `COALESCE(SUM(pa.likes),0)`,
-    comments:        `COALESCE(SUM(pa.comments_count),0)`,
-    shares:          `COALESCE(SUM(pa.shares),0)`,
-  };
-  const expr = EXPR[key] || `COALESCE(SUM(pa.impressions),0)`;
+  const isRate = key === 'engagement_rate_reach' || key === 'interaction_rate' || key === 'interaction_rate_reach';
 
+  // Pull per-day per-post_type sums of interactions, reach and views so a
+  // single query covers all metrics — count metrics pick the right column,
+  // rate metrics derive from interactions / (reach or views).
   const [rows] = await pool.execute(
-    `SELECT DATE(p.published_at) AS date, p.post_type AS type, ${expr} AS v
+    `SELECT DATE(p.published_at) AS date, p.post_type AS type,
+            (COALESCE(SUM(pa.likes),0)+COALESCE(SUM(pa.comments_count),0)+COALESCE(SUM(pa.shares),0)+COALESCE(SUM(pa.saves),0)) AS i,
+            COALESCE(SUM(pa.reach),0)        AS r,
+            COALESCE(SUM(pa.impressions),0)  AS v,
+            COALESCE(SUM(pa.likes),0)        AS likes,
+            COALESCE(SUM(pa.comments_count),0) AS comments,
+            COALESCE(SUM(pa.shares),0)       AS shares,
+            COALESCE(SUM(pa.saves),0)        AS saves
      FROM post_analytics pa
      JOIN post_targets pt ON pa.post_target_id = pt.id
      JOIN posts p ON pt.post_id = p.id
@@ -859,24 +860,93 @@ async function buildMetricByPostTypeOverTime(dashboard, widget) {
     params
   );
 
-  // Build distinct dates + post types so the client can render a stacked
-  // multi-series chart.
+  function valueOf(row) {
+    if (key === 'engagement_rate_reach' || key === 'interaction_rate_reach') {
+      return row.r > 0 ? (row.i / row.r) * 100 : 0;
+    }
+    if (key === 'interaction_rate')               return row.v > 0 ? (row.i / row.v) * 100 : 0;
+    if (key === 'interactions')                   return row.i;
+    if (key === 'impressions' || key === 'views') return Number(row.v) || 0;
+    if (key === 'reach' || key === 'reach_daily_avg') return Number(row.r) || 0;
+    if (key === 'likes')    return Number(row.likes) || 0;
+    if (key === 'comments') return Number(row.comments) || 0;
+    if (key === 'shares')   return Number(row.shares) || 0;
+    return 0;
+  }
+
+  // Distinct dates + post types from organic; plus a paid series spliced
+  // in afterwards for rate / reach / interactions metrics.
   const dates = [...new Set(rows.map(r => String(r.date).slice(0,10)))].sort();
   const types = [...new Set(rows.map(r => r.type).filter(Boolean))];
   const series = types.map(type => ({
     key: type,
-    label: type,
+    label: `${POST_TYPE_LABEL[type] || type} ${(m?.label || key)}`,
     points: dates.map(d => {
       const hit = rows.find(r => r.type === type && String(r.date).slice(0,10) === d);
-      return { date: d, value: hit ? Number(hit.v) || 0 : 0 };
+      return { date: d, value: hit ? Number(valueOf(hit)) || 0 : 0 };
     }),
   }));
+
+  // Optional Paid series from meta_ad_insights so the chart matches the
+  // reference legend (Reel / Story / Photo or video / Paid). Skipped for
+  // metrics where a paid equivalent doesn't make sense.
+  if (PAID_SERIES_SUPPORTED.has(key)) {
+    const [paidRows] = await pool.execute(
+      `SELECT date_start AS date,
+              COALESCE(SUM(impressions), 0) AS v,
+              COALESCE(SUM(reach), 0)       AS r,
+              COALESCE(SUM(clicks), 0)      AS clicks
+       FROM meta_ad_insights
+       WHERE level = 'account' AND date_start BETWEEN ? AND ?
+       GROUP BY date_start ORDER BY date_start ASC`,
+      [start, end]
+    );
+    const paidPoints = dates.map(d => {
+      const hit = paidRows.find(p => String(p.date).slice(0,10) === d);
+      if (!hit) return { date: d, value: 0 };
+      const v = Number(hit.v) || 0;
+      const r = Number(hit.r) || 0;
+      const clicks = Number(hit.clicks) || 0;
+      let value = 0;
+      if (key === 'engagement_rate_reach' || key === 'interaction_rate_reach') value = r > 0 ? (clicks / r) * 100 : 0;
+      else if (key === 'interaction_rate')                                     value = v > 0 ? (clicks / v) * 100 : 0;
+      else if (key === 'reach' || key === 'reach_daily_avg')                   value = r;
+      else if (key === 'impressions' || key === 'views')                       value = v;
+      else if (key === 'interactions')                                         value = clicks;
+      return { date: d, value };
+    });
+    if (paidPoints.some(p => p.value > 0)) {
+      series.push({
+        key: 'paid',
+        label: `Paid ${(m?.label || key)}`,
+        points: paidPoints,
+      });
+    }
+  }
+
   return {
     range: { start, end },
     metric: { key, label: m?.label || key, format: m?.format || 'number' },
     series,
   };
 }
+
+// Mirrors the client-side POST_TYPE_LABEL — kept here so the server can
+// build human-readable legend labels without an extra round-trip.
+const POST_TYPE_LABEL = {
+  text:     'Text',
+  image:    'Photo or video',
+  video:    'Photo or video',
+  carousel: 'Carousel',
+  reel:     'Reel',
+  story:    'Story',
+};
+
+// Metrics where the Paid (meta_ad_insights) overlay makes sense.
+const PAID_SERIES_SUPPORTED = new Set([
+  'engagement_rate_reach', 'interaction_rate_reach', 'interaction_rate',
+  'reach', 'reach_daily_avg', 'impressions', 'views', 'interactions',
+]);
 
 // Per-channel breakdown of engagement metrics by post type. Each row is
 // one social account; columns are post_type-prefixed engagement counts.
