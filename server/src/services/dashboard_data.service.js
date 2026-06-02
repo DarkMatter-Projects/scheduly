@@ -519,6 +519,12 @@ async function buildKeyMetrics(dashboard, widget) {
   const keys = Array.isArray(widget.metricKeys) ? widget.metricKeys : [];
   const channelIds = resolveChannelIds(dashboard, widget);
 
+  // Look up which platforms the widget's actual channels live on so we
+  // only show icons for platforms in scope. Without this every KPI card
+  // would show every platform the *metric* supports, which is misleading
+  // for single-platform dashboards (IG / FB / TT-only templates).
+  const inScopePlatforms = await resolveInScopePlatforms(channelIds);
+
   const out = [];
   for (const key of keys) {
     const m = metric(key);
@@ -528,21 +534,38 @@ async function buildKeyMetrics(dashboard, widget) {
       totalForMetric(key, channelIds, priorStart, priorEnd),
       dailySeries(key, channelIds, start, end),
     ]);
+    const supported = Array.isArray(m.platforms) ? m.platforms : [];
+    // Intersect metric.platforms with the dashboard's scoped platforms.
+    // Fall back to the metric's full list when the dashboard has no
+    // scope at all (legacy "Build your own" empty-scope dashboards).
+    const platforms = inScopePlatforms.length > 0
+      ? supported.filter(p => inScopePlatforms.includes(p))
+      : supported;
     out.push({
       key,
       label: m.label,
       format: m.format,
       invertDelta: !!m.invertDelta,
-      // Surface scope + supported platforms so the KpiCard can render the
-      // scope badge and platform icons that match the reference design.
       scope: m.scope || 'channel',
-      platforms: Array.isArray(m.platforms) ? m.platforms : [],
+      platforms,
       current,
       prior,
       daily,
     });
   }
   return { range: { start, end, priorStart, priorEnd }, metrics: out };
+}
+
+// Distinct list of platform strings for the supplied social_account ids.
+// Returns [] when channelIds is null/empty so the caller can fall back.
+async function resolveInScopePlatforms(channelIds) {
+  if (!Array.isArray(channelIds) || channelIds.length === 0) return [];
+  const [rows] = await pool.execute(
+    `SELECT DISTINCT platform FROM social_accounts
+     WHERE id IN (${channelIds.map(() => '?').join(',')})`,
+    channelIds
+  );
+  return rows.map(r => r.platform).filter(Boolean);
 }
 
 async function buildTimeSeries(dashboard, widget) {
