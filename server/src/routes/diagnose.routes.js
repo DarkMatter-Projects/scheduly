@@ -273,4 +273,16 @@ router.post('/run-channel-insights', authenticate, requireRole('admin'), async (
   }
 });
 
+// Backfill demographics (country + age/gender). Runs ad-hoc; the cron
+// only fires weekly.
+router.post('/run-channel-demographics', authenticate, requireRole('admin'), async (req, res) => {
+  const { runChannelDemographicsJob } = require('../jobs/channelDemographicsJob');
+  try {
+    await runChannelDemographicsJob();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;

@@ -6,6 +6,7 @@ const { runAdsSyncJob } = require('./adsSyncJob');
 const { runEngageIngestJob } = require('./engageIngestJob');
 const { runFollowerSnapshotJob } = require('./followerSnapshotJob');
 const { runChannelInsightsJob } = require('./channelInsightsJob');
+const { runChannelDemographicsJob } = require('./channelDemographicsJob');
 const logger = require('../utils/logger');
 
 function startScheduler() {
@@ -35,6 +36,14 @@ function startScheduler() {
     await runChannelInsightsJob();
   });
 
+  // Audience demographics (country + age/gender). Heavier endpoints
+  // and 'lifetime' period means we can run weekly instead of daily.
+  // Sunday at 5:30 AM keeps it in the same maintenance window.
+  cron.schedule('30 5 * * 0', async () => {
+    logger.info('Scheduler: running channel demographics job');
+    await runChannelDemographicsJob();
+  });
+
   // Fetch analytics for published posts daily at 6 AM
   cron.schedule('0 6 * * *', async () => {
     logger.info('Scheduler: running analytics fetch job');
@@ -53,7 +62,7 @@ function startScheduler() {
     await runEngageIngestJob();
   });
 
-  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), token refresh (3 AM), follower snapshot (5 AM), channel insights (5:15 AM), analytics (6 AM), ads sync (7 AM)');
+  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), token refresh (3 AM), follower snapshot (5 AM), channel insights (5:15 AM), channel demographics (Sun 5:30 AM), analytics (6 AM), ads sync (7 AM)');
 }
 
 module.exports = { startScheduler };

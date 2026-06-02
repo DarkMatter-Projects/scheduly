@@ -124,9 +124,9 @@ const METRICS = [
     description: 'Conversations the Page admin blocked during the period. Requires page_messages_blocked_conversations_unique ingestion.' },
 
   // ── Audience demographics (per-country fan breakdown — not yet collected) ──
-  { key: 'fans_by_country',     label: 'Followers by country', section: 'fans',       category: 'channel', platforms: ['facebook_page','instagram_business'],          format: 'number',   source: 'derived.fans_by_country',       available: false,
+  { key: 'fans_by_country',     label: 'Followers by country', section: 'fans',       category: 'channel', platforms: ['facebook_page','instagram_business'],          format: 'number',   source: 'derived.fans_by_country',       available: true,
     scope: 'channel',
-    description: 'Follower counts broken down by country. Requires page_fans_country ingestion (coming soon).' },
+    description: 'Follower counts broken down by country. Sourced from page_fans_country (FB) / follower_demographics by country (IG).' },
 
   // ── Engagements ──
   { key: 'likes',               label: 'Likes',               section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok','youtube'], format: 'number',   source: 'post_analytics.likes',          available: true,

@@ -965,6 +965,52 @@ async function buildEngagementsByProfile(dashboard, widget) {
   };
 }
 
+// Fans by demographic dimension (country or gender_age). Reads the
+// latest snapshot per (account, dimension_key) within or before the
+// end of range, sums fans across all in-scope accounts, returns rows
+// sorted descending.
+async function buildFansByDimension(dashboard, widget, dimension) {
+  const { end } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const endDay = end.slice(0, 10);
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  try {
+    const [rows] = await pool.execute(
+      `SELECT dimension_key, SUM(latest.fans_count) AS v
+       FROM (
+         SELECT cd.social_account_id, cd.dimension_key, cd.fans_count
+         FROM channel_demographics cd
+         JOIN (
+           SELECT social_account_id, dimension_key, MAX(snapshot_date) AS d
+           FROM channel_demographics
+           WHERE dimension = ? AND snapshot_date <= ?
+           GROUP BY social_account_id, dimension_key
+         ) lx ON lx.social_account_id = cd.social_account_id
+              AND lx.dimension_key = cd.dimension_key
+              AND lx.d = cd.snapshot_date
+         WHERE cd.dimension = ? ${accountsFilter}
+       ) latest
+       GROUP BY dimension_key
+       ORDER BY v DESC`,
+      [dimension, endDay, dimension, ...(channelIds || [])]
+    );
+    const total = rows.reduce((s, r) => s + (Number(r.v) || 0), 0);
+    return {
+      range: { end },
+      total,
+      rows: rows.map(r => ({
+        key:   r.dimension_key,
+        value: Number(r.v) || 0,
+        share: total > 0 ? (Number(r.v) / total) * 100 : 0,
+      })),
+    };
+  } catch {
+    return { range: { end }, total: 0, rows: [] };
+  }
+}
+
 // Follow vs Non-follow view split — single-call summary from
 // channel_insights_daily.follower_views / non_follower_views. Rendered
 // as a horizontal bar chart on the IG/FB templates.
@@ -1202,9 +1248,10 @@ async function buildWidgetData(dashboard, widget) {
     case 'top_err_profiles':               return buildTopErrProfiles(dashboard, widget);
     case 'engagements_by_profile':         return buildEngagementsByProfile(dashboard, widget);
     case 'follow_non_follow_split':        return buildFollowNonFollowSplit(dashboard, widget);
+    case 'followers_by_country':           return buildFansByDimension(dashboard, widget, 'country');
+    case 'fans_by_age_gender':             return buildFansByDimension(dashboard, widget, 'gender_age');
     case 'reels_performance':
-    case 'story_performance':
-    case 'fans_by_age_gender':             return { placeholder: true };
+    case 'story_performance':              return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

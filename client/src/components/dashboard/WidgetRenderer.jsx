@@ -98,16 +98,15 @@ function WidgetBody({ widget }) {
     case 'top_err_profiles':               return <TopErrProfilesBody data={data} />;
     case 'engagements_by_profile':         return <EngagementsByProfileBody data={data} />;
     case 'follow_non_follow_split':        return <FollowNonFollowBody data={data} />;
+    case 'followers_by_country':           return <FollowersByCountryBody data={data} />;
+    case 'fans_by_age_gender':             return <FansByAgeGenderBody data={data} />;
     case 'label_performance':
     case 'paid_performance':
-    case 'followers_by_country':
     case 'reaction_breakdown':
     case 'demographics':
     case 'geographics':
-    case 'follow_non_follow_split':
     case 'reels_performance':
-    case 'story_performance':
-    case 'fans_by_age_gender':             return <NoDataPlaceholder />;
+    case 'story_performance':              return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -1176,6 +1175,100 @@ function EngagementsByProfileBody({ data }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── Followers by country (scrollable list with bars) ──
+
+function FollowersByCountryBody({ data }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0) {
+    return <ChartEmptyState height={200} title="No data yet" hint="Country breakdown appears once channel_demographics has been ingested." />;
+  }
+  const max = Math.max(...rows.map(r => r.value), 0);
+  return (
+    <div className="h-full overflow-auto">
+      <ul className="divide-y divide-slate-100 text-xs">
+        {rows.map(r => (
+          <li key={r.key} className="flex items-center gap-2 py-1.5">
+            <span className="text-slate-700 truncate w-28">{r.key}</span>
+            <span className="text-slate-900 font-semibold tabular-nums w-16 text-right">{formatCompact(r.value, 'number')}</span>
+            <div className="flex-1 h-2 bg-slate-100 rounded overflow-hidden">
+              <div className="h-full bg-indigo-400 rounded" style={{ width: `${max > 0 ? (r.value / max) * 100 : 0}%` }} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ── Fans by age and gender (grouped bar chart) ──
+
+function FansByAgeGenderBody({ data }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0) {
+    return <ChartEmptyState height={220} title="No data yet" hint="Age + gender breakdown appears once channel_demographics has been ingested." />;
+  }
+  // Pivot F.25-34 / M.18-24 / U.65+ into { ageBucket, Female, Male, Unknown }.
+  const buckets = new Map();
+  for (const r of rows) {
+    const [g, age] = r.key.split('.');
+    if (!age) continue;
+    if (!buckets.has(age)) buckets.set(age, { age, Female: 0, Male: 0, Unknown: 0 });
+    const slot = buckets.get(age);
+    if (g === 'F') slot.Female += r.value;
+    else if (g === 'M') slot.Male += r.value;
+    else slot.Unknown += r.value;
+  }
+  const sortAge = (a, b) => {
+    const order = ['13-17','18-24','25-34','35-44','45-54','55-64','65+'];
+    return order.indexOf(a.age) - order.indexOf(b.age);
+  };
+  const display = [...buckets.values()].sort(sortAge);
+  const totalF = display.reduce((s, b) => s + b.Female, 0);
+  const totalM = display.reduce((s, b) => s + b.Male, 0);
+  const totalU = display.reduce((s, b) => s + b.Unknown, 0);
+  const total  = totalF + totalM + totalU;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] gap-4 h-full">
+      <div className="flex flex-col justify-center text-xs space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full" style={{ background: '#ec4899' }} />
+          <span className="text-slate-600">Female</span>
+          <span className="ml-auto font-semibold tabular-nums text-slate-900">{formatCompact(totalF, 'number')}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full" style={{ background: '#3b82f6' }} />
+          <span className="text-slate-600">Male</span>
+          <span className="ml-auto font-semibold tabular-nums text-slate-900">{formatCompact(totalM, 'number')}</span>
+        </div>
+        {totalU > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ background: '#94a3b8' }} />
+            <span className="text-slate-600">Unknown</span>
+            <span className="ml-auto font-semibold tabular-nums text-slate-900">{formatCompact(totalU, 'number')}</span>
+          </div>
+        )}
+        <div className="border-t border-slate-100 pt-2 flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">Total</span>
+          <span className="text-xs font-bold text-slate-900">{formatCompact(total, 'number')}</span>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height="100%" minHeight={220}>
+        <BarChart data={display}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <XAxis dataKey="age" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => formatCompact(v, 'number')} tickLine={false} axisLine={false} width={50} />
+          <Tooltip />
+          <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
+          <Bar dataKey="Female"  fill="#ec4899" radius={[3,3,0,0]} />
+          <Bar dataKey="Male"    fill="#3b82f6" radius={[3,3,0,0]} />
+          <Bar dataKey="Unknown" fill="#94a3b8" radius={[3,3,0,0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
