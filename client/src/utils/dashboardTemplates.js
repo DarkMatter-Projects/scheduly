@@ -91,22 +91,22 @@ export const DASHBOARD_TEMPLATES = [
       { category: 'channel', widgetType: 'key_metrics', title: 'Engagement Rate Reach',
         metricKeys: ['engagement_rate_reach'], width: 4, height: 3 },
       { category: 'channel', widgetType: 'metric_by_post_type', title: 'Engagement Rate Reach by post type',
-        width: 8, height: 3 },
+        metricKeys: ['engagement_rate_reach'], width: 8, height: 3 },
       // 4. Top ERR Profiles + ERR by post type over time
       { category: 'channel', widgetType: 'top_err_profiles', title: 'Top ERR Profiles',
         width: 4, height: 3 },
       { category: 'channel', widgetType: 'metric_by_post_type_over_time', title: 'ERR by post type over time',
-        width: 8, height: 3 },
+        metricKeys: ['engagement_rate_reach'], width: 8, height: 3 },
       // 5. Average daily reach trio
       { category: 'channel', widgetType: 'key_metrics', title: 'Avg. Daily Reach',
         metricKeys: ['reach_daily_avg'], width: 4, height: 3 },
       { category: 'channel', widgetType: 'follow_non_follow_split', title: 'Follow/Non follow',
         width: 4, height: 3 },
       { category: 'channel', widgetType: 'metric_by_post_type', title: 'Avg. Daily Reach by post type',
-        width: 4, height: 3 },
+        metricKeys: ['reach_daily_avg'], width: 4, height: 3 },
       // 6. Reach by post type over time + Top published posts by Reach
       { category: 'channel', widgetType: 'metric_by_post_type_over_time', title: 'Reach by post type over time',
-        width: 8, height: 4 },
+        metricKeys: ['reach'], width: 8, height: 4 },
       { category: 'content', widgetType: 'content_performance', title: 'Top published posts by Reach',
         metricKeys: ['reach'], width: 4, height: 4 },
       // 7. Engaged users + over time
@@ -118,10 +118,10 @@ export const DASHBOARD_TEMPLATES = [
       { category: 'channel', widgetType: 'key_metrics', title: 'Engagements',
         metricKeys: ['interactions'], width: 4, height: 3 },
       { category: 'channel', widgetType: 'metric_by_post_type', title: 'Engagements by post type',
-        width: 8, height: 3 },
+        metricKeys: ['interactions'], width: 8, height: 3 },
       // 9. Engagements by post type over time (full width)
       { category: 'channel', widgetType: 'metric_by_post_type_over_time', title: 'Engagements by post type over time',
-        width: 12, height: 4 },
+        metricKeys: ['interactions'], width: 12, height: 4 },
       // 10. Engagements breakdown KPI + breakdown over time
       { category: 'channel', widgetType: 'key_metrics', title: 'Engagements breakdown',
         metricKeys: ['likes','comments','shares','saves','reposts'], width: 4, height: 4 },
@@ -129,9 +129,9 @@ export const DASHBOARD_TEMPLATES = [
         metricKeys: ['likes','comments','shares','saves','reposts'], width: 8, height: 4 },
       // 11. Comments by post type + Shares by post type
       { category: 'channel', widgetType: 'metric_by_post_type', title: 'Comments by post type',
-        width: 6, height: 3 },
+        metricKeys: ['comments'], width: 6, height: 3 },
       { category: 'channel', widgetType: 'metric_by_post_type', title: 'Shares by post type',
-        width: 6, height: 3 },
+        metricKeys: ['shares'], width: 6, height: 3 },
       // 12. Profile views + over time + Profile taps
       { category: 'channel', widgetType: 'key_metrics', title: 'Profile views',
         metricKeys: ['channel_profile_views'], width: 4, height: 3 },
