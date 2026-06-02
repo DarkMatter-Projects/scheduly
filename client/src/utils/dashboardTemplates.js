@@ -139,12 +139,15 @@ export const DASHBOARD_TEMPLATES = [
         metricKeys: ['channel_profile_views'], width: 4, height: 3 },
       { category: 'channel', widgetType: 'key_metrics', title: 'Profile taps',
         metricKeys: ['profile_taps'], width: 4, height: 3 },
-      // 13. Reels performance + Story performance
+      // 13. Label performance -> Content performance -> Reels -> Story -> Fans
+      { category: 'content', widgetType: 'label_performance', title: 'Label performance',
+        width: 12, height: 4 },
+      { category: 'content', widgetType: 'content_performance', title: 'Content performance',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
       { category: 'content', widgetType: 'reels_performance', title: 'Reels performance',
         width: 12, height: 5 },
       { category: 'content', widgetType: 'story_performance', title: 'Story performance',
         width: 12, height: 5 },
-      // 14. Fans by age and gender (Fans by country moved near the bottom)
       { category: 'channel', widgetType: 'fans_by_age_gender', title: 'Fans by age and gender',
         width: 12, height: 4 },
       // Existing IG widgets (kept above the per-channel breakdown)
