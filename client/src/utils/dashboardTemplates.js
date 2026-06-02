@@ -263,15 +263,47 @@ export const DASHBOARD_TEMPLATES = [
   {
     key: 'customer_engagement',
     name: 'Customer engagement',
-    platforms: ['facebook_page','instagram_business','tiktok'],
+    platforms: ['facebook_page','instagram_business','linkedin','tiktok'],
     available: true,
     badge: 'Updated',
     description: 'Incoming comments and DMs, replies, and audience sentiment.',
     widgets: [
-      { category: 'engage', widgetType: 'key_metrics', title: 'Inbox volume', metricKeys: ['incoming_messages','outgoing_replies','negative_sentiment_rate'], width: 12, height: 2 },
-      { category: 'engage', widgetType: 'time_series', title: 'Incoming volume over time', metricKeys: ['incoming_messages','outgoing_replies'], width: 7, height: 3 },
-      { category: 'engage', widgetType: 'sentiment_breakdown', title: 'Sentiment split', width: 5, height: 3 },
-      { category: 'engage', widgetType: 'sentiment_trend', title: 'Sentiment over time', width: 12, height: 3 },
+      // 1. Incoming volume (KPI row breaking out subtypes)
+      { category: 'engage', widgetType: 'key_metrics', title: 'Incoming volume',
+        metricKeys: ['incoming_messages','engage_direct_messages','engage_fan_posts','engage_mentions','engage_comments_inbox','engage_reviews'],
+        width: 12, height: 3 },
+      // 2. Incoming volume over time (full width)
+      { category: 'engage', widgetType: 'time_series', title: 'Incoming volume over time',
+        metricKeys: ['incoming_messages','outgoing_replies'], width: 12, height: 3 },
+      // 3. Incoming volume by network (placeholder until per-platform engage breakdown ships)
+      { category: 'engage', widgetType: 'engage_volume_by_network', title: 'Incoming volume by network',
+        width: 12, height: 4 },
+      // 4. Sentiment over time (full width)
+      { category: 'engage', widgetType: 'sentiment_trend', title: 'Sentiment over time',
+        width: 12, height: 3 },
+      // 5. Incoming sentiment by network (placeholder)
+      { category: 'engage', widgetType: 'engage_sentiment_by_network', title: 'Incoming sentiment by network',
+        width: 12, height: 4 },
+      // 6. Incoming sentiment by channel (placeholder — same shape as by network but per account)
+      { category: 'engage', widgetType: 'engage_sentiment_by_channel', title: 'Incoming sentiment by channel',
+        width: 12, height: 4 },
+      // 7. Incoming sentiment by label (placeholder — needs label/tag system)
+      { category: 'engage', widgetType: 'engage_sentiment_by_label', title: 'Incoming sentiment by label',
+        width: 12, height: 4 },
+      // 8-12. Per-subtype sentiment KPI groups
+      { category: 'engage', widgetType: 'engage_sentiment_kpi_group', title: 'Direct messages sentiment',
+        width: 12, height: 2 },
+      { category: 'engage', widgetType: 'engage_sentiment_kpi_group', title: 'Fan posts sentiment',
+        width: 12, height: 2 },
+      { category: 'engage', widgetType: 'engage_sentiment_kpi_group', title: 'Mentions sentiment',
+        width: 12, height: 2 },
+      { category: 'engage', widgetType: 'engage_sentiment_kpi_group', title: 'Comments sentiment',
+        width: 12, height: 2 },
+      { category: 'engage', widgetType: 'engage_sentiment_kpi_group', title: 'Reviews sentiment',
+        width: 12, height: 2 },
+      // Sentiment split donut (kept from previous template)
+      { category: 'engage', widgetType: 'sentiment_breakdown', title: 'Sentiment split',
+        width: 12, height: 3 },
     ],
   },
   {

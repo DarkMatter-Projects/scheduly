@@ -49,6 +49,9 @@ export default function AddWidgetModal({ onSave, onClose }) {
     'reels_performance', 'story_performance',
     'fans_by_age_gender', 'engagements_by_profile',
     'views_from_source', 'fans_online_hourly',
+    'engage_volume_by_network', 'engage_sentiment_by_network',
+    'engage_sentiment_by_channel', 'engage_sentiment_by_label',
+    'engage_sentiment_kpi_group',
   ]);
   const requiresMetrics = !NO_METRIC_WIDGETS.has(widgetType);
 

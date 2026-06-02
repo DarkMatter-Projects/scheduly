@@ -443,6 +443,11 @@ const NON_SCOPED_WIDGET_TYPES = new Set([
   'fans_by_age_gender',
   'views_from_source',
   'fans_online_hourly',
+  'engage_volume_by_network',
+  'engage_sentiment_by_network',
+  'engage_sentiment_by_channel',
+  'engage_sentiment_by_label',
+  'engage_sentiment_kpi_group',
 ]);
 
 function ChannelsSummary({ accounts, dashboard }) {

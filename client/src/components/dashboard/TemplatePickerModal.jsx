@@ -219,8 +219,6 @@ function skipsAccountStep(template) {
   // Paid performance pulls from ad_insights tables (Meta Ads / Google Ads /
   // TikTok Ads), not from social_accounts — there's no account picker for it.
   if (template.key === 'paid_performance') return true;
-  // Engage-only templates use the engage_messages table across all accounts.
-  if (template.key === 'customer_engagement') return true;
   return false;
 }
 

@@ -108,7 +108,12 @@ function WidgetBody({ widget }) {
     case 'demographics':
     case 'geographics':
     case 'views_from_source':
-    case 'fans_online_hourly':             return <NoDataPlaceholder />;
+    case 'fans_online_hourly':
+    case 'engage_volume_by_network':
+    case 'engage_sentiment_by_network':
+    case 'engage_sentiment_by_channel':
+    case 'engage_sentiment_by_label':
+    case 'engage_sentiment_kpi_group':     return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -823,7 +828,7 @@ function DeltaPill({ current, prior, invertDelta }) {
 
 function SentimentTrendBody({ data }) {
   const points = data?.points || [];
-  const anyValue = points.some(p => p.positive + p.neutral + p.negative > 0);
+  const anyValue = points.some(p => p.positive + p.neutral + p.negative + (p.uncategorized || 0) > 0);
   if (!anyValue) {
     return <ChartEmptyState height={200} title="No messages in range" hint="Sentiment over time appears once incoming comments and DMs are ingested." />;
   }
@@ -838,10 +843,11 @@ function SentimentTrendBody({ data }) {
         />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
         <Tooltip labelFormatter={(v) => { try { return format(new Date(v), 'MMM d, yyyy'); } catch { return v; } }} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
-        <Area type="monotone" dataKey="positive" stackId="1" stroke={SENTIMENT_COLORS.positive} fill={SENTIMENT_COLORS.positive} fillOpacity={0.8} name="Positive" isAnimationActive={false} />
-        <Area type="monotone" dataKey="neutral"  stackId="1" stroke={SENTIMENT_COLORS.neutral}  fill={SENTIMENT_COLORS.neutral}  fillOpacity={0.8} name="Neutral"  isAnimationActive={false} />
-        <Area type="monotone" dataKey="negative" stackId="1" stroke={SENTIMENT_COLORS.negative} fill={SENTIMENT_COLORS.negative} fillOpacity={0.8} name="Negative" isAnimationActive={false} />
+        <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
+        <Area type="monotone" dataKey="positive"      stackId="1" stroke={SENTIMENT_COLORS.positive} fill={SENTIMENT_COLORS.positive} fillOpacity={0.8} name="Positive messages"      isAnimationActive={false} />
+        <Area type="monotone" dataKey="neutral"       stackId="1" stroke={SENTIMENT_COLORS.neutral}  fill={SENTIMENT_COLORS.neutral}  fillOpacity={0.8} name="Neutral messages"       isAnimationActive={false} />
+        <Area type="monotone" dataKey="negative"      stackId="1" stroke={SENTIMENT_COLORS.negative} fill={SENTIMENT_COLORS.negative} fillOpacity={0.8} name="Negative messages"      isAnimationActive={false} />
+        <Area type="monotone" dataKey="uncategorized" stackId="1" stroke="#6366f1"                    fill="#6366f1"                    fillOpacity={0.6} name="Uncategorized messages" isAnimationActive={false} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -859,16 +865,18 @@ const PLATFORM_ICON = {
 // per-cell hover popovers (label, format, description, scope) the same
 // way Performance by Channel's column metadata does.
 const CONTENT_COLUMNS = [
-  { key: 'interactions',    label: 'Interactions',     format: 'number',     scope: 'content',
-    description: 'The Reactions, Comments, Shares, Saves (IG, X, PI and TikTok), Reposts (IG) and clicks (FB, LI, X and PI) on a post.' },
-  { key: 'views',           label: 'Views',            format: 'number',     scope: 'content',
-    description: 'Total number of times the post/reel has been seen. For IG stories, the Impressions value is shown.' },
+  { key: 'reactions',       label: 'Reactions',        format: 'number',     scope: 'content',
+    description: 'Reactions on the post — likes on IG/TikTok/X/Pinterest, the Like/Love/Haha/Wow/Sad/Angry set on Facebook.' },
+  { key: 'impressions',     label: 'Impressions',      format: 'number',     scope: 'content',
+    description: 'Total number of times the post was displayed, including reels, posts and stories.' },
   { key: 'reachAvg',        label: 'Reach avg.',       format: 'number',     scope: 'content',
-    description: 'The number of people that saw the post/story/reel in their feed. Use the average to get accurate aggregated number of people reached on average per published post. TikTok data can take up to 48 hours.' },
-  { key: 'frequency',       label: 'Frequency',        format: 'multiplier', scope: 'content',
-    description: 'On average how many times a person saw your post. Facebook Impressions is replaced by Views from November 13th 2025. Instagram Impressions is replaced by Views from January 2025. Formula: Impressions (Views) / Reach' },
-  { key: 'interactionRate', label: 'Interaction rate', format: 'percent',    scope: 'content',
-    description: 'Total Engagements and Clicks as a percentage of the impressions. Facebook Impressions is replaced by Views from November 13th 2025. Instagram Impressions is replaced by Views from January 2025. Formula: 100 * (Engagements + Clicks (FB, LI, X and PI)) / Impressions(Views)' },
+    description: 'The number of unique people who saw the post in their feed.' },
+  { key: 'engagements',     label: 'Engagements',      format: 'number',     scope: 'content',
+    description: 'Sum of reactions, comments, shares, saves and reposts on the post.' },
+  { key: 'engagementRate',  label: 'Engagement rate',  format: 'percent',    scope: 'content',
+    description: 'Engagements as a percentage of impressions. Formula: 100 * Engagements / Impressions.' },
+  { key: 'videoViews',      label: 'Video views',      format: 'number',     scope: 'content',
+    description: 'Number of times the video was viewed. Returns N/A for posts without video media.' },
 ];
 
 function ContentPerformanceBody({ data }) {
@@ -876,16 +884,22 @@ function ContentPerformanceBody({ data }) {
   if (rows.length === 0) return <ChartEmptyState height={180} title="No posts in range" hint="Publish posts in the selected period to see top performers." />;
   const sortBy = data?.sortBy;
 
-  // Derived per-row metrics. Interactions = likes+comments+shares+saves;
-  // Frequency = impressions/reach (avg times each person saw the post);
-  // Interaction rate = interactions / impressions, expressed as a percent.
+  // Derived per-row metrics:
+  //   reactions       = likes (the platform-specific "reaction" count we collect)
+  //   engagements     = likes + comments + shares + saves + reposts
+  //   reachAvg        = the post's reach value
+  //   engagementRate  = engagements / impressions, as a percentage
+  //   videoViews      = impressions for video posts; null for non-video so
+  //                     the cell renders "N/A" instead of a misleading 0
   const enriched = rows.map(r => {
-    const interactions = (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.saves || 0);
-    const views = r.impressions || 0;
+    const reactions = r.likes || 0;
+    const engagements = (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.saves || 0) + (r.reposts || 0);
     const reachAvg = r.reach || 0;
-    const frequency = reachAvg > 0 ? views / reachAvg : 0;
-    const interactionRate = views > 0 ? (interactions / views) * 100 : 0;
-    return { ...r, interactions, views, reachAvg, frequency, interactionRate };
+    const impressions = r.impressions || 0;
+    const engagementRate = impressions > 0 ? (engagements / impressions) * 100 : 0;
+    const isVideo = (r.mediaMime || '').startsWith('video/');
+    const videoViews = isVideo ? impressions : null;
+    return { ...r, reactions, impressions, reachAvg, engagements, engagementRate, videoViews };
   });
 
   return (
@@ -917,11 +931,19 @@ function ContentPerformanceBody({ data }) {
                     </div>
                   </div>
                 </td>
-                {CONTENT_COLUMNS.map(c => (
-                  <td key={c.key} className="px-2 py-2 text-right tabular-nums text-slate-700">
-                    <ContentCellHover platform={r.platform} column={c} value={r[c.key]} />
-                  </td>
-                ))}
+                {CONTENT_COLUMNS.map(c => {
+                  const value = r[c.key];
+                  if (value === null || value === undefined) {
+                    return (
+                      <td key={c.key} className="px-2 py-2 text-right tabular-nums text-slate-400">N/A</td>
+                    );
+                  }
+                  return (
+                    <td key={c.key} className="px-2 py-2 text-right tabular-nums text-slate-700">
+                      <ContentCellHover platform={r.platform} column={c} value={value} />
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}

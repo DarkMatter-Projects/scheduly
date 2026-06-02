@@ -1437,7 +1437,8 @@ async function buildSentimentTrend(dashboard) {
     `SELECT DATE(sent_at) AS date,
             SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) AS positive,
             SUM(CASE WHEN sentiment = 'neutral'  THEN 1 ELSE 0 END) AS neutral,
-            SUM(CASE WHEN sentiment = 'negative' THEN 1 ELSE 0 END) AS negative
+            SUM(CASE WHEN sentiment = 'negative' THEN 1 ELSE 0 END) AS negative,
+            SUM(CASE WHEN sentiment IS NULL      THEN 1 ELSE 0 END) AS uncategorized
      FROM engage_messages
      WHERE direction = 'incoming' AND sent_at BETWEEN ? AND ?
      GROUP BY DATE(sent_at) ORDER BY date ASC`,
@@ -1447,9 +1448,10 @@ async function buildSentimentTrend(dashboard) {
     range: { start, end },
     points: rows.map(r => ({
       date: r.date,
-      positive: Number(r.positive) || 0,
-      neutral:  Number(r.neutral) || 0,
-      negative: Number(r.negative) || 0,
+      positive:      Number(r.positive) || 0,
+      neutral:       Number(r.neutral) || 0,
+      negative:      Number(r.negative) || 0,
+      uncategorized: Number(r.uncategorized) || 0,
     })),
   };
 }
@@ -1514,6 +1516,11 @@ async function buildWidgetData(dashboard, widget) {
     case 'story_performance':              return buildPostTypePerformance(dashboard, widget, ['story']);
     case 'views_from_source':              return { placeholder: true };
     case 'fans_online_hourly':             return { placeholder: true };
+    case 'engage_volume_by_network':
+    case 'engage_sentiment_by_network':
+    case 'engage_sentiment_by_channel':
+    case 'engage_sentiment_by_label':
+    case 'engage_sentiment_kpi_group':     return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }
