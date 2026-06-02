@@ -144,15 +144,10 @@ export const DASHBOARD_TEMPLATES = [
         width: 12, height: 5 },
       { category: 'content', widgetType: 'story_performance', title: 'Story performance',
         width: 12, height: 5 },
-      // 14. Fans by age and gender + Fans by country
+      // 14. Fans by age and gender (Fans by country moved near the bottom)
       { category: 'channel', widgetType: 'fans_by_age_gender', title: 'Fans by age and gender',
         width: 12, height: 4 },
-      { category: 'channel', widgetType: 'followers_by_country', title: 'Fans by country',
-        width: 12, height: 5 },
-      // 15. Engagements by Profile (per-channel breakdown)
-      { category: 'channel', widgetType: 'engagements_by_profile', title: 'Engagements by Profile',
-        width: 12, height: 3 },
-      // Existing IG widgets (kept at the bottom)
+      // Existing IG widgets (kept above the per-channel breakdown)
       { category: 'channel', widgetType: 'key_metrics', title: 'Account key metrics',
         metricKeys: ['reach','impressions','likes','comments','saves','engagement_rate','posts'],
         width: 12, height: 2 },
@@ -162,6 +157,12 @@ export const DASHBOARD_TEMPLATES = [
         metricKeys: ['likes','comments','saves'], width: 6, height: 3 },
       { category: 'content', widgetType: 'content_performance', title: 'Top performing posts',
         metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      // Fans by country — second-last
+      { category: 'channel', widgetType: 'followers_by_country', title: 'Fans by country',
+        width: 12, height: 5 },
+      // Per-channel breakdown — sits at the very bottom of the dashboard
+      { category: 'channel', widgetType: 'engagements_by_profile', title: 'Engagements by Profile',
+        width: 12, height: 3 },
     ],
   },
   {
