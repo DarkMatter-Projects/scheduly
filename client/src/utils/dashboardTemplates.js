@@ -350,9 +350,81 @@ export const DASHBOARD_TEMPLATES = [
     key: 'linkedin_overview',
     name: 'LinkedIn overview',
     platforms: ['linkedin'],
-    available: false,
-    description: 'Followers, impressions, engagement on LinkedIn Pages. LinkedIn integration coming soon.',
-    widgets: [],
+    available: true,
+    description: 'Followers, impressions, engagement and audience demographics on your LinkedIn Pages.',
+    widgets: [
+      // 1. Per-channel summary table — mirrors FB / IG / TikTok
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
+        metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
+        width: 12, height: 3 },
+      // 2. Followers KPI + daily trend
+      { category: 'channel', widgetType: 'key_metrics', title: 'Fans',
+        metricKeys: ['followers','net_new_followers'], width: 4, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily fans',
+        metricKeys: ['followers'], width: 8, height: 4 },
+      // 3. Engagement Rate Reach KPI + by post type
+      { category: 'channel', widgetType: 'key_metrics', title: 'Engagement Rate Reach',
+        metricKeys: ['engagement_rate_reach'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'metric_by_post_type', title: 'Engagement Rate Reach by post type',
+        metricKeys: ['engagement_rate_reach'], width: 8, height: 3 },
+      // 4. Top ERR Profiles + ERR by post type over time
+      { category: 'channel', widgetType: 'top_err_profiles', title: 'Top ERR Profiles',
+        width: 4, height: 3 },
+      { category: 'channel', widgetType: 'metric_by_post_type_over_time', title: 'ERR by post type over time',
+        metricKeys: ['engagement_rate_reach'], width: 8, height: 3 },
+      // 5. Average daily reach trio
+      { category: 'channel', widgetType: 'key_metrics', title: 'Avg. Daily Reach',
+        metricKeys: ['reach_daily_avg'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'follow_non_follow_split', title: 'Follow/Non follow',
+        width: 4, height: 3 },
+      { category: 'channel', widgetType: 'metric_by_post_type', title: 'Avg. Daily Reach by post type',
+        metricKeys: ['reach_daily_avg'], width: 4, height: 3 },
+      // 6. Reach by post type over time + Top published posts by Reach
+      { category: 'channel', widgetType: 'metric_by_post_type_over_time', title: 'Reach by post type over time',
+        metricKeys: ['reach'], width: 8, height: 4 },
+      { category: 'content', widgetType: 'content_performance', title: 'Top published posts by Reach',
+        metricKeys: ['reach'], width: 4, height: 4 },
+      // 7. Engaged users + over time
+      { category: 'channel', widgetType: 'key_metrics', title: 'Engaged users',
+        metricKeys: ['engaged_users_daily_avg','engaged_users_rate'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Engaged users over time',
+        metricKeys: ['engaged_users_daily_avg'], width: 8, height: 3 },
+      // 8. Engagements + by post type
+      { category: 'channel', widgetType: 'key_metrics', title: 'Engagements',
+        metricKeys: ['interactions'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'metric_by_post_type', title: 'Engagements by post type',
+        metricKeys: ['interactions'], width: 8, height: 3 },
+      // 9. Engagements by post type over time (full width)
+      { category: 'channel', widgetType: 'metric_by_post_type_over_time', title: 'Engagements by post type over time',
+        metricKeys: ['interactions'], width: 12, height: 4 },
+      // 10. Engagements breakdown KPI + breakdown over time
+      { category: 'channel', widgetType: 'key_metrics', title: 'Engagements breakdown',
+        metricKeys: ['likes','comments','shares','clicks'], width: 4, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Engagements breakdown over time',
+        metricKeys: ['likes','comments','shares','clicks'], width: 8, height: 4 },
+      // 11. Comments by post type + Shares by post type
+      { category: 'channel', widgetType: 'metric_by_post_type', title: 'Comments by post type',
+        metricKeys: ['comments'], width: 6, height: 3 },
+      { category: 'channel', widgetType: 'metric_by_post_type', title: 'Shares by post type',
+        metricKeys: ['shares'], width: 6, height: 3 },
+      // 12. Profile views + over time
+      { category: 'channel', widgetType: 'key_metrics', title: 'Profile views',
+        metricKeys: ['channel_profile_views'], width: 6, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Profile views over time',
+        metricKeys: ['channel_profile_views'], width: 6, height: 3 },
+      // 13. Label performance -> Content performance -> Fans by age and gender
+      { category: 'content', widgetType: 'label_performance', title: 'Label performance',
+        width: 12, height: 4 },
+      { category: 'content', widgetType: 'content_performance', title: 'Content performance',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      { category: 'channel', widgetType: 'fans_by_age_gender', title: 'Fans by age and gender',
+        width: 12, height: 4 },
+      // Second-last: Fans by country, last: Engagements by Profile
+      { category: 'channel', widgetType: 'followers_by_country', title: 'Fans by country',
+        width: 12, height: 5 },
+      { category: 'channel', widgetType: 'engagements_by_profile', title: 'Engagements by Profile',
+        width: 12, height: 3 },
+    ],
   },
   {
     key: 'twitter_overview',
@@ -366,9 +438,59 @@ export const DASHBOARD_TEMPLATES = [
     key: 'youtube_overview',
     name: 'YouTube overview',
     platforms: ['youtube'],
-    available: false,
-    description: 'Views, watch time, subscribers. YouTube integration coming soon.',
-    widgets: [],
+    available: true,
+    description: 'Subscribers, views, watch time and engagement across your YouTube channels.',
+    widgets: [
+      // 1. Per-channel summary table — mirrors FB / IG / LI / TT
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
+        metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
+        width: 12, height: 3 },
+      // 2. Subscribers KPI + daily trend
+      { category: 'channel', widgetType: 'key_metrics', title: 'Subscribers',
+        metricKeys: ['followers','net_new_followers'], width: 4, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily subscribers',
+        metricKeys: ['followers'], width: 8, height: 4 },
+      // 3. Video views KPI + daily trend
+      { category: 'channel', widgetType: 'key_metrics', title: 'Video views',
+        metricKeys: ['views'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Daily video views',
+        metricKeys: ['views'], width: 8, height: 3 },
+      // 4. Watch time KPI + over time (uses video_watch_time placeholder)
+      { category: 'channel', widgetType: 'key_metrics', title: 'Watch time',
+        metricKeys: ['video_watch_time'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Watch time over time',
+        metricKeys: ['video_watch_time'], width: 8, height: 3 },
+      // 5. Engagement Rate Reach + Top ERR Profiles
+      { category: 'channel', widgetType: 'key_metrics', title: 'Engagement Rate Reach',
+        metricKeys: ['engagement_rate_reach'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'top_err_profiles', title: 'Top ERR Profiles',
+        width: 8, height: 3 },
+      // 6. Engagements + breakdown
+      { category: 'channel', widgetType: 'key_metrics', title: 'Engagements',
+        metricKeys: ['interactions'], width: 4, height: 3 },
+      { category: 'channel', widgetType: 'time_series', title: 'Engagements over time',
+        metricKeys: ['interactions'], width: 8, height: 3 },
+      { category: 'channel', widgetType: 'key_metrics', title: 'Engagements breakdown',
+        metricKeys: ['likes','comments','reactions'], width: 4, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Engagements breakdown over time',
+        metricKeys: ['likes','comments','reactions'], width: 8, height: 4 },
+      // 7. Top published videos
+      { category: 'content', widgetType: 'content_performance', title: 'Top published videos',
+        metricKeys: ['views'], width: 12, height: 4 },
+      // 8. Label performance + Content performance
+      { category: 'content', widgetType: 'label_performance', title: 'Label performance',
+        width: 12, height: 4 },
+      { category: 'content', widgetType: 'content_performance', title: 'Content performance',
+        metricKeys: ['engagement_rate'], width: 12, height: 4 },
+      // 9. Fans by age and gender + Fans by country
+      { category: 'channel', widgetType: 'fans_by_age_gender', title: 'Subscribers by age and gender',
+        width: 12, height: 4 },
+      { category: 'channel', widgetType: 'followers_by_country', title: 'Subscribers by country',
+        width: 12, height: 5 },
+      // 10. Per-channel engagement breakdown (last)
+      { category: 'channel', widgetType: 'engagements_by_profile', title: 'Engagements by Profile',
+        width: 12, height: 3 },
+    ],
   },
   {
     key: 'pinterest_overview',
