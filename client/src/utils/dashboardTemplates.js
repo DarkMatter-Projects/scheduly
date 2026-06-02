@@ -411,11 +411,7 @@ export const DASHBOARD_TEMPLATES = [
     available: true,
     description: 'Subscribers, views, watch time and engagement across your YouTube channels.',
     widgets: [
-      // 1. Per-channel summary table
-      { category: 'channel', widgetType: 'channel_performance_table', title: 'Performance by channel',
-        metricKeys: ['followers','net_new_followers','views','reach_daily_avg','interactions'],
-        width: 12, height: 3 },
-      // 2. Summary KPI row
+      // 1. Summary KPI row
       { category: 'channel', widgetType: 'key_metrics', title: 'Summary',
         metricKeys: ['followers','net_new_followers','interactions','views'],
         width: 12, height: 3 },
@@ -474,9 +470,7 @@ export const DASHBOARD_TEMPLATES = [
       { category: 'channel', widgetType: 'channel_performance_table', title: 'Channel comparison',
         metricKeys: ['net_new_followers','interactions','views','video_watch_time'],
         width: 12, height: 3 },
-      // 15. Demographics: Subscribers by age and gender + by country
-      { category: 'channel', widgetType: 'fans_by_age_gender', title: 'Subscribers by age and gender',
-        width: 12, height: 4 },
+      // 15. Subscribers by country
       { category: 'channel', widgetType: 'followers_by_country', title: 'Subscribers by country',
         width: 12, height: 5 },
       // Last: Per-channel engagement breakdown
