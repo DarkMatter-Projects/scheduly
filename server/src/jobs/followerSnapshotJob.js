@@ -14,7 +14,7 @@ async function runFollowerSnapshotJob() {
        FROM social_accounts
        WHERE is_active = 1
          AND access_token IS NOT NULL
-         AND platform IN ('facebook_page','instagram_business','tiktok','youtube')`
+         AND platform IN ('facebook_page','instagram_business','linkedin','tiktok','youtube')`
     );
 
     if (accounts.length === 0) {

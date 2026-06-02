@@ -54,6 +54,23 @@ async function fetchFollowerCount(account) {
     }
   }
 
+  if (account.platform === 'linkedin') {
+    // organization follower count — needs r_organization_social.
+    // Falls back to null when only personal/OIDC scopes are granted.
+    try {
+      const orgUrn = `urn:li:organization:${account.platform_account_id}`;
+      const { data } = await axios.get(`https://api.linkedin.com/v2/networkSizes/${encodeURIComponent(orgUrn)}`, {
+        params: { edgeType: 'CompanyFollowedByMember' },
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000,
+      });
+      const v = Number(data?.firstDegreeSize);
+      return Number.isFinite(v) ? v : null;
+    } catch {
+      return null;
+    }
+  }
+
   if (account.platform === 'youtube') {
     // Subscribers are under channel statistics. The API key is unused
     // because we use the user's OAuth bearer for their own channel.

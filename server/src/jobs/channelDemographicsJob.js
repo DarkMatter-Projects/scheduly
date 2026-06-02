@@ -13,7 +13,7 @@ async function runChannelDemographicsJob() {
        FROM social_accounts
        WHERE is_active = 1
          AND access_token IS NOT NULL
-         AND platform IN ('facebook_page','instagram_business')`
+         AND platform IN ('facebook_page','instagram_business','linkedin','youtube')`
     );
 
     if (accounts.length === 0) {

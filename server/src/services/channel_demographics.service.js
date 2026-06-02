@@ -2,6 +2,7 @@ const axios = require('axios');
 const pool = require('../config/db');
 const fb = require('../config/facebook');
 const ig = require('../config/instagram');
+const linkedin = require('../config/linkedin');
 const { decrypt } = require('./token.service');
 const logger = require('../utils/logger');
 
@@ -16,6 +17,12 @@ async function snapshotDemographicsForAccount(account, dateStr) {
   }
   if (account.platform === 'instagram_business') {
     return fetchInstagramDemographics(account, token, day);
+  }
+  if (account.platform === 'youtube') {
+    return fetchYouTubeDemographics(account, token, day);
+  }
+  if (account.platform === 'linkedin') {
+    return fetchLinkedInDemographics(account, token, day);
   }
   return { stored: 0, dimensions: [] };
 }
@@ -79,6 +86,96 @@ async function fetchInstagramDemographics(account, token, day) {
     }
   } catch (err) {
     logger.debug(`IG gender_age demographics skipped for account ${account.id}: ${err.response?.data?.error?.message || err.message}`);
+  }
+  return upsertDimensions(account.id, day, dims);
+}
+
+// YouTube Analytics audience demographics. viewerPercentage is the
+// percentage of total channel viewing time attributed to each
+// dimension value — we multiply by the channel's reported total
+// viewers to get an estimated head-count, otherwise rows would all
+// be small floats. For lack of a reliable "total viewers" lifetime
+// number we just store the percentage scaled by 100 so it's an
+// integer the dashboard can render.
+async function fetchYouTubeDemographics(account, token, day) {
+  const dims = [];
+  // Country breakdown
+  try {
+    const { data } = await axios.get('https://youtubeanalytics.googleapis.com/v2/reports', {
+      params: {
+        ids: 'channel==MINE',
+        startDate: '2005-01-01', // YT founding — lifetime aggregate
+        endDate: day,
+        metrics: 'viewerPercentage',
+        dimensions: 'country',
+        sort: '-viewerPercentage',
+      },
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 12000,
+    });
+    for (const row of (data.rows || [])) {
+      const [code, pct] = row;
+      if (code && typeof pct === 'number') {
+        dims.push({ dimension: 'country', key: code, count: Math.round(pct * 100) });
+      }
+    }
+  } catch (err) {
+    logger.debug(`YouTube country demographics skipped for account ${account.id}: ${err.response?.data?.error?.message || err.message}`);
+  }
+  // Age + Gender
+  try {
+    const { data } = await axios.get('https://youtubeanalytics.googleapis.com/v2/reports', {
+      params: {
+        ids: 'channel==MINE',
+        startDate: '2005-01-01',
+        endDate: day,
+        metrics: 'viewerPercentage',
+        dimensions: 'ageGroup,gender',
+      },
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 12000,
+    });
+    for (const row of (data.rows || [])) {
+      const [age, gender, pct] = row;
+      if (age && gender && typeof pct === 'number') {
+        // YouTube ages come as "age13-17", "age18-24" etc.
+        const ageBracket = String(age).replace(/^age/, '');
+        const g = gender === 'female' ? 'F' : gender === 'male' ? 'M' : 'U';
+        dims.push({ dimension: 'gender_age', key: `${g}.${ageBracket}`, count: Math.round(pct * 100) });
+      }
+    }
+  } catch (err) {
+    logger.debug(`YouTube gender_age demographics skipped for account ${account.id}: ${err.response?.data?.error?.message || err.message}`);
+  }
+  return upsertDimensions(account.id, day, dims);
+}
+
+// LinkedIn organizationalEntityFollowerStatistics — country and
+// staff_count_range. Needs r_organization_social scope (gated).
+async function fetchLinkedInDemographics(account, token, day) {
+  const dims = [];
+  try {
+    const orgUrn = `urn:li:organization:${account.platform_account_id}`;
+    const { data } = await axios.get(`${linkedin.LINKEDIN_API_BASE}/rest/organizationalEntityFollowerStatistics`, {
+      params: { q: 'organizationalEntity', organizationalEntity: orgUrn },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'LinkedIn-Version': '202401',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+      timeout: 12000,
+    });
+    const elements = data.elements || [];
+    for (const el of elements) {
+      // followerCountsByGeoCountry: [{ geo: 'urn:li:geo:...', followerCounts: { organicFollowerCount, paidFollowerCount } }]
+      for (const c of (el.followerCountsByGeoCountry || [])) {
+        const code = (c.geo || '').split(':').pop();
+        const count = (c.followerCounts?.organicFollowerCount || 0) + (c.followerCounts?.paidFollowerCount || 0);
+        if (code) dims.push({ dimension: 'country', key: code, count });
+      }
+    }
+  } catch (err) {
+    logger.debug(`LinkedIn demographics skipped for account ${account.id}: ${err.response?.data?.message || err.message}`);
   }
   return upsertDimensions(account.id, day, dims);
 }

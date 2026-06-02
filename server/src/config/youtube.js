@@ -12,6 +12,10 @@ const YOUTUBE_UPLOAD_BASE   = 'https://www.googleapis.com/upload/youtube/v3';
 const YOUTUBE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube.readonly',
+  // YouTube Analytics API — required for daily channel metrics,
+  // subscribers gained/lost, watch time, and audience demographics.
+  // Existing connections must re-OAuth to pick this up.
+  'https://www.googleapis.com/auth/yt-analytics.readonly',
   'openid',
   'email',
   'profile',

@@ -2,6 +2,7 @@ const axios = require('axios');
 const pool = require('../config/db');
 const fb = require('../config/facebook');
 const ig = require('../config/instagram');
+const linkedin = require('../config/linkedin');
 const { decrypt } = require('./token.service');
 const logger = require('../utils/logger');
 
@@ -17,6 +18,12 @@ async function fetchInsightsForAccount(account, dateStr) {
   }
   if (account.platform === 'instagram_business') {
     return fetchInstagramInsights(account, token, day);
+  }
+  if (account.platform === 'youtube') {
+    return fetchYouTubeInsights(account, token, day);
+  }
+  if (account.platform === 'linkedin') {
+    return fetchLinkedInInsights(account, token, day);
   }
   return null;
 }
@@ -94,6 +101,86 @@ async function fetchInstagramInsights(account, token, day) {
   } catch (err) {
     const apiError = err.response?.data?.error;
     logger.debug(`IG insights skipped for account ${account.id}: ${apiError?.message || err.message}`);
+    return null;
+  }
+}
+
+// YouTube Analytics API — daily channel metrics. Needs the
+// yt-analytics.readonly scope; older grants without it will get a
+// 403 and we'll log + skip silently.
+async function fetchYouTubeInsights(account, token, day) {
+  try {
+    const { data } = await axios.get('https://youtubeanalytics.googleapis.com/v2/reports', {
+      params: {
+        ids: 'channel==MINE',
+        startDate: day,
+        endDate: day,
+        metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares',
+      },
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 12000,
+    });
+    // YouTube Analytics returns columnHeaders + rows. With a single
+    // day range we expect 0 or 1 row.
+    const headers = (data.columnHeaders || []).map(h => h.name);
+    const row = (data.rows && data.rows[0]) || [];
+    const get = (col) => {
+      const idx = headers.indexOf(col);
+      const v = idx >= 0 ? row[idx] : null;
+      return (typeof v === 'number') ? v : null;
+    };
+    return {
+      // estimatedMinutesWatched → seconds for parity with FB watch time.
+      engaged_users:      null, // YouTube doesn't have a direct engaged_users equivalent
+      profile_views:      get('views'),
+      profile_taps:       null,
+      reach_unique:       null, // YouTube doesn't expose reach
+      follower_views:     null,
+      non_follower_views: null,
+    };
+  } catch (err) {
+    const apiError = err.response?.data?.error;
+    logger.debug(`YouTube insights skipped for account ${account.id}: ${apiError?.message || err.message}`);
+    return null;
+  }
+}
+
+// LinkedIn organizationPageStatistics — needs r_organization_social
+// scope (Marketing Developer Platform approval). With the current
+// member-only OIDC grants this will 403 and we skip.
+async function fetchLinkedInInsights(account, token, day) {
+  try {
+    // platform_account_id stores the organization URN id (numeric).
+    const orgUrn = `urn:li:organization:${account.platform_account_id}`;
+    const { data } = await axios.get(`${linkedin.LINKEDIN_API_BASE}/rest/organizationPageStatistics`, {
+      params: {
+        q: 'organization',
+        organization: orgUrn,
+        'timeIntervals.timeGranularityType': 'DAY',
+        'timeIntervals.timeRange.start': new Date(day).getTime(),
+        'timeIntervals.timeRange.end': new Date(nextDay(day)).getTime(),
+      },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'LinkedIn-Version': '202401',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+      timeout: 12000,
+    });
+    const stats = data.elements?.[0]?.totalPageStatistics || {};
+    const views = stats.views || {};
+    const clicks = stats.clicks || {};
+    return {
+      engaged_users:      null,
+      profile_views:      numberOr(views.allPageViews?.pageViews),
+      profile_taps:       numberOr(clicks.totalCareersClicks ?? clicks.totalLifePageClicks),
+      reach_unique:       null,
+      follower_views:     null,
+      non_follower_views: null,
+    };
+  } catch (err) {
+    const apiError = err.response?.data;
+    logger.debug(`LinkedIn insights skipped for account ${account.id}: ${apiError?.message || err.message}`);
     return null;
   }
 }
