@@ -344,10 +344,46 @@ export const DASHBOARD_TEMPLATES = [
   {
     key: 'distribution_overview',
     name: 'Distribution overview',
-    platforms: ['facebook_page','instagram_business'],
-    available: false,
-    description: 'How content was distributed — organic vs paid, by post type. Requires distribution breakdown (coming soon).',
-    widgets: [],
+    platforms: ['facebook_page','instagram_business','linkedin','twitter','tiktok','youtube'],
+    available: true,
+    description: 'How content was distributed — impressions, reach, frequency, organic vs paid, by post type and by channel.',
+    widgets: [
+      // 1. Distribution avg. + Viral amplification
+      { category: 'channel', widgetType: 'key_metrics', title: 'Distribution avg.',
+        metricKeys: ['impressions','reach_daily_avg','frequency'], width: 8, height: 3 },
+      { category: 'channel', widgetType: 'key_metrics', title: 'Viral amplification',
+        metricKeys: ['viral_amplification'], width: 4, height: 3 },
+      // 2. Impressions (Facebook) — 4-up KPI row
+      { category: 'channel', widgetType: 'key_metrics', title: 'Impressions (Facebook)',
+        metricKeys: ['paid_impressions','organic_impressions','viral_impressions','non_viral_impressions'],
+        width: 12, height: 3 },
+      // 3. Content distribution table
+      { category: 'content', widgetType: 'content_performance', title: 'Content distribution',
+        metricKeys: ['impressions'], width: 12, height: 4 },
+      // 4. Daily impressions and reach + Impressions breakdown (Facebook)
+      { category: 'channel', widgetType: 'time_series', title: 'Daily impressions and reach',
+        metricKeys: ['impressions','reach_daily'], width: 6, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Impressions breakdown (Facebook)',
+        metricKeys: ['paid_impressions','viral_impressions','non_viral_impressions'],
+        width: 6, height: 4 },
+      // 5. Impressions by channel (table)
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Impressions by channel',
+        metricKeys: ['impressions','reach_daily_avg','frequency','organic_impressions','viral_impressions'],
+        width: 12, height: 3 },
+      // 6. Daily profile views (full width)
+      { category: 'channel', widgetType: 'time_series', title: 'Daily profile views',
+        metricKeys: ['channel_profile_views'], width: 12, height: 3 },
+      // 7. Reach by media type (Instagram) + Reach by follower type (Instagram)
+      { category: 'channel', widgetType: 'metric_by_post_type', title: 'Reach by media type (Instagram)',
+        metricKeys: ['reach'], width: 6, height: 4 },
+      { category: 'channel', widgetType: 'reach_by_follower_type', title: 'Reach by follower type (Instagram)',
+        width: 6, height: 4 },
+      // 8. Reach by distribution (Facebook) + Paid vs Organic reach
+      { category: 'channel', widgetType: 'reach_by_distribution', title: 'Reach by distribution (Facebook)',
+        width: 6, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Paid vs Organic reach',
+        metricKeys: ['paid_reach_daily_avg','organic_reach_daily'], width: 6, height: 4 },
+    ],
   },
   {
     key: 'video_overview',

@@ -460,6 +460,8 @@ const NON_SCOPED_WIDGET_TYPES = new Set([
   'fans_by_function',
   'fans_by_seniority',
   'fans_by_association',
+  'reach_by_follower_type',
+  'reach_by_distribution',
 ]);
 
 function ChannelsSummary({ accounts, dashboard }) {
