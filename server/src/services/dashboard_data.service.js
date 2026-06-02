@@ -139,6 +139,30 @@ async function totalForMetric(metricKey, channelIds, start, end) {
       );
       return parseFloat(r[0]?.v) || 0;
     }
+    if (metricKey === 'interaction_rate' || metricKey === 'engagement_rate_reach' || metricKey === 'interaction_rate_reach') {
+      // Derived from per-row sums. interaction_rate = Σinteractions / Σviews
+      // *both* engagement_rate_reach and interaction_rate_reach divide by reach.
+      const [r] = await pool.execute(
+        `SELECT COALESCE(SUM(pa.likes), 0)
+              + COALESCE(SUM(pa.comments_count), 0)
+              + COALESCE(SUM(pa.shares), 0)
+              + COALESCE(SUM(pa.saves), 0) AS i,
+                COALESCE(SUM(pa.impressions), 0) AS v,
+                COALESCE(SUM(pa.reach), 0) AS r
+         FROM post_analytics pa
+         JOIN post_targets pt ON pa.post_target_id = pt.id
+         JOIN posts p ON pt.post_id = p.id
+         WHERE p.published_at BETWEEN ? AND ? ${accountsFilter}`,
+        params
+      );
+      const i = Number(r[0]?.i) || 0;
+      const v = Number(r[0]?.v) || 0;
+      const reach = Number(r[0]?.r) || 0;
+      if (metricKey === 'interaction_rate')        return v > 0 ? (i / v) * 100 : 0;
+      if (metricKey === 'interaction_rate_reach') return reach > 0 ? (i / reach) * 100 : 0;
+      if (metricKey === 'engagement_rate_reach')  return reach > 0 ? (i / reach) * 100 : 0;
+      return 0;
+    }
     if (metricKey === 'interactions') {
       // Total interactions = likes + comments + shares + saves, summed.
       const [r] = await pool.execute(
@@ -821,7 +845,15 @@ async function buildWidgetData(dashboard, widget) {
     case 'followers_by_country':
     case 'reaction_breakdown':
     case 'demographics':
-    case 'geographics':           return { placeholder: true };
+    case 'geographics':
+    case 'metric_by_post_type':
+    case 'metric_by_post_type_over_time':
+    case 'follow_non_follow_split':
+    case 'top_err_profiles':
+    case 'reels_performance':
+    case 'story_performance':
+    case 'fans_by_age_gender':
+    case 'engagements_by_profile': return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

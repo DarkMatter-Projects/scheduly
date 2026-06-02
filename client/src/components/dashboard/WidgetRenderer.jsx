@@ -98,7 +98,15 @@ function WidgetBody({ widget }) {
     case 'followers_by_country':
     case 'reaction_breakdown':
     case 'demographics':
-    case 'geographics':           return <NoDataPlaceholder />;
+    case 'geographics':
+    case 'metric_by_post_type':
+    case 'metric_by_post_type_over_time':
+    case 'follow_non_follow_split':
+    case 'top_err_profiles':
+    case 'reels_performance':
+    case 'story_performance':
+    case 'fans_by_age_gender':
+    case 'engagements_by_profile': return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">

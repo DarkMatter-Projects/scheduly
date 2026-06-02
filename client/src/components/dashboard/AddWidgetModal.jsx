@@ -44,6 +44,10 @@ export default function AddWidgetModal({ onSave, onClose }) {
     // add them to the canvas without forcing a metric pick.
     'demographics', 'geographics', 'label_performance',
     'paid_performance', 'followers_by_country', 'reaction_breakdown',
+    'metric_by_post_type', 'metric_by_post_type_over_time',
+    'follow_non_follow_split', 'top_err_profiles',
+    'reels_performance', 'story_performance',
+    'fans_by_age_gender', 'engagements_by_profile',
   ]);
   const requiresMetrics = !NO_METRIC_WIDGETS.has(widgetType);
 

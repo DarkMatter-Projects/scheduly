@@ -433,6 +433,14 @@ const NON_SCOPED_WIDGET_TYPES = new Set([
   'reaction_breakdown',
   'demographics',
   'geographics',
+  'metric_by_post_type',
+  'metric_by_post_type_over_time',
+  'follow_non_follow_split',
+  'top_err_profiles',
+  'reels_performance',
+  'story_performance',
+  'fans_by_age_gender',
+  'engagements_by_profile',
 ]);
 
 function ChannelsSummary({ accounts, dashboard }) {

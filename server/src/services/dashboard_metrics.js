@@ -82,6 +82,12 @@ const METRICS = [
   { key: 'channel_profile_views', label: 'Channel profile views', section: 'distribution', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok'], format: 'number', source: 'derived.channel_profile_views', available: false,
     scope: 'channel',
     description: 'Number of times your profile/Page was visited. Requires page_views_total ingestion.' },
+  { key: 'profile_taps',        label: 'Profile activity by type', section: 'distribution', category: 'channel', platforms: ['instagram_business'],                       format: 'number',   source: 'derived.profile_taps',          available: false,
+    scope: 'channel',
+    description: 'Total profile taps (call, email, directions, website). Requires profile_activity ingestion.' },
+  { key: 'reposts',             label: 'Reposts',             section: 'engagements', category: 'channel', platforms: ['instagram_business'],                          format: 'number',   source: 'derived.reposts',               available: false,
+    scope: 'content',
+    description: 'Times Instagram users reshared your post to their own story. Requires reshare ingestion.' },
   { key: 'reactions',           label: 'Reactions',           section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','linkedin','tiktok','youtube'], format: 'number',   source: 'post_analytics.likes',          available: true,
     scope: 'content',
     description: 'Total reactions across all types (Like, Love, Haha, Wow, Sad, Angry) on posts published in the period.' },
@@ -153,6 +159,15 @@ const METRICS = [
   { key: 'interaction_rate_reach', label: 'Interaction Rate (Reach)', section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','linkedin','tiktok'], format: 'percent', source: 'derived.interaction_rate_reach', available: true,
     scope: 'content',
     description: 'Interactions as a percentage of reach. Formula: 100 * Interactions / Reach.' },
+  { key: 'engagement_rate_reach', label: 'Engagement rate (reach)', section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','linkedin','tiktok'], format: 'percent', source: 'derived.engagement_rate_reach', available: true,
+    scope: 'content',
+    description: 'Engagements (reactions, comments, shares, saves) as a percentage of unique reach. Formula: 100 * Engagements / Reach.' },
+  { key: 'engaged_users_daily_avg', label: 'Engaged users (daily) avg.', section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business'], format: 'number', source: 'derived.engaged_users_daily_avg', available: false,
+    scope: 'channel',
+    description: 'Daily unique users who took any action on your content, averaged across the period. Requires page_engaged_users ingestion (coming soon).' },
+  { key: 'engaged_users_rate',  label: 'Engaged users rate',  section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business'], format: 'percent', source: 'derived.engaged_users_rate', available: false,
+    scope: 'channel',
+    description: 'Engaged users as a percentage of reach. Requires page_engaged_users ingestion (coming soon).' },
   { key: 'posts',               label: 'Posts published',     section: 'engagements', category: 'channel', platforms: ['facebook_page','instagram_business','tiktok'], format: 'number',   source: 'posts.count',                    available: true,
     scope: 'content',
     description: 'The number of posts published from Scheduly during the period.' },
@@ -209,8 +224,12 @@ function metricFamily(key) {
   if (m.source.startsWith('post_analytics.')) return 'organic';
   if (m.source.startsWith('posts.')) return 'organic';
   if (m.source === 'derived.engagement_rate') return 'organic';
+  if (m.source === 'derived.engagement_rate_reach') return 'organic';
+  if (m.source === 'derived.interaction_rate') return 'organic';
+  if (m.source === 'derived.interaction_rate_reach') return 'organic';
   if (m.source === 'derived.interactions') return 'organic';
   if (m.source === 'derived.reach_daily_avg') return 'organic';
+  if (m.source === 'derived.frequency') return 'organic';
   if (m.source.startsWith('follower_history.')) return 'followers';
   if (m.source.startsWith('ad_insights.')) return 'paid';
   if (m.source.startsWith('derived.') && ['ctr','cpc','cpm','roas','paid_reach_daily_avg'].includes(key)) return 'paid';
