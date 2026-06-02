@@ -533,6 +533,10 @@ async function buildKeyMetrics(dashboard, widget) {
       label: m.label,
       format: m.format,
       invertDelta: !!m.invertDelta,
+      // Surface scope + supported platforms so the KpiCard can render the
+      // scope badge and platform icons that match the reference design.
+      scope: m.scope || 'channel',
+      platforms: Array.isArray(m.platforms) ? m.platforms : [],
       current,
       prior,
       daily,
@@ -807,13 +811,28 @@ async function buildMetricByPostType(dashboard, widget) {
     fetchByType(priorStart, priorEnd),
   ]);
 
-  // Stitch the two windows together so the client always gets one entry per
-  // post_type present in either window.
-  const types = new Set([...currentByType.map(r => r.type), ...priorByType.map(r => r.type)]);
-  const rows = [...types].filter(Boolean).map(type => {
-    const cur = currentByType.find(r => r.type === type)?.value || 0;
-    const pri = priorByType.find(r => r.type === type)?.value || 0;
-    return { postType: type, current: cur, prior: pri };
+  // Always include the baseline IG post types so users see Carousel /
+  // Reel / Story / Photo or video buckets even when they haven't
+  // published one of them this period — empty bars communicate "zero
+  // here" rather than "no such category".
+  const BASELINE_TYPES = ['carousel', 'image', 'reel', 'story'];
+  const types = new Set([
+    ...BASELINE_TYPES,
+    ...currentByType.map(r => r.type),
+    ...priorByType.map(r => r.type),
+  ]);
+  // 'image' and 'video' both render under "Photo or video", collapse them
+  // so we don't show duplicate bars with the same label.
+  const collapsed = new Map();
+  for (const t of [...types].filter(Boolean)) {
+    const display = t === 'video' ? 'image' : t;
+    if (!collapsed.has(display)) collapsed.set(display, []);
+    collapsed.get(display).push(t);
+  }
+  const rows = [...collapsed.entries()].map(([displayType, sourceTypes]) => {
+    const cur = sourceTypes.reduce((s, st) => s + (currentByType.find(r => r.type === st)?.value || 0), 0);
+    const pri = sourceTypes.reduce((s, st) => s + (priorByType.find(r => r.type === st)?.value   || 0), 0);
+    return { postType: displayType, current: cur, prior: pri };
   });
   rows.sort((a, b) => b.current - a.current);
   return {
@@ -874,16 +893,48 @@ async function buildMetricByPostTypeOverTime(dashboard, widget) {
     return 0;
   }
 
-  // Distinct dates + post types from organic; plus a paid series spliced
-  // in afterwards for rate / reach / interactions metrics.
+  // Distinct dates from organic; the post-type axis always shows the four
+  // baseline IG buckets (Carousel / Photo or video / Reel / Story) plus
+  // anything else the data surfaces, so users see "zero here" bars rather
+  // than vanished categories.
   const dates = [...new Set(rows.map(r => String(r.date).slice(0,10)))].sort();
-  const types = [...new Set(rows.map(r => r.type).filter(Boolean))];
-  const series = types.map(type => ({
-    key: type,
-    label: `${POST_TYPE_LABEL[type] || type} ${(m?.label || key)}`,
+  const BASELINE_TYPES = ['carousel', 'image', 'reel', 'story'];
+  const sourceTypes = [...new Set([...BASELINE_TYPES, ...rows.map(r => r.type).filter(Boolean)])];
+  // Collapse 'video' onto 'image' since both render as "Photo or video".
+  const collapsed = new Map();
+  for (const t of sourceTypes) {
+    const display = t === 'video' ? 'image' : t;
+    if (!collapsed.has(display)) collapsed.set(display, []);
+    collapsed.get(display).push(t);
+  }
+  const series = [...collapsed.entries()].map(([displayType, srcTypes]) => ({
+    key: displayType,
+    label: `${POST_TYPE_LABEL[displayType] || displayType} ${(m?.label || key)}`,
     points: dates.map(d => {
-      const hit = rows.find(r => r.type === type && String(r.date).slice(0,10) === d);
-      return { date: d, value: hit ? Number(valueOf(hit)) || 0 : 0 };
+      let value = 0;
+      for (const st of srcTypes) {
+        const hit = rows.find(r => r.type === st && String(r.date).slice(0,10) === d);
+        if (hit) {
+          // For rate metrics we have to (re)compute per stitched row instead
+          // of summing two ratios. Aggregate the i/r/v components first.
+          if (isRate) {
+            // Accumulate components, compute ratio after the loop.
+            value = value; // placeholder — handled below
+          } else {
+            value += Number(valueOf(hit)) || 0;
+          }
+        }
+      }
+      if (isRate) {
+        let i = 0, r = 0, v = 0;
+        for (const st of srcTypes) {
+          const hit = rows.find(rr => rr.type === st && String(rr.date).slice(0,10) === d);
+          if (hit) { i += Number(hit.i)||0; r += Number(hit.r)||0; v += Number(hit.v)||0; }
+        }
+        if (key === 'interaction_rate') value = v > 0 ? (i / v) * 100 : 0;
+        else                            value = r > 0 ? (i / r) * 100 : 0;
+      }
+      return { date: d, value };
     }),
   }));
 
@@ -915,13 +966,14 @@ async function buildMetricByPostTypeOverTime(dashboard, widget) {
       else if (key === 'interactions')                                         value = clicks;
       return { date: d, value };
     });
-    if (paidPoints.some(p => p.value > 0)) {
-      series.push({
-        key: 'paid',
-        label: `Paid ${(m?.label || key)}`,
-        points: paidPoints,
-      });
-    }
+    // Always emit the Paid series so the legend matches the design even
+    // on dates where the account hasn't spent on ads. Zero points read as
+    // a flat baseline rather than a missing category.
+    series.push({
+      key: 'paid',
+      label: `Paid ${(m?.label || key)}`,
+      points: paidPoints,
+    });
   }
 
   return {

@@ -1,6 +1,16 @@
-import { ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowRight, User } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 import clsx from 'clsx';
+import { FacebookIcon, InstagramIcon, TiktokIcon, LinkedinIcon, YoutubeIcon, PinterestIcon } from './SocialIcons';
+
+const PLATFORM_ICON_MAP = {
+  facebook_page:      FacebookIcon,
+  instagram_business: InstagramIcon,
+  tiktok:             TiktokIcon,
+  linkedin:           LinkedinIcon,
+  youtube:            YoutubeIcon,
+  pinterest:          PinterestIcon,
+};
 
 // Compact "vs prior" delta string. Returns null when there's nothing meaningful
 // to compare (no prior, or both sides zero — avoids "+Infinity%" noise).
@@ -40,6 +50,11 @@ export default function KpiCard({
   sparkColor = '#3b82f6',
   caption,
   className,
+  // Optional metadata so the card mirrors the reference design:
+  //   scope: 'channel' | 'content' | 'engage'  → small green person/scope badge top-right
+  //   platforms: ['facebook_page', 'instagram_business', ...]  → platform icons bottom-left
+  scope,
+  platforms,
 }) {
   const delta = compareEnabled ? computeDelta(current, prior) : null;
 
@@ -63,17 +78,19 @@ export default function KpiCard({
         <span className="text-[11px] font-medium uppercase tracking-wide leading-tight text-slate-500 break-words">
           {label}
         </span>
-        {delta && (
-          <span className={clsx(
-            'inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none whitespace-nowrap',
-            toneClass,
-          )}>
-            {delta.direction === 'up' ? <ArrowUp className="h-2.5 w-2.5" />
-              : delta.direction === 'down' ? <ArrowDown className="h-2.5 w-2.5" />
-              : <ArrowRight className="h-2.5 w-2.5" />}
-            {delta.text}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {delta && (
+            <span className={clsx(
+              'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none whitespace-nowrap',
+              toneClass,
+            )}>
+              {delta.direction === 'up' ? <ArrowUp className="h-2.5 w-2.5" />
+                : delta.direction === 'down' ? <ArrowDown className="h-2.5 w-2.5" />
+                : <ArrowRight className="h-2.5 w-2.5" />}
+              {delta.text}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-baseline gap-2">
@@ -110,6 +127,23 @@ export default function KpiCard({
 
       {caption && (
         <div className="text-xs text-slate-500 leading-snug">{caption}</div>
+      )}
+
+      {/* Platform icons (bottom-left) + scope badge (top-right anchor via
+          absolute positioning) match the reference design where each KPI
+          card surfaces both the metric scope and the platforms it covers. */}
+      {Array.isArray(platforms) && platforms.length > 0 && (
+        <div className="mt-auto flex items-center gap-2 text-slate-400">
+          {platforms.map(p => {
+            const Icon = PLATFORM_ICON_MAP[p];
+            return Icon ? <Icon key={p} className="w-3.5 h-3.5" /> : null;
+          })}
+        </div>
+      )}
+      {scope && (
+        <span className="absolute top-3 right-3 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 text-emerald-600" title={`${scope} metric`}>
+          <User className="w-3 h-3" />
+        </span>
       )}
     </div>
   );

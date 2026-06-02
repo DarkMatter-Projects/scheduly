@@ -287,8 +287,22 @@ function KeyMetricsBody({ data }) {
     return <EmptyHint hint="No data for this period yet. Publish posts or run the daily insights sync, then come back." />;
   }
 
+  // Layout rules tuned to match the reference designs:
+  //   1-2 metrics  → vertical stack so each card fills the widget width
+  //                  (Avg. Daily Reach, Views, Organic vs Paid views…)
+  //   3-6 metrics  → 2-column grid (Engagements breakdown,
+  //                  Engaged users, etc.)
+  //   7+ metrics   → 3-column grid (legacy Page key metrics row)
+  let containerClass;
+  if (metrics.length <= 2) {
+    containerClass = 'flex flex-col gap-3 h-full';
+  } else if (metrics.length <= 6) {
+    containerClass = 'grid grid-cols-2 gap-3 h-full';
+  } else {
+    containerClass = 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 h-full';
+  }
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 h-full">
+    <div className={containerClass}>
       {metrics.map((m, idx) => (
         <KpiCard
           key={m.key}
@@ -298,6 +312,8 @@ function KeyMetricsBody({ data }) {
           prior={m.prior}
           priorValue={formatValue(m.prior, m.format)}
           invertDelta={m.invertDelta}
+          scope={m.scope}
+          platforms={m.platforms}
           sparkData={Array.isArray(m.daily) && m.daily.length > 1 ? m.daily : null}
           sparkColor={METRIC_COLORS[idx % METRIC_COLORS.length]}
         />
