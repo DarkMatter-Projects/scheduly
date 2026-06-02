@@ -126,7 +126,7 @@ export const DASHBOARD_TEMPLATES = [
       { category: 'channel', widgetType: 'key_metrics', title: 'Engagements breakdown',
         metricKeys: ['likes','comments','shares','saves','reposts'], width: 4, height: 4 },
       { category: 'channel', widgetType: 'time_series', title: 'Engagements breakdown over time',
-        metricKeys: ['likes','comments','shares','saves'], width: 8, height: 4 },
+        metricKeys: ['likes','comments','shares','saves','reposts'], width: 8, height: 4 },
       // 11. Comments by post type + Shares by post type
       { category: 'channel', widgetType: 'metric_by_post_type', title: 'Comments by post type',
         width: 6, height: 3 },
