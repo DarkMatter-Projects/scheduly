@@ -1,7 +1,7 @@
 import { ArrowUp, ArrowDown, ArrowRight, User } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 import clsx from 'clsx';
-import { FacebookIcon, InstagramIcon, TiktokIcon, LinkedinIcon, YoutubeIcon, PinterestIcon } from './SocialIcons';
+import { FacebookIcon, InstagramIcon, TiktokIcon, LinkedinIcon, YoutubeIcon, PinterestIcon, TwitterIcon } from './SocialIcons';
 
 const PLATFORM_ICON_MAP = {
   facebook_page:      FacebookIcon,
@@ -10,6 +10,7 @@ const PLATFORM_ICON_MAP = {
   linkedin:           LinkedinIcon,
   youtube:            YoutubeIcon,
   pinterest:          PinterestIcon,
+  twitter:            TwitterIcon,
 };
 
 // Compact "vs prior" delta string. Returns null when there's nothing meaningful

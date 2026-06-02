@@ -1,6 +1,6 @@
 import {
   FacebookIcon, InstagramIcon, PinterestIcon, TiktokIcon,
-  LinkedinIcon, YoutubeIcon, SnapchatIcon, ThreadsIcon,
+  LinkedinIcon, YoutubeIcon, SnapchatIcon, ThreadsIcon, TwitterIcon,
 } from '../components/common/SocialIcons';
 
 export const PLATFORMS = {
@@ -81,6 +81,17 @@ export const PLATFORMS = {
     available: true,
     connectVia: 'youtube',
   },
+  twitter: {
+    key: 'twitter',
+    label: 'X',
+    sublabel: 'Account',
+    icon: TwitterIcon,
+    bg: 'bg-black',
+    bgSoft: 'bg-slate-100',
+    text: 'text-slate-900',
+    available: false,
+    connectVia: 'twitter',
+  },
   snapchat: {
     key: 'snapchat',
     label: 'Snapchat',
@@ -96,7 +107,7 @@ export const PLATFORMS = {
 
 export const PLATFORM_ORDER = [
   'facebook_page', 'instagram_business', 'pinterest', 'threads',
-  'tiktok', 'linkedin', 'youtube', 'snapchat',
+  'tiktok', 'linkedin', 'youtube', 'twitter', 'snapchat',
 ];
 
 export function getPlatform(key) {

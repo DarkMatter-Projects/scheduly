@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { X, ArrowLeft, Check, Lock, AlertTriangle, BarChart3, Activity, Smile, LineChart as LineIcon, GridIcon, Layers, PieChart as PieIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { listAvailableMetrics } from '../../api/dashboardsApi';
-import { FacebookIcon, InstagramIcon, TiktokIcon, LinkedinIcon, YoutubeIcon, PinterestIcon } from '../common/SocialIcons';
+import { FacebookIcon, InstagramIcon, TiktokIcon, LinkedinIcon, YoutubeIcon, PinterestIcon, TwitterIcon } from '../common/SocialIcons';
 
 // Two-step modal: pick widget type, then pick the metrics that feed it.
 // onSave receives { category, widgetType, title, metricKeys, width, height }.
@@ -324,18 +324,14 @@ const PLATFORM_ICON_MAP = {
   linkedin:           LinkedinIcon,
   youtube:            YoutubeIcon,
   pinterest:          PinterestIcon,
+  twitter:            TwitterIcon,
 };
 
 // Render the small platform icons on the right of each metric row.
-// X / Twitter has no dedicated icon component yet — show a tiny "X" label so
-// the metric's platform support still reads.
 function PlatformIcons({ platforms = [] }) {
   return (
     <span className="flex items-center gap-1.5 text-slate-400">
       {platforms.map(p => {
-        if (p === 'twitter' || p === 'x') {
-          return <span key={p} className="text-[10px] font-bold w-3.5 text-center">X</span>;
-        }
         const Icon = PLATFORM_ICON_MAP[p];
         return Icon ? <Icon key={p} className="w-3.5 h-3.5" /> : null;
       })}
