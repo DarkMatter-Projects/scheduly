@@ -73,6 +73,15 @@ async function publishPost(postId) {
           mediaFiles,
           publicBaseUrl
         );
+        // IG treats any single-video post as a Reel (see instagram.service:
+        // params.media_type = 'REELS'). Tag the post so dashboard widgets
+        // that group by post_type put it in the Reel bucket instead of
+        // "Photo or video".
+        const onlyMedia = mediaFiles.length === 1 ? mediaFiles[0] : null;
+        const isReel = onlyMedia && (onlyMedia.mimeType || onlyMedia.mime_type || '').startsWith('video/');
+        if (isReel) {
+          await pool.execute("UPDATE posts SET post_type = 'reel' WHERE id = ?", [postId]);
+        }
       } else if (target.platform === 'linkedin') {
         platformPostId = await publishToLinkedIn(
           target.social_account_row_id,
