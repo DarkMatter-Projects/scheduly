@@ -3,7 +3,7 @@ const env = require('./env');
 // X (formerly Twitter) OAuth 2.0 with PKCE. Posting requires a Project app
 // with elevated access; even read endpoints now need a project. Keys are
 // issued at https://developer.x.com/en/portal/projects-and-apps.
-const TWITTER_AUTHORIZE_URL = 'https://twitter.com/i/oauth2/authorize';
+const TWITTER_AUTHORIZE_URL = 'https://x.com/i/oauth2/authorize';
 const TWITTER_TOKEN_URL     = 'https://api.x.com/2/oauth2/token';
 const TWITTER_API_BASE      = 'https://api.x.com/2';
 
