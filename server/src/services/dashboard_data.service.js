@@ -93,6 +93,8 @@ async function totalForMetric(metricKey, channelIds, start, end) {
     blocked_dm_conversations:'blocked_dm_count',
     organic_net_followers:   'linkedin_organic_gain',
     paid_net_followers:      'linkedin_paid_gain',
+    paid_video_views_3s:     'video_views_paid',
+    organic_video_views_3s:  'video_views_organic',
   };
   if (CI_COLUMN[metricKey]) {
     const accountsFilter = channelIds && channelIds.length > 0
