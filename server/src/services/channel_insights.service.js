@@ -29,15 +29,32 @@ async function fetchInsightsForAccount(account, dateStr) {
 }
 
 async function fetchFacebookPageInsights(account, token, day) {
-  // page_engaged_users + page_views_total work on Page tokens with
-  // pages_read_engagement. page_total_actions = profile CTA taps.
-  // page_impressions_by_user_type returns a JSON breakdown { fan, non_fan }.
+  // Meta's /insights endpoint takes a comma-separated metric list; we
+  // batch the whole set into one call. Individual metrics that fail
+  // (deprecated, gated behind a higher access tier, etc.) come back as
+  // missing entries — valueOf returns null and the column stays NULL.
   const metrics = [
     'page_engaged_users',
     'page_views_total',
     'page_total_actions',
     'page_impressions_unique',
     'page_impressions_by_user_type',
+    // Video
+    'page_video_views',
+    'page_video_views_unique',
+    'page_video_view_time',
+    'page_video_repeat_views',
+    // Impressions breakdown
+    'page_impressions_organic_v2',
+    'page_impressions_paid',
+    'page_impressions_viral_unique',
+    'page_impressions_nonviral_unique',
+    // Reach breakdown
+    'page_impressions_organic_unique',
+    'page_impressions_viral_unique',
+    'page_impressions_nonviral_unique',
+    // Fan source — these return { paid, unpaid } breakdowns
+    'page_fans_by_like_source',
   ].join(',');
   try {
     const { data } = await axios.get(`${fb.FB_GRAPH_URL}/${account.platform_account_id}/insights`, {
@@ -50,15 +67,41 @@ async function fetchFacebookPageInsights(account, token, day) {
       const v = entry?.values?.[0]?.value;
       return (typeof v === 'number') ? v : null;
     };
-    // page_impressions_by_user_type returns { fan: N, non_fan: N }
-    const userTypeBreakdown = items.find(i => i.name === 'page_impressions_by_user_type')?.values?.[0]?.value || {};
+    const breakdownOf = (name) => {
+      const entry = items.find(i => i.name === name);
+      const v = entry?.values?.[0]?.value;
+      return (v && typeof v === 'object') ? v : {};
+    };
+    const userTypeBreakdown = breakdownOf('page_impressions_by_user_type');
+    const likeSource = breakdownOf('page_fans_by_like_source');
+    // like_source object shape varies by FB rollout — we sum any keys
+    // whose name contains 'ad' as "paid", everything else as "unpaid".
+    let paidFansAdded = 0, unpaidFansAdded = 0;
+    for (const [key, count] of Object.entries(likeSource)) {
+      if (typeof count !== 'number') continue;
+      if (/ad/i.test(key)) paidFansAdded += count;
+      else                 unpaidFansAdded += count;
+    }
     return {
-      engaged_users:      valueOf('page_engaged_users'),
-      profile_views:      valueOf('page_views_total'),
-      profile_taps:       valueOf('page_total_actions'),
-      reach_unique:       valueOf('page_impressions_unique'),
-      follower_views:     numberOr(userTypeBreakdown.fan),
-      non_follower_views: numberOr(userTypeBreakdown.non_fan),
+      engaged_users:        valueOf('page_engaged_users'),
+      profile_views:        valueOf('page_views_total'),
+      profile_taps:         valueOf('page_total_actions'),
+      reach_unique:         valueOf('page_impressions_unique'),
+      follower_views:       numberOr(userTypeBreakdown.fan),
+      non_follower_views:   numberOr(userTypeBreakdown.non_fan),
+      video_views:          valueOf('page_video_views'),
+      video_views_unique:   valueOf('page_video_views_unique'),
+      video_view_time:      valueOf('page_video_view_time'),
+      video_repeat_views:   valueOf('page_video_repeat_views'),
+      impressions_organic:  valueOf('page_impressions_organic_v2'),
+      impressions_paid:     valueOf('page_impressions_paid'),
+      impressions_viral:    valueOf('page_impressions_viral_unique'),
+      impressions_nonviral: valueOf('page_impressions_nonviral_unique'),
+      reach_organic:        valueOf('page_impressions_organic_unique'),
+      reach_viral:          valueOf('page_impressions_viral_unique'),
+      reach_nonviral:       valueOf('page_impressions_nonviral_unique'),
+      paid_fans_added:      Object.keys(likeSource).length ? paidFansAdded   : null,
+      unpaid_fans_added:    Object.keys(likeSource).length ? unpaidFansAdded : null,
     };
   } catch (err) {
     const apiError = err.response?.data?.error;
@@ -115,13 +158,11 @@ async function fetchYouTubeInsights(account, token, day) {
         ids: 'channel==MINE',
         startDate: day,
         endDate: day,
-        metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares',
+        metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares,averageViewDuration,videosAddedToPlaylists',
       },
       headers: { Authorization: `Bearer ${token}` },
       timeout: 12000,
     });
-    // YouTube Analytics returns columnHeaders + rows. With a single
-    // day range we expect 0 or 1 row.
     const headers = (data.columnHeaders || []).map(h => h.name);
     const row = (data.rows && data.rows[0]) || [];
     const get = (col) => {
@@ -130,13 +171,28 @@ async function fetchYouTubeInsights(account, token, day) {
       return (typeof v === 'number') ? v : null;
     };
     return {
-      // estimatedMinutesWatched → seconds for parity with FB watch time.
-      engaged_users:      null, // YouTube doesn't have a direct engaged_users equivalent
-      profile_views:      get('views'),
-      profile_taps:       null,
-      reach_unique:       null, // YouTube doesn't expose reach
-      follower_views:     null,
-      non_follower_views: null,
+      engaged_users:        null,
+      profile_views:        get('views'),
+      profile_taps:         null,
+      reach_unique:         null,
+      follower_views:       null,
+      non_follower_views:   null,
+      // YouTube Analytics gives us channel-level video metrics that map
+      // cleanly to our video_* columns. estimatedMinutesWatched is in
+      // minutes — convert to seconds for parity with FB watch time.
+      video_views:          get('views'),
+      video_views_unique:   null, // YT doesn't expose unique viewers via Analytics
+      video_view_time:      get('estimatedMinutesWatched') != null ? Math.round(get('estimatedMinutesWatched') * 60) : null,
+      video_repeat_views:   null,
+      impressions_organic:  null,
+      impressions_paid:     null,
+      impressions_viral:    null,
+      impressions_nonviral: null,
+      reach_organic:        null,
+      reach_viral:          null,
+      reach_nonviral:       null,
+      paid_fans_added:      null,
+      unpaid_fans_added:    null,
     };
   } catch (err) {
     const apiError = err.response?.data?.error;
@@ -189,19 +245,48 @@ async function recordSnapshot(socialAccountId, day, values) {
   if (!values) return false;
   await pool.execute(
     `INSERT INTO channel_insights_daily
-       (social_account_id, snapshot_date, engaged_users, profile_views, profile_taps, follower_views, non_follower_views, reach_unique)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       (social_account_id, snapshot_date,
+        engaged_users, profile_views, profile_taps,
+        follower_views, non_follower_views, reach_unique,
+        video_views, video_views_unique, video_view_time, video_repeat_views,
+        impressions_organic, impressions_paid, impressions_viral, impressions_nonviral,
+        reach_organic, reach_viral, reach_nonviral,
+        paid_fans_added, unpaid_fans_added)
+     VALUES (?, ?,
+             ?, ?, ?,
+             ?, ?, ?,
+             ?, ?, ?, ?,
+             ?, ?, ?, ?,
+             ?, ?, ?,
+             ?, ?)
      ON DUPLICATE KEY UPDATE
-       engaged_users      = VALUES(engaged_users),
-       profile_views      = VALUES(profile_views),
-       profile_taps       = VALUES(profile_taps),
-       follower_views     = VALUES(follower_views),
-       non_follower_views = VALUES(non_follower_views),
-       reach_unique       = VALUES(reach_unique)`,
+       engaged_users        = VALUES(engaged_users),
+       profile_views        = VALUES(profile_views),
+       profile_taps         = VALUES(profile_taps),
+       follower_views       = VALUES(follower_views),
+       non_follower_views   = VALUES(non_follower_views),
+       reach_unique         = VALUES(reach_unique),
+       video_views          = VALUES(video_views),
+       video_views_unique   = VALUES(video_views_unique),
+       video_view_time      = VALUES(video_view_time),
+       video_repeat_views   = VALUES(video_repeat_views),
+       impressions_organic  = VALUES(impressions_organic),
+       impressions_paid     = VALUES(impressions_paid),
+       impressions_viral    = VALUES(impressions_viral),
+       impressions_nonviral = VALUES(impressions_nonviral),
+       reach_organic        = VALUES(reach_organic),
+       reach_viral          = VALUES(reach_viral),
+       reach_nonviral       = VALUES(reach_nonviral),
+       paid_fans_added      = VALUES(paid_fans_added),
+       unpaid_fans_added    = VALUES(unpaid_fans_added)`,
     [
       socialAccountId, day,
       n(values.engaged_users), n(values.profile_views), n(values.profile_taps),
       n(values.follower_views), n(values.non_follower_views), n(values.reach_unique),
+      n(values.video_views), n(values.video_views_unique), n(values.video_view_time), n(values.video_repeat_views),
+      n(values.impressions_organic), n(values.impressions_paid), n(values.impressions_viral), n(values.impressions_nonviral),
+      n(values.reach_organic), n(values.reach_viral), n(values.reach_nonviral),
+      n(values.paid_fans_added), n(values.unpaid_fans_added),
     ]
   );
   return true;

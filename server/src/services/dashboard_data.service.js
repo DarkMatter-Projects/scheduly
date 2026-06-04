@@ -73,8 +73,19 @@ async function totalForMetric(metricKey, channelIds, start, end) {
     engaged_users_daily_avg: 'engaged_users',
     channel_profile_views:   'profile_views',
     profile_taps:            'profile_taps',
+    profile_cta_clicks:      'profile_taps',
     follower_views:          'follower_views',
     non_follower_views:      'non_follower_views',
+    video_views:             'video_views',
+    video_viewers:           'video_views_unique',
+    video_watch_time:        'video_view_time',
+    repeated_video_views:    'video_repeat_views',
+    organic_impressions:     'impressions_organic',
+    paid_impressions:        'impressions_paid',
+    viral_impressions:       'impressions_viral',
+    non_viral_impressions:   'impressions_nonviral',
+    paid_fans_increase:      'paid_fans_added',
+    unpaid_fans_increase:    'unpaid_fans_added',
   };
   if (CI_COLUMN[metricKey]) {
     const accountsFilter = channelIds && channelIds.length > 0
@@ -92,6 +103,49 @@ async function totalForMetric(metricKey, channelIds, start, end) {
     } catch {
       return 0;
     }
+  }
+  // Daily-average reach breakdowns — sum the daily column, divide by days.
+  const REACH_DAILY_COLUMN = {
+    organic_reach_daily:        'reach_organic',
+    viral_reach_daily_avg:      'reach_viral',
+    non_viral_reach_daily_avg:  'reach_nonviral',
+  };
+  if (REACH_DAILY_COLUMN[metricKey]) {
+    const accountsFilter = channelIds && channelIds.length > 0
+      ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+      : '';
+    try {
+      const col = REACH_DAILY_COLUMN[metricKey];
+      const [rows] = await pool.execute(
+        `SELECT COALESCE(SUM(${col}), 0) AS v
+         FROM channel_insights_daily
+         WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+        [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+      );
+      const total = Number(rows[0]?.v) || 0;
+      const days = Math.max(1, Math.round((new Date(end) - new Date(start)) / 86400000) + 1);
+      return Math.round(total / days);
+    } catch { return 0; }
+  }
+  if (metricKey === 'viral_amplification') {
+    // viral_impressions / total_impressions * 100 — % of impressions
+    // attributable to viral (i.e. shared) distribution.
+    const accountsFilter = channelIds && channelIds.length > 0
+      ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+      : '';
+    try {
+      const [rows] = await pool.execute(
+        `SELECT COALESCE(SUM(impressions_viral), 0)    AS v,
+                COALESCE(SUM(impressions_organic), 0)
+              + COALESCE(SUM(impressions_paid), 0)     AS total
+         FROM channel_insights_daily
+         WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+        [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+      );
+      const viral = Number(rows[0]?.v) || 0;
+      const total = Number(rows[0]?.total) || 0;
+      return total > 0 ? (viral / total) * 100 : 0;
+    } catch { return 0; }
   }
   if (metricKey === 'engaged_users_rate') {
     // engaged_users / reach_unique * 100 across the range.
