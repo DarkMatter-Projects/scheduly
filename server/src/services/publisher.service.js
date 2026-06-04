@@ -4,6 +4,8 @@ const { publishToInstagram } = require('./instagram.service');
 const { publishToTikTok } = require('./tiktok_posting.service');
 const { publishToLinkedIn } = require('./linkedin.service');
 const { publishToYouTube } = require('./youtube.service');
+const twitterService = require('./twitter.service');
+const { decrypt, encrypt } = require('./token.service');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 
@@ -39,7 +41,8 @@ async function publishPost(postId) {
   // Get targets
   const [targets] = await pool.execute(
     `SELECT pt.id, pt.social_account_id, sa.id AS social_account_row_id,
-            sa.platform, sa.platform_account_id, sa.access_token
+            sa.platform, sa.platform_account_id, sa.access_token,
+            sa.refresh_token, sa.token_expires_at
      FROM post_targets pt
      JOIN social_accounts sa ON pt.social_account_id = sa.id
      WHERE pt.post_id = ? AND pt.status = 'pending'`,
@@ -101,6 +104,21 @@ async function publishPost(postId) {
             madeForKids: !!post.youtube_made_for_kids,
           }
         );
+      } else if (target.platform === 'twitter') {
+        // X / Twitter: text-only post via OAuth 2.0. Refresh the access
+        // token first if it's expired (X access tokens last ~2h).
+        let accessToken = decrypt(target.access_token);
+        const expiresAt = target.token_expires_at ? new Date(target.token_expires_at).getTime() : 0;
+        if (expiresAt && expiresAt < Date.now() + 60000 && target.refresh_token) {
+          const refreshed = await twitterService.refreshAccessToken(decrypt(target.refresh_token));
+          accessToken = refreshed.accessToken;
+          const newExpires = refreshed.expiresIn ? new Date(Date.now() + refreshed.expiresIn * 1000) : null;
+          await pool.execute(
+            `UPDATE social_accounts SET access_token = ?, refresh_token = ?, token_expires_at = ? WHERE id = ?`,
+            [encrypt(refreshed.accessToken), refreshed.refreshToken ? encrypt(refreshed.refreshToken) : null, newExpires, target.social_account_row_id]
+          );
+        }
+        platformPostId = await twitterService.publishTweet(accessToken, post.content);
       } else if (target.platform === 'tiktok') {
         // TikTok returns a publish_id, not a platform post id — the post
         // finishes processing async on TikTok's side. We store the publish_id
