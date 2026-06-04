@@ -85,9 +85,9 @@ const METRICS = [
   { key: 'profile_taps',        label: 'Profile activity by type', section: 'distribution', category: 'channel', platforms: ['facebook_page','instagram_business'],     format: 'number',   source: 'derived.profile_taps',          available: true,
     scope: 'channel',
     description: 'Profile CTA taps (call, email, directions, website). Sourced from page_total_actions (FB) / website_clicks (IG).' },
-  { key: 'reposts',             label: 'Reposts',             section: 'engagements', category: 'channel', platforms: ['instagram_business'],                          format: 'number',   source: 'derived.reposts',               available: false,
+  { key: 'reposts',             label: 'Reposts',             section: 'engagements', category: 'channel', platforms: ['instagram_business'],                          format: 'number',   source: 'derived.reposts',               available: true,
     scope: 'content',
-    description: 'Times Instagram users reshared your post to their own story. Requires reshare ingestion.' },
+    description: 'Times Instagram users reshared your stories to their own. Sourced from Story Insights "shares" metric, summed daily.' },
   { key: 'dislikes',            label: 'Dislikes',            section: 'engagements', category: 'channel', platforms: ['youtube'],                                     format: 'number',   source: 'derived.dislikes',              available: false,
     scope: 'content',
     description: 'Dislike count. YouTube made dislike counts private in November 2021 — values stay at 0 until/unless YouTube re-enables the API.' },
@@ -150,15 +150,15 @@ const METRICS = [
     description: 'Number of viewers who replayed a video. Sourced from page_video_repeat_views.' },
 
   // ── Direct messages (Page-level inbox insights — not yet collected) ──
-  { key: 'new_dm_conversations', label: 'New DM conversations', section: 'direct_messages', category: 'engage', platforms: ['facebook_page'],                          format: 'number',   source: 'derived.new_dm_conversations',  available: false,
+  { key: 'new_dm_conversations', label: 'New DM conversations', section: 'direct_messages', category: 'engage', platforms: ['facebook_page','instagram_business'],     format: 'number',   source: 'derived.new_dm_conversations',  available: true,
     scope: 'engage',
-    description: 'New direct-message conversations started during the period. Requires page_messages_new_conversations_unique ingestion.' },
+    description: 'DM conversations whose first incoming message landed inside the period. Derived from engage_threads.source_type = "dm" + MIN(engage_messages.sent_at).' },
   { key: 'blocked_dm_conversations', label: 'Blocked DM conversations', section: 'direct_messages', category: 'engage', platforms: ['facebook_page'],                  format: 'number',   source: 'derived.blocked_dm_conversations', available: false,
     scope: 'engage',
     description: 'Conversations the Page admin blocked during the period. Requires page_messages_blocked_conversations_unique ingestion.' },
-  { key: 'story_replies_mentions', label: 'Story replies and mentions', section: 'engage', category: 'engage', platforms: ['instagram_business'],                       format: 'number',   source: 'derived.story_replies_mentions', available: false,
+  { key: 'story_replies_mentions', label: 'Story replies and mentions', section: 'engage', category: 'engage', platforms: ['instagram_business'],                       format: 'number',   source: 'derived.story_replies_mentions', available: true,
     scope: 'engage',
-    description: 'Replies + @mentions received on your Stories during the period. Requires IG Story Insights ingestion (coming soon).' },
+    description: 'Replies received on your Stories during the period. Sourced from Story Insights "replies" metric, summed daily.' },
 
   // ── Audience demographics (per-country fan breakdown — not yet collected) ──
   { key: 'fans_by_country',     label: 'Followers by country', section: 'fans',       category: 'channel', platforms: ['facebook_page','instagram_business'],          format: 'number',   source: 'derived.fans_by_country',       available: true,
@@ -239,18 +239,18 @@ const METRICS = [
   { key: 'incoming_messages',   label: 'Incoming messages',   section: 'engage',       category: 'engage',  platforms: ['facebook_page','instagram_business','linkedin','tiktok'], format: 'number',   source: 'engage_messages.incoming',      available: true,
     scope: 'engage',
     description: 'The number of comments and DMs received in the Engage inbox during the period.' },
-  { key: 'engage_direct_messages', label: 'Direct messages', section: 'engage',         category: 'engage',  platforms: ['instagram_business'],                                       format: 'number',   source: 'engage_messages.direct',        available: false,
+  { key: 'engage_direct_messages', label: 'Direct messages', section: 'engage',         category: 'engage',  platforms: ['facebook_page','instagram_business'],                       format: 'number',   source: 'engage_messages.direct',        available: true,
     scope: 'engage',
-    description: 'DM conversations opened by users during the period. Requires the engage_messages.type breakdown to be backfilled.' },
+    description: 'Direct messages received during the period. Counts engage_messages where the parent thread.source_type = "dm".' },
   { key: 'engage_fan_posts',    label: 'Fan posts',           section: 'engage',       category: 'engage',  platforms: ['facebook_page'],                                            format: 'number',   source: 'engage_messages.fan_post',       available: false,
     scope: 'engage',
     description: 'Posts created by fans on your Page. Requires fan-post ingestion.' },
-  { key: 'engage_mentions',     label: 'Mentions',            section: 'engage',       category: 'engage',  platforms: ['instagram_business','linkedin'],                            format: 'number',   source: 'engage_messages.mention',        available: false,
+  { key: 'engage_mentions',     label: 'Mentions',            section: 'engage',       category: 'engage',  platforms: ['instagram_business','linkedin'],                            format: 'number',   source: 'engage_messages.mention',        available: true,
     scope: 'engage',
-    description: '@mentions of your channel during the period. Requires mention ingestion.' },
-  { key: 'engage_comments_inbox', label: 'Comments',          section: 'engage',       category: 'engage',  platforms: ['facebook_page','instagram_business','linkedin','tiktok'],  format: 'number',   source: 'engage_messages.comment',        available: false,
+    description: '@mentions of your channel during the period. Counts engage_messages where the parent thread.source_type = "mention".' },
+  { key: 'engage_comments_inbox', label: 'Comments',          section: 'engage',       category: 'engage',  platforms: ['facebook_page','instagram_business','linkedin','tiktok'],  format: 'number',   source: 'engage_messages.comment',        available: true,
     scope: 'engage',
-    description: 'Comments left on your posts during the period. Requires the engage_messages.type breakdown to be backfilled.' },
+    description: 'Comments left on your posts during the period. Counts engage_messages where the parent thread.source_type = "comment".' },
   { key: 'engage_reviews',      label: 'Reviews',             section: 'engage',       category: 'engage',  platforms: ['facebook_page'],                                            format: 'number',   source: 'engage_messages.review',         available: false,
     scope: 'engage',
     description: 'Reviews left on your Page during the period. Requires review ingestion.' },
@@ -287,6 +287,7 @@ function metricFamily(key) {
   if (m.source.startsWith('derived.') && ['ctr','cpc','cpm','roas','paid_reach_daily_avg'].includes(key)) return 'paid';
   if (m.source.startsWith('engage_messages.')) return 'engage';
   if (m.source === 'derived.engage_negative_rate') return 'engage';
+  if (m.source === 'derived.new_dm_conversations') return 'engage';
   return null;
 }
 

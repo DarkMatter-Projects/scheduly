@@ -159,6 +159,10 @@ async function fetchInstagramInsights(account, token, day) {
       const v = entry?.total_value?.value;
       return (typeof v === 'number') ? v : null;
     };
+    // Story replies + shares — sum over every active story for the
+    // account. Stories expire after 24h so the cron has to run daily
+    // for these totals to be meaningful.
+    const storyTotals = await fetchInstagramStoryTotals(account, token);
     return {
       engaged_users:      totalValue('accounts_engaged'),
       profile_views:      totalValue('profile_views'),
@@ -166,12 +170,55 @@ async function fetchInstagramInsights(account, token, day) {
       reach_unique:       totalValue('reach'),
       follower_views:     null,
       non_follower_views: null,
+      story_replies:      storyTotals?.replies,
+      story_shares:       storyTotals?.shares,
     };
   } catch (err) {
     const apiError = err.response?.data?.error;
     logger.debug(`IG insights skipped for account ${account.id}: ${apiError?.message || err.message}`);
     return null;
   }
+}
+
+// Sum replies + shares across every active story for the account.
+// /me/stories returns up to ~50 active stories (24h lifetime). For
+// each one we hit /{story_id}/insights with the standard set; the
+// figures bubble up as the totals we store on the daily row.
+async function fetchInstagramStoryTotals(account, token) {
+  let replies = 0;
+  let shares = 0;
+  let hadAny = false;
+  try {
+    const { data } = await axios.get(`${ig.IG_GRAPH_URL}/${account.platform_account_id}/stories`, {
+      params: { fields: 'id', access_token: token, limit: 50 },
+      timeout: 10000,
+    });
+    const stories = data?.data || [];
+    for (const s of stories) {
+      try {
+        const { data: ins } = await axios.get(`${ig.IG_GRAPH_URL}/${s.id}/insights`, {
+          params: { metric: 'replies,shares', access_token: token },
+          timeout: 8000,
+        });
+        const items = ins?.data || [];
+        const valueOf = (name) => {
+          const it = items.find(i => i.name === name);
+          const v = it?.values?.[0]?.value;
+          return (typeof v === 'number') ? v : 0;
+        };
+        replies += valueOf('replies');
+        shares  += valueOf('shares');
+        hadAny = true;
+      } catch (innerErr) {
+        // Individual story insights can fail on very fresh / expired
+        // stories — skip and keep summing the others.
+      }
+    }
+  } catch (err) {
+    logger.debug(`IG stories skipped for account ${account.id}: ${err.response?.data?.error?.message || err.message}`);
+    return null;
+  }
+  return hadAny ? { replies, shares } : null;
 }
 
 // YouTube Analytics API — daily channel metrics. Needs the
@@ -278,7 +325,8 @@ async function recordSnapshot(socialAccountId, day, values) {
         impressions_organic, impressions_paid, impressions_viral, impressions_nonviral,
         reach_organic, reach_viral, reach_nonviral,
         paid_fans_added, unpaid_fans_added,
-        following_count, tweet_count, listed_count)
+        following_count, tweet_count, listed_count,
+        story_replies, story_shares)
      VALUES (?, ?,
              ?, ?, ?,
              ?, ?, ?,
@@ -286,7 +334,8 @@ async function recordSnapshot(socialAccountId, day, values) {
              ?, ?, ?, ?,
              ?, ?, ?,
              ?, ?,
-             ?, ?, ?)
+             ?, ?, ?,
+             ?, ?)
      ON DUPLICATE KEY UPDATE
        engaged_users        = VALUES(engaged_users),
        profile_views        = VALUES(profile_views),
@@ -309,7 +358,9 @@ async function recordSnapshot(socialAccountId, day, values) {
        unpaid_fans_added    = VALUES(unpaid_fans_added),
        following_count      = VALUES(following_count),
        tweet_count          = VALUES(tweet_count),
-       listed_count         = VALUES(listed_count)`,
+       listed_count         = VALUES(listed_count),
+       story_replies        = VALUES(story_replies),
+       story_shares         = VALUES(story_shares)`,
     [
       socialAccountId, day,
       n(values.engaged_users), n(values.profile_views), n(values.profile_taps),
@@ -319,6 +370,7 @@ async function recordSnapshot(socialAccountId, day, values) {
       n(values.reach_organic), n(values.reach_viral), n(values.reach_nonviral),
       n(values.paid_fans_added), n(values.unpaid_fans_added),
       n(values.following_count), n(values.tweet_count), n(values.listed_count),
+      n(values.story_replies), n(values.story_shares),
     ]
   );
   return true;

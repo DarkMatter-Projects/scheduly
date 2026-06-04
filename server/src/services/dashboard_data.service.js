@@ -86,6 +86,8 @@ async function totalForMetric(metricKey, channelIds, start, end) {
     non_viral_impressions:   'impressions_nonviral',
     paid_fans_increase:      'paid_fans_added',
     unpaid_fans_increase:    'unpaid_fans_added',
+    story_replies_mentions:  'story_replies',
+    reposts:                 'story_shares',
   };
   if (CI_COLUMN[metricKey]) {
     const accountsFilter = channelIds && channelIds.length > 0
@@ -463,6 +465,44 @@ async function totalForMetric(metricKey, channelIds, start, end) {
   }
 
   if (metricFamily(metricKey) === 'engage') {
+    // Subtype counters share the same query shape — only the
+    // source_type filter changes per metric. fan_post / review / blocked
+    // intentionally stay null (available:false) because we don't ingest
+    // those classifications yet.
+    const SOURCE_TYPE_FILTER = {
+      engage_direct_messages:   "source_type = 'dm'",
+      engage_comments_inbox:    "source_type = 'comment'",
+      engage_mentions:          "source_type = 'mention'",
+    };
+    if (SOURCE_TYPE_FILTER[metricKey]) {
+      const [r] = await pool.execute(
+        `SELECT COUNT(*) AS v
+         FROM engage_messages m
+         JOIN engage_threads t ON m.thread_id = t.id
+         WHERE m.direction = 'incoming'
+           AND m.sent_at BETWEEN ? AND ?
+           AND t.${SOURCE_TYPE_FILTER[metricKey]}`,
+        [start, end]
+      );
+      return Number(r[0]?.v) || 0;
+    }
+    if (metricKey === 'new_dm_conversations') {
+      // Distinct DM threads whose FIRST incoming message landed inside
+      // the range. Doesn't catch threads where users replied earlier
+      // but the conversation only "opened" by our definition here.
+      const [r] = await pool.execute(
+        `SELECT COUNT(*) AS v FROM (
+           SELECT t.id, MIN(m.sent_at) AS first_at
+           FROM engage_threads t
+           JOIN engage_messages m ON m.thread_id = t.id AND m.direction = 'incoming'
+           WHERE t.source_type = 'dm'
+           GROUP BY t.id
+           HAVING first_at BETWEEN ? AND ?
+         ) sub`,
+        [start, end]
+      );
+      return Number(r[0]?.v) || 0;
+    }
     if (metricKey === 'incoming_messages') {
       const [r] = await pool.execute(
         `SELECT COUNT(*) AS v FROM engage_messages
