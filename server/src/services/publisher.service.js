@@ -149,11 +149,22 @@ async function publishPost(postId) {
       logger.info(`Post ${postId}: published to ${target.platform} (${target.platform_account_id})`);
     } catch (err) {
       allSuccess = false;
-      // Surface the real Graph API error body if available — that's what tells us *why* it failed.
-      const apiError = err.response?.data?.error;
-      const detail = apiError
-        ? `${apiError.message || apiError.type || ''} ${apiError.error_user_msg ? '— ' + apiError.error_user_msg : ''} (code=${apiError.code}/${apiError.error_subcode || '-'})`.trim()
-        : err.message;
+      // Surface the real platform error body if available — what we get
+      // tells us *why* it failed. Meta uses .error.message, X uses
+      // .title/.detail, LinkedIn .message — try each shape.
+      const body = err.response?.data;
+      const fbErr = body?.error;
+      let detail;
+      if (fbErr && (fbErr.message || fbErr.type)) {
+        detail = `${fbErr.message || fbErr.type || ''} ${fbErr.error_user_msg ? '— ' + fbErr.error_user_msg : ''} (code=${fbErr.code}/${fbErr.error_subcode || '-'})`.trim();
+      } else if (body && (body.title || body.detail)) {
+        // X / Twitter shape: { title: 'CreditsDepleted', detail: '...' }
+        detail = `${body.title || ''}${body.detail ? ': ' + body.detail : ''}`.trim();
+      } else if (body && body.message) {
+        detail = body.message;
+      } else {
+        detail = err.message;
+      }
 
       await pool.execute(
         "UPDATE post_targets SET status = 'failed', error_message = ? WHERE id = ?",
