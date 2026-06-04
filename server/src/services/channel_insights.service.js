@@ -81,6 +81,8 @@ async function fetchFacebookPageInsights(account, token, day) {
     'page_impressions_nonviral_unique',
     // Fan source — these return { paid, unpaid } breakdowns
     'page_fans_by_like_source',
+    // Engage subtypes
+    'page_messages_blocked_conversations_unique',
   ].join(',');
   try {
     const { data } = await axios.get(`${fb.FB_GRAPH_URL}/${account.platform_account_id}/insights`, {
@@ -108,6 +110,10 @@ async function fetchFacebookPageInsights(account, token, day) {
       if (/ad/i.test(key)) paidFansAdded += count;
       else                 unpaidFansAdded += count;
     }
+    // Visitor posts + ratings — both endpoints take since/until in unix
+    // seconds. We count items whose created_time lands inside the day.
+    const fanPostsCount = await countFacebookCreations(account, token, day, 'visitor_posts');
+    const reviewsCount  = await countFacebookCreations(account, token, day, 'ratings');
     return {
       engaged_users:        valueOf('page_engaged_users'),
       profile_views:        valueOf('page_views_total'),
@@ -128,6 +134,9 @@ async function fetchFacebookPageInsights(account, token, day) {
       reach_nonviral:       valueOf('page_impressions_nonviral_unique'),
       paid_fans_added:      Object.keys(likeSource).length ? paidFansAdded   : null,
       unpaid_fans_added:    Object.keys(likeSource).length ? unpaidFansAdded : null,
+      blocked_dm_count:     valueOf('page_messages_blocked_conversations_unique'),
+      fan_posts_count:      fanPostsCount,
+      reviews_count:        reviewsCount,
     };
   } catch (err) {
     const apiError = err.response?.data?.error;
@@ -176,6 +185,34 @@ async function fetchInstagramInsights(account, token, day) {
   } catch (err) {
     const apiError = err.response?.data?.error;
     logger.debug(`IG insights skipped for account ${account.id}: ${apiError?.message || err.message}`);
+    return null;
+  }
+}
+
+// Count items on /{page-id}/{endpoint} whose created_time lands inside
+// the snapshot day. Used for visitor_posts (Fan posts metric) and
+// ratings (Reviews metric). Returns null when the API rejects the
+// call (deprecated endpoint, insufficient scope, etc.) so the column
+// stays NULL rather than 0.
+async function countFacebookCreations(account, token, day, endpoint) {
+  const since = Math.floor(new Date(day).getTime() / 1000);
+  const until = since + 86400;
+  try {
+    let url = `${fb.FB_GRAPH_URL}/${account.platform_account_id}/${endpoint}`;
+    let params = { fields: 'created_time', since, until, limit: 100, access_token: token };
+    let count = 0;
+    let safety = 5; // cap pagination at 500 items per day
+    while (url && safety-- > 0) {
+      const { data } = await axios.get(url, { params, timeout: 10000 });
+      count += (data?.data || []).length;
+      const next = data?.paging?.next;
+      if (!next) break;
+      url = next;
+      params = undefined;
+    }
+    return count;
+  } catch (err) {
+    logger.debug(`FB ${endpoint} skipped for account ${account.id}: ${err.response?.data?.error?.message || err.message}`);
     return null;
   }
 }
@@ -299,13 +336,44 @@ async function fetchLinkedInInsights(account, token, day) {
     const stats = data.elements?.[0]?.totalPageStatistics || {};
     const views = stats.views || {};
     const clicks = stats.clicks || {};
+
+    // organic/paid follower gain breakdown — separate endpoint.
+    let organicGain = null, paidGain = null;
+    try {
+      const orgUrn = `urn:li:organization:${account.platform_account_id}`;
+      const { data: fg } = await axios.get(`${linkedin.LINKEDIN_API_BASE}/rest/organizationalEntityFollowerStatistics`, {
+        params: {
+          q: 'organizationalEntity',
+          organizationalEntity: orgUrn,
+          'timeIntervals.timeGranularityType': 'DAY',
+          'timeIntervals.timeRange.start': new Date(day).getTime(),
+          'timeIntervals.timeRange.end': new Date(nextDay(day)).getTime(),
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'LinkedIn-Version': '202401',
+          'X-Restli-Protocol-Version': '2.0.0',
+        },
+        timeout: 12000,
+      });
+      const el0 = fg.elements?.[0];
+      // followerGains shape: { organicFollowerGain, paidFollowerGain }
+      const gains = el0?.followerGains || {};
+      organicGain = numberOr(gains.organicFollowerGain);
+      paidGain    = numberOr(gains.paidFollowerGain);
+    } catch (innerErr) {
+      logger.debug(`LinkedIn follower gain skipped for account ${account.id}: ${innerErr.response?.data?.message || innerErr.message}`);
+    }
+
     return {
-      engaged_users:      null,
-      profile_views:      numberOr(views.allPageViews?.pageViews),
-      profile_taps:       numberOr(clicks.totalCareersClicks ?? clicks.totalLifePageClicks),
-      reach_unique:       null,
-      follower_views:     null,
-      non_follower_views: null,
+      engaged_users:         null,
+      profile_views:         numberOr(views.allPageViews?.pageViews),
+      profile_taps:          numberOr(clicks.totalCareersClicks ?? clicks.totalLifePageClicks),
+      reach_unique:          null,
+      follower_views:        null,
+      non_follower_views:    null,
+      linkedin_organic_gain: organicGain,
+      linkedin_paid_gain:    paidGain,
     };
   } catch (err) {
     const apiError = err.response?.data;
@@ -326,12 +394,16 @@ async function recordSnapshot(socialAccountId, day, values) {
         reach_organic, reach_viral, reach_nonviral,
         paid_fans_added, unpaid_fans_added,
         following_count, tweet_count, listed_count,
-        story_replies, story_shares)
+        story_replies, story_shares,
+        fan_posts_count, reviews_count, blocked_dm_count,
+        linkedin_organic_gain, linkedin_paid_gain)
      VALUES (?, ?,
              ?, ?, ?,
              ?, ?, ?,
              ?, ?, ?, ?,
              ?, ?, ?, ?,
+             ?, ?, ?,
+             ?, ?,
              ?, ?, ?,
              ?, ?,
              ?, ?, ?,
@@ -360,7 +432,12 @@ async function recordSnapshot(socialAccountId, day, values) {
        tweet_count          = VALUES(tweet_count),
        listed_count         = VALUES(listed_count),
        story_replies        = VALUES(story_replies),
-       story_shares         = VALUES(story_shares)`,
+       story_shares         = VALUES(story_shares),
+       fan_posts_count      = VALUES(fan_posts_count),
+       reviews_count        = VALUES(reviews_count),
+       blocked_dm_count     = VALUES(blocked_dm_count),
+       linkedin_organic_gain= VALUES(linkedin_organic_gain),
+       linkedin_paid_gain   = VALUES(linkedin_paid_gain)`,
     [
       socialAccountId, day,
       n(values.engaged_users), n(values.profile_views), n(values.profile_taps),
@@ -371,6 +448,8 @@ async function recordSnapshot(socialAccountId, day, values) {
       n(values.paid_fans_added), n(values.unpaid_fans_added),
       n(values.following_count), n(values.tweet_count), n(values.listed_count),
       n(values.story_replies), n(values.story_shares),
+      n(values.fan_posts_count), n(values.reviews_count), n(values.blocked_dm_count),
+      n(values.linkedin_organic_gain), n(values.linkedin_paid_gain),
     ]
   );
   return true;

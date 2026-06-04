@@ -88,6 +88,11 @@ async function totalForMetric(metricKey, channelIds, start, end) {
     unpaid_fans_increase:    'unpaid_fans_added',
     story_replies_mentions:  'story_replies',
     reposts:                 'story_shares',
+    engage_fan_posts:        'fan_posts_count',
+    engage_reviews:          'reviews_count',
+    blocked_dm_conversations:'blocked_dm_count',
+    organic_net_followers:   'linkedin_organic_gain',
+    paid_net_followers:      'linkedin_paid_gain',
   };
   if (CI_COLUMN[metricKey]) {
     const accountsFilter = channelIds && channelIds.length > 0
