@@ -104,6 +104,68 @@ async function totalForMetric(metricKey, channelIds, start, end) {
       return 0;
     }
   }
+  // X account stats — `following` is a snapshot count (latest value in
+  // range), `net_tweets_retweets` and `net_listed` are deltas across
+  // the range (latest − earliest).
+  if (metricKey === 'following') {
+    const accountsFilter = channelIds && channelIds.length > 0
+      ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+      : '';
+    try {
+      const [rows] = await pool.execute(
+        `SELECT COALESCE(SUM(latest.following_count), 0) AS v
+         FROM (
+           SELECT cid.social_account_id, cid.following_count
+           FROM channel_insights_daily cid
+           JOIN (
+             SELECT social_account_id, MAX(snapshot_date) AS d
+             FROM channel_insights_daily
+             WHERE snapshot_date <= ? AND following_count IS NOT NULL
+             GROUP BY social_account_id
+           ) lx ON lx.social_account_id = cid.social_account_id AND lx.d = cid.snapshot_date
+           WHERE 1=1 ${accountsFilter}
+         ) latest`,
+        [end.slice(0, 10), ...(channelIds || [])]
+      );
+      return Number(rows[0]?.v) || 0;
+    } catch { return 0; }
+  }
+  if (metricKey === 'net_tweets_retweets' || metricKey === 'net_listed') {
+    const col = metricKey === 'net_tweets_retweets' ? 'tweet_count' : 'listed_count';
+    const accountsFilter = channelIds && channelIds.length > 0
+      ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+      : '';
+    try {
+      // Per-account: (latest snapshot in range) - (earliest in range),
+      // summed across accounts. NULL snapshots are skipped via the
+      // IS NOT NULL filter.
+      const [rows] = await pool.execute(
+        `SELECT COALESCE(SUM(last_in_range.${col} - first_in_range.${col}), 0) AS v
+         FROM (
+           SELECT social_account_id, MAX(snapshot_date) AS d
+           FROM channel_insights_daily
+           WHERE snapshot_date BETWEEN ? AND ? AND ${col} IS NOT NULL ${accountsFilter}
+           GROUP BY social_account_id
+         ) lx
+         JOIN channel_insights_daily last_in_range
+           ON last_in_range.social_account_id = lx.social_account_id
+          AND last_in_range.snapshot_date = lx.d
+         JOIN (
+           SELECT social_account_id, MIN(snapshot_date) AS d
+           FROM channel_insights_daily
+           WHERE snapshot_date BETWEEN ? AND ? AND ${col} IS NOT NULL ${accountsFilter}
+           GROUP BY social_account_id
+         ) fx ON fx.social_account_id = lx.social_account_id
+         JOIN channel_insights_daily first_in_range
+           ON first_in_range.social_account_id = fx.social_account_id
+          AND first_in_range.snapshot_date = fx.d`,
+        [start.slice(0, 10), end.slice(0, 10), ...(channelIds || []),
+         start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+      );
+      return Number(rows[0]?.v) || 0;
+    } catch { return 0; }
+  }
+
   // Daily-average reach breakdowns — sum the daily column, divide by days.
   const REACH_DAILY_COLUMN = {
     organic_reach_daily:        'reach_organic',

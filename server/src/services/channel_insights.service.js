@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const fb = require('../config/facebook');
 const ig = require('../config/instagram');
 const linkedin = require('../config/linkedin');
+const tw = require('../config/twitter');
 const { decrypt } = require('./token.service');
 const logger = require('../utils/logger');
 
@@ -25,7 +26,32 @@ async function fetchInsightsForAccount(account, dateStr) {
   if (account.platform === 'linkedin') {
     return fetchLinkedInInsights(account, token, day);
   }
+  if (account.platform === 'twitter') {
+    return fetchTwitterInsights(account, token, day);
+  }
   return null;
+}
+
+async function fetchTwitterInsights(account, token, day) {
+  try {
+    const { data } = await axios.get(`${tw.TWITTER_API_BASE}/users/me`, {
+      params: { 'user.fields': 'public_metrics' },
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000,
+    });
+    const m = data.data?.public_metrics || {};
+    return {
+      // X snapshot fields fill the X-specific columns; everything else
+      // stays null because /users/me doesn't report engagement etc.
+      following_count: numberOr(m.following_count),
+      tweet_count:     numberOr(m.tweet_count),
+      listed_count:    numberOr(m.listed_count),
+    };
+  } catch (err) {
+    const apiBody = err.response?.data;
+    logger.debug(`X insights skipped for account ${account.id}: ${apiBody?.title || err.message}`);
+    return null;
+  }
 }
 
 async function fetchFacebookPageInsights(account, token, day) {
@@ -251,14 +277,16 @@ async function recordSnapshot(socialAccountId, day, values) {
         video_views, video_views_unique, video_view_time, video_repeat_views,
         impressions_organic, impressions_paid, impressions_viral, impressions_nonviral,
         reach_organic, reach_viral, reach_nonviral,
-        paid_fans_added, unpaid_fans_added)
+        paid_fans_added, unpaid_fans_added,
+        following_count, tweet_count, listed_count)
      VALUES (?, ?,
              ?, ?, ?,
              ?, ?, ?,
              ?, ?, ?, ?,
              ?, ?, ?, ?,
              ?, ?, ?,
-             ?, ?)
+             ?, ?,
+             ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        engaged_users        = VALUES(engaged_users),
        profile_views        = VALUES(profile_views),
@@ -278,7 +306,10 @@ async function recordSnapshot(socialAccountId, day, values) {
        reach_viral          = VALUES(reach_viral),
        reach_nonviral       = VALUES(reach_nonviral),
        paid_fans_added      = VALUES(paid_fans_added),
-       unpaid_fans_added    = VALUES(unpaid_fans_added)`,
+       unpaid_fans_added    = VALUES(unpaid_fans_added),
+       following_count      = VALUES(following_count),
+       tweet_count          = VALUES(tweet_count),
+       listed_count         = VALUES(listed_count)`,
     [
       socialAccountId, day,
       n(values.engaged_users), n(values.profile_views), n(values.profile_taps),
@@ -287,6 +318,7 @@ async function recordSnapshot(socialAccountId, day, values) {
       n(values.impressions_organic), n(values.impressions_paid), n(values.impressions_viral), n(values.impressions_nonviral),
       n(values.reach_organic), n(values.reach_viral), n(values.reach_nonviral),
       n(values.paid_fans_added), n(values.unpaid_fans_added),
+      n(values.following_count), n(values.tweet_count), n(values.listed_count),
     ]
   );
   return true;
