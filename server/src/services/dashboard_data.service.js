@@ -95,6 +95,8 @@ async function totalForMetric(metricKey, channelIds, start, end) {
     paid_net_followers:      'linkedin_paid_gain',
     paid_video_views_3s:     'video_views_paid',
     organic_video_views_3s:  'video_views_organic',
+    video_views_10s:         'video_views_10s',
+    video_views_30s:         'video_views_30s',
   };
   if (CI_COLUMN[metricKey]) {
     const accountsFilter = channelIds && channelIds.length > 0

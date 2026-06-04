@@ -72,6 +72,8 @@ async function fetchFacebookPageInsights(account, token, day) {
     'page_video_views_unique',
     'page_video_view_time',
     'page_video_repeat_views',
+    'page_video_views_10s',
+    'page_video_complete_views_30s',
     // Impressions breakdown
     'page_impressions_organic_v2',
     'page_impressions_paid',
@@ -129,6 +131,8 @@ async function fetchFacebookPageInsights(account, token, day) {
       video_repeat_views:   valueOf('page_video_repeat_views'),
       video_views_paid:     valueOf('page_video_views_paid'),
       video_views_organic:  valueOf('page_video_views_organic'),
+      video_views_10s:      valueOf('page_video_views_10s'),
+      video_views_30s:      valueOf('page_video_complete_views_30s'),
       impressions_organic:  valueOf('page_impressions_organic_v2'),
       impressions_paid:     valueOf('page_impressions_paid'),
       impressions_viral:    valueOf('page_impressions_viral_unique'),
@@ -401,7 +405,8 @@ async function recordSnapshot(socialAccountId, day, values) {
         story_replies, story_shares,
         fan_posts_count, reviews_count, blocked_dm_count,
         linkedin_organic_gain, linkedin_paid_gain,
-        video_views_paid, video_views_organic)
+        video_views_paid, video_views_organic,
+        video_views_10s, video_views_30s)
      VALUES (?, ?,
              ?, ?, ?,
              ?, ?, ?,
@@ -412,6 +417,7 @@ async function recordSnapshot(socialAccountId, day, values) {
              ?, ?, ?,
              ?, ?,
              ?, ?, ?,
+             ?, ?,
              ?, ?,
              ?, ?)
      ON DUPLICATE KEY UPDATE
@@ -445,7 +451,9 @@ async function recordSnapshot(socialAccountId, day, values) {
        linkedin_organic_gain= VALUES(linkedin_organic_gain),
        linkedin_paid_gain   = VALUES(linkedin_paid_gain),
        video_views_paid     = VALUES(video_views_paid),
-       video_views_organic  = VALUES(video_views_organic)`,
+       video_views_organic  = VALUES(video_views_organic),
+       video_views_10s      = VALUES(video_views_10s),
+       video_views_30s      = VALUES(video_views_30s)`,
     [
       socialAccountId, day,
       n(values.engaged_users), n(values.profile_views), n(values.profile_taps),
@@ -459,6 +467,7 @@ async function recordSnapshot(socialAccountId, day, values) {
       n(values.fan_posts_count), n(values.reviews_count), n(values.blocked_dm_count),
       n(values.linkedin_organic_gain), n(values.linkedin_paid_gain),
       n(values.video_views_paid), n(values.video_views_organic),
+      n(values.video_views_10s), n(values.video_views_30s),
     ]
   );
   return true;
