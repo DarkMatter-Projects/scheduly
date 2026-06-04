@@ -629,9 +629,9 @@ export const DASHBOARD_TEMPLATES = [
   {
     key: 'custom',
     name: 'Build your own',
-    platforms: ['facebook_page','instagram_business','tiktok'],
+    platforms: ['facebook_page','instagram_business','linkedin','twitter','tiktok','youtube'],
     available: true,
-    description: 'Start with an empty canvas and add the widgets you want.',
+    description: 'Start with an empty canvas and add the widgets you want. Pick which accounts the dashboard scopes to first.',
     widgets: [],
   },
 ];

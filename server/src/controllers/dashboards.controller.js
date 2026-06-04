@@ -31,11 +31,11 @@ async function get(req, res, next) {
 
 async function create(req, res, next) {
   try {
-    const { name, templateKey, description, clientId, teamId, defaultRange, rangeStart, rangeEnd, widgets } = req.body;
+    const { name, templateKey, description, clientId, teamId, defaultRange, rangeStart, rangeEnd, widgets, channelIds } = req.body;
     if (!name) return res.status(400).json({ error: 'Dashboard name is required' });
     const d = await dashboardService.createDashboard({
       name, templateKey, description, clientId, teamId,
-      defaultRange, rangeStart, rangeEnd, widgets,
+      defaultRange, rangeStart, rangeEnd, widgets, channelIds,
       createdBy: req.user.userId,
     });
     res.status(201).json(d);
@@ -141,9 +141,13 @@ async function getWidgetData(req, res, next) {
     const [drows] = await pool.execute('SELECT * FROM dashboards WHERE id = ?', [widget.dashboard_id]);
     if (drows.length === 0) return res.status(404).json({ error: 'Dashboard not found' });
 
-    // Dashboard-level scope = union of every widget's channelIds. Widgets
-    // without their own channelIds fall back to this so the table doesn't
-    // leak channels the user never picked for this dashboard.
+    // Dashboard-level scope priority:
+    //   1. Union of every widget's channelIds (existing behaviour)
+    //   2. The dashboard's own dashboards.channel_ids JSON (lets the user
+    //      seed an empty Custom dashboard with the accounts they picked
+    //      in the template wizard — widgets added later inherit it)
+    //   3. null → "all accessible accounts" fallback inside the data
+    //      resolver
     const [allWidgets] = await pool.execute(
       'SELECT channel_ids FROM dashboard_widgets WHERE dashboard_id = ?',
       [widget.dashboard_id]
@@ -152,6 +156,10 @@ async function getWidgetData(req, res, next) {
     for (const w of allWidgets) {
       const ids = parseJsonish(w.channel_ids) || [];
       for (const id of ids) scopeSet.add(Number(id));
+    }
+    if (scopeSet.size === 0) {
+      const dashboardChannelIds = parseJsonish(drows[0].channel_ids) || [];
+      for (const id of dashboardChannelIds) scopeSet.add(Number(id));
     }
     const dashboard = { ...drows[0], effectiveChannelIds: [...scopeSet] };
 

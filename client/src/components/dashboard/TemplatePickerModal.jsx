@@ -215,7 +215,6 @@ function AccountStep({ template, accounts, clientId, onConfirm, onBack }) {
 
 // Templates that don't have per-account scoping — go straight to create.
 function skipsAccountStep(template) {
-  if (template.key === 'custom') return true;
   // Paid performance pulls from ad_insights tables (Meta Ads / Google Ads /
   // TikTok Ads), not from social_accounts — there's no account picker for it.
   if (template.key === 'paid_performance') return true;

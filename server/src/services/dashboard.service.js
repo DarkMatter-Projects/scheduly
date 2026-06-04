@@ -68,17 +68,18 @@ async function getDashboard(id) {
   return d;
 }
 
-async function createDashboard({ name, templateKey, description, clientId, teamId, createdBy, defaultRange, rangeStart, rangeEnd, widgets }) {
+async function createDashboard({ name, templateKey, description, clientId, teamId, createdBy, defaultRange, rangeStart, rangeEnd, widgets, channelIds }) {
   const [result] = await pool.execute(
     `INSERT INTO dashboards
-       (name, template_key, description, client_id, team_id, created_by,
+       (name, template_key, description, client_id, channel_ids, team_id, created_by,
         default_range, range_start, range_end)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       name,
       templateKey || 'custom',
       description || null,
       clientId || null,
+      jsonOrNull(channelIds),
       teamId || null,
       createdBy,
       defaultRange || '30d',
@@ -117,7 +118,7 @@ async function createDashboard({ name, templateKey, description, clientId, teamI
 }
 
 async function updateDashboard(id, fields) {
-  const allowed = ['name', 'description', 'client_id', 'default_range', 'range_start', 'range_end'];
+  const allowed = ['name', 'description', 'client_id', 'channel_ids', 'default_range', 'range_start', 'range_end'];
   const sets = [];
   const values = [];
   for (const k of allowed) {
@@ -272,6 +273,7 @@ function formatDashboard(row) {
     clientId: row.client_id,
     clientName: row.client_name,
     clientColor: row.client_color,
+    channelIds: parseJsonField(row.channel_ids) || [],
     defaultRange: row.default_range,
     rangeStart: row.range_start,
     rangeEnd: row.range_end,

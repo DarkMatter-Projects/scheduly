@@ -81,6 +81,11 @@ export default function DashboardsListPage() {
       templateKey: template.key,
       description: template.description,
       clientId: activeClientId || undefined,
+      // Persist the picked accounts at the dashboard level so an empty
+      // Custom canvas still remembers which accounts the user chose —
+      // widgets added later inherit this scope via the server's
+      // effectiveChannelIds fallback.
+      channelIds: accountIds.length > 0 ? accountIds : undefined,
       widgets,
     });
     setShowTemplatePicker(false);
