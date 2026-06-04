@@ -58,6 +58,7 @@ export default function AddWidgetModal({ onSave, onClose }) {
     'longform_videos_performance', 'shorts_performance',
     'video_performance', 'fans_by_function', 'fans_by_seniority',
     'fans_by_association', 'reach_by_follower_type', 'reach_by_distribution',
+    'metric_organic_paid_split',
   ]);
   const requiresMetrics = !NO_METRIC_WIDGETS.has(widgetType);
 

@@ -462,6 +462,7 @@ const NON_SCOPED_WIDGET_TYPES = new Set([
   'fans_by_association',
   'reach_by_follower_type',
   'reach_by_distribution',
+  'metric_organic_paid_split',
 ]);
 
 function ChannelsSummary({ accounts, dashboard }) {

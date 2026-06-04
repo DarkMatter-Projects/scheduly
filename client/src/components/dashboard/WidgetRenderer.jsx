@@ -127,7 +127,8 @@ function WidgetBody({ widget }) {
     case 'fans_by_seniority':
     case 'fans_by_association':
     case 'reach_by_follower_type':
-    case 'reach_by_distribution':          return <NoDataPlaceholder />;
+    case 'reach_by_distribution':
+    case 'metric_organic_paid_split':      return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">

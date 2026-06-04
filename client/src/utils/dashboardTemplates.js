@@ -388,18 +388,67 @@ export const DASHBOARD_TEMPLATES = [
   {
     key: 'video_overview',
     name: 'Video overview',
-    platforms: ['facebook_page'],
-    available: false,
-    description: 'Video views, watch time, retention. Requires video metrics collection (coming soon).',
-    widgets: [],
+    platforms: ['facebook_page','instagram_business','linkedin','tiktok','youtube'],
+    available: true,
+    description: 'Video views, watch time, viewers and per-channel video performance.',
+    widgets: [
+      // 1. Video views by time played + Video viewers and time
+      { category: 'channel', widgetType: 'key_metrics', title: 'Video views by time played',
+        metricKeys: ['video_views','video_views_10s'], width: 6, height: 3 },
+      { category: 'channel', widgetType: 'key_metrics', title: 'Video viewers and time',
+        metricKeys: ['video_viewers','video_watch_time'], width: 6, height: 3 },
+      // 2. Video views over time (full width)
+      { category: 'channel', widgetType: 'time_series', title: 'Video views over time',
+        metricKeys: ['video_views','video_views_10s','video_views_30s'], width: 12, height: 4 },
+      // 3. Video views (3s) breakdown + Video viewers over time
+      { category: 'channel', widgetType: 'metric_organic_paid_split', title: 'Video views (3s) breakdown',
+        width: 6, height: 4 },
+      { category: 'channel', widgetType: 'time_series', title: 'Video viewers over time',
+        metricKeys: ['video_viewers'], width: 6, height: 4 },
+      // 4. Video views by channel (table)
+      { category: 'channel', widgetType: 'channel_performance_table', title: 'Video views by channel',
+        metricKeys: ['video_views','video_views_10s','video_viewers','repeated_video_views','video_watch_time'],
+        width: 12, height: 3 },
+      // 5. Video view time (minutes) — full width chart
+      { category: 'channel', widgetType: 'time_series', title: 'Video view time (minutes)',
+        metricKeys: ['video_watch_time'], width: 12, height: 4 },
+      // 6. Video performance — content placeholder card grid
+      { category: 'content', widgetType: 'video_performance', title: 'Video performance',
+        width: 12, height: 5 },
+    ],
   },
   {
     key: 'instagram_stories_dms',
     name: 'Instagram stories & DMs',
     platforms: ['instagram_business'],
-    available: false,
-    description: 'Story performance and DM volume. Requires story insights ingestion (coming soon).',
-    widgets: [],
+    available: true,
+    description: 'Story performance, story replies and mentions, and DM volume across your IG accounts.',
+    widgets: [
+      // 1. Story replies and mentions KPI + Daily Story replies and mentions
+      { category: 'engage', widgetType: 'key_metrics', title: 'Story replies and mentions',
+        metricKeys: ['story_replies_mentions'], width: 4, height: 4 },
+      { category: 'engage', widgetType: 'time_series', title: 'Daily Story replies and mentions',
+        metricKeys: ['story_replies_mentions'], width: 8, height: 4 },
+      // 2. Incoming private messages by type (placeholder bar chart)
+      { category: 'engage', widgetType: 'metric_by_post_type', title: 'Incoming private messages by type',
+        metricKeys: ['incoming_messages'], width: 12, height: 4 },
+      // 3. Daily private messages + Total and avg. per day (KPI)
+      { category: 'engage', widgetType: 'time_series', title: 'Daily private messages',
+        metricKeys: ['incoming_messages'], width: 8, height: 4 },
+      { category: 'engage', widgetType: 'key_metrics', title: 'Total and avg. per day',
+        metricKeys: ['incoming_messages'], width: 4, height: 4 },
+      // 4. Total and avg. per day (story) + Daily Stories posted
+      { category: 'engage', widgetType: 'key_metrics', title: 'Total and avg. per day',
+        metricKeys: ['posts'], width: 4, height: 4 },
+      { category: 'engage', widgetType: 'time_series', title: 'Daily Stories posted',
+        metricKeys: ['posts'], width: 8, height: 4 },
+      // 5. Channel comparison of Story metrics (per-channel table)
+      { category: 'engage', widgetType: 'channel_performance_table', title: 'Channel comparison of Story metrics',
+        metricKeys: ['posts','story_replies_mentions','incoming_messages'], width: 12, height: 3 },
+      // 6. Story performance (card grid filtered to post_type='story')
+      { category: 'content', widgetType: 'story_performance', title: 'Story performance',
+        width: 12, height: 5 },
+    ],
   },
   {
     key: 'label_performance',

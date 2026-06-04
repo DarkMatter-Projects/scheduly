@@ -133,6 +133,9 @@ const METRICS = [
   { key: 'organic_video_views_3s', label: 'Organic video views (3s)', section: 'video', category: 'channel', platforms: ['facebook_page'],                              format: 'number',   source: 'derived.organic_video_views_3s', available: false,
     scope: 'content',
     description: '3-second video views from organic posts only. Requires page_video_views_organic ingestion.' },
+  { key: 'video_views_10s',     label: 'Video views (10s)',   section: 'video',       category: 'channel', platforms: ['facebook_page'],                                format: 'number',   source: 'derived.video_views_10s',       available: false,
+    scope: 'content',
+    description: '10-second video views. Requires page_video_10s_views ingestion (coming soon).' },
   { key: 'video_views_30s',     label: 'Video views (30s)',   section: 'video',       category: 'channel', platforms: ['facebook_page'],                                format: 'number',   source: 'derived.video_views_30s',       available: false,
     scope: 'content',
     description: '30-second / complete video views. Requires page_video_complete_views ingestion.' },
@@ -153,6 +156,9 @@ const METRICS = [
   { key: 'blocked_dm_conversations', label: 'Blocked DM conversations', section: 'direct_messages', category: 'engage', platforms: ['facebook_page'],                  format: 'number',   source: 'derived.blocked_dm_conversations', available: false,
     scope: 'engage',
     description: 'Conversations the Page admin blocked during the period. Requires page_messages_blocked_conversations_unique ingestion.' },
+  { key: 'story_replies_mentions', label: 'Story replies and mentions', section: 'engage', category: 'engage', platforms: ['instagram_business'],                       format: 'number',   source: 'derived.story_replies_mentions', available: false,
+    scope: 'engage',
+    description: 'Replies + @mentions received on your Stories during the period. Requires IG Story Insights ingestion (coming soon).' },
 
   // ── Audience demographics (per-country fan breakdown — not yet collected) ──
   { key: 'fans_by_country',     label: 'Followers by country', section: 'fans',       category: 'channel', platforms: ['facebook_page','instagram_business'],          format: 'number',   source: 'derived.fans_by_country',       available: true,

@@ -1554,7 +1554,8 @@ async function buildWidgetData(dashboard, widget) {
     case 'fans_by_seniority':
     case 'fans_by_association':
     case 'reach_by_follower_type':
-    case 'reach_by_distribution':          return { placeholder: true };
+    case 'reach_by_distribution':
+    case 'metric_organic_paid_split':      return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }
