@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listAccounts, startFacebookAuth, startInstagramAuth, startTiktokLoginAuth, startLinkedinAuth, startYoutubeAuth, getYoutubeQuota, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
+import { listAccounts, startFacebookAuth, startInstagramAuth, startTiktokLoginAuth, startLinkedinAuth, startTwitterAuth, startYoutubeAuth, getYoutubeQuota, disconnectAccount, reconnectAccount, importHistory } from '../api/socialApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
@@ -195,6 +195,12 @@ export default function AccountsPage() {
     onError: () => toast.error('Failed to start LinkedIn connection. Check LINKEDIN_* env vars.'),
   });
 
+  const connectTwitterMutation = useMutation({
+    mutationFn: () => startTwitterAuth(),
+    onSuccess: (data) => { window.location.href = data.authUrl; },
+    onError: () => toast.error('Failed to start X connection. Check TWITTER_CLIENT_ID / TWITTER_CLIENT_SECRET env vars.'),
+  });
+
   const connectYoutubeMutation = useMutation({
     mutationFn: () => startYoutubeAuth(),
     onSuccess: (data) => { window.location.href = data.authUrl; },
@@ -251,6 +257,8 @@ export default function AccountsPage() {
       connectTiktokMutation.mutate();
     } else if (platform.connectVia === 'linkedin') {
       connectLinkedinMutation.mutate();
+    } else if (platform.connectVia === 'twitter') {
+      connectTwitterMutation.mutate();
     } else if (platform.connectVia === 'youtube') {
       connectYoutubeMutation.mutate();
     } else {

@@ -89,7 +89,7 @@ export const PLATFORMS = {
     bg: 'bg-black',
     bgSoft: 'bg-slate-100',
     text: 'text-slate-900',
-    available: false,
+    available: true,
     connectVia: 'twitter',
   },
   snapchat: {

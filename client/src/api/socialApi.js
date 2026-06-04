@@ -21,6 +21,9 @@ export const startTikTokAuth = (teamId) =>
 export const startLinkedinAuth = (teamId) =>
   api.get('/social/auth/linkedin', { params: { teamId } }).then(r => r.data);
 
+export const startTwitterAuth = (teamId) =>
+  api.get('/social/auth/twitter', { params: { teamId } }).then(r => r.data);
+
 export const startYoutubeAuth = (teamId) =>
   api.get('/social/auth/youtube', { params: { teamId } }).then(r => r.data);
 

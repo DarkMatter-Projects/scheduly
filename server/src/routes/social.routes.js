@@ -22,6 +22,8 @@ router.get('/auth/tiktok-login', authenticate, requireRole('admin'), socialContr
 router.get('/auth/tiktok-login/callback', socialController.tiktokLoginCallback);
 router.get('/auth/linkedin', authenticate, requireRole('admin'), socialController.startLinkedinOAuth);
 router.get('/auth/linkedin/callback', socialController.linkedinCallback);
+router.get('/auth/twitter', authenticate, requireRole('admin'), socialController.startTwitterOAuth);
+router.get('/auth/twitter/callback', socialController.twitterCallback);
 router.get('/auth/youtube', authenticate, requireRole('admin'), socialController.startYoutubeOAuth);
 router.get('/auth/youtube/callback', socialController.youtubeCallback);
 router.get('/youtube/quota', authenticate, socialController.getYoutubeQuota);

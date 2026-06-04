@@ -11,6 +11,7 @@ const googleAdsService = require('../services/google_ads.service');
 const tiktokAdsService = require('../services/tiktok_ads.service');
 const tiktokPostingService = require('../services/tiktok_posting.service');
 const linkedinService = require('../services/linkedin.service');
+const twitterService = require('../services/twitter.service');
 const youtubeService = require('../services/youtube.service');
 const { decrypt } = require('../services/token.service');
 const logger = require('../utils/logger');
@@ -409,6 +410,56 @@ async function getYoutubeQuota(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function startTwitterOAuth(req, res, next) {
+  try {
+    const state = crypto.randomBytes(16).toString('hex');
+    const { authUrl, codeVerifier } = twitterService.getAuthUrl(state);
+    pendingStates.set(state, {
+      userId: req.user.userId,
+      teamId: req.query.teamId || null,
+      platform: 'twitter',
+      codeVerifier,
+      timestamp: Date.now(),
+    });
+    for (const [key, val] of pendingStates) {
+      if (Date.now() - val.timestamp > 600000) pendingStates.delete(key);
+    }
+    res.json({ authUrl });
+  } catch (err) { next(err); }
+}
+
+async function twitterCallback(req, res, next) {
+  const clientUrl = clientBase();
+  try {
+    const { code, state, error, error_description } = req.query;
+    if (error) {
+      logger.warn(`Twitter OAuth denied: ${error} - ${error_description}`);
+      const detail = encodeURIComponent(`${error}: ${error_description || ''}`.slice(0, 300));
+      return res.redirect(`${clientUrl}/accounts?error=twitter_failed&detail=${detail}`);
+    }
+    if (!state || !pendingStates.has(state)) {
+      return res.redirect(`${clientUrl}/accounts?error=invalid_state`);
+    }
+    const { userId, teamId, codeVerifier } = pendingStates.get(state);
+    pendingStates.delete(state);
+
+    const tokens = await twitterService.exchangeCodeForToken(code, codeVerifier);
+    const userInfo = await twitterService.fetchUserInfo(tokens.accessToken);
+    await twitterService.storeAccount({ tokens, userInfo, userId, teamId });
+
+    logger.info(`Twitter OAuth: user ${userId} connected @${userInfo.username || userInfo.id}`);
+    return res.redirect(`${clientUrl}/accounts?connected=1`);
+  } catch (err) {
+    const apiBody = err.response?.data;
+    const detail = (apiBody && typeof apiBody === 'object'
+      ? apiBody.error_description || apiBody.detail || apiBody.error || JSON.stringify(apiBody).slice(0, 200)
+      : null) || err.message || 'Unknown error';
+    logger.error('Twitter OAuth callback error:', { message: err.message, response: apiBody });
+    const enc = encodeURIComponent(detail.slice(0, 300));
+    return res.redirect(`${clientUrl}/accounts?error=twitter_failed&detail=${enc}`);
+  }
+}
+
 async function startLinkedinOAuth(req, res, next) {
   try {
     const state = crypto.randomBytes(16).toString('hex');
@@ -602,6 +653,8 @@ module.exports = {
   tiktokLoginCallback,
   startLinkedinOAuth,
   linkedinCallback,
+  startTwitterOAuth,
+  twitterCallback,
   startYoutubeOAuth,
   youtubeCallback,
   getYoutubeQuota,

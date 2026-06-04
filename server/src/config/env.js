@@ -67,6 +67,12 @@ const env = {
     redirectUri: process.env.LINKEDIN_REDIRECT_URI
       || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/linkedin/callback`,
   },
+  twitter: {
+    clientId: process.env.TWITTER_CLIENT_ID,
+    clientSecret: process.env.TWITTER_CLIENT_SECRET,
+    redirectUri: process.env.TWITTER_REDIRECT_URI
+      || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/twitter/callback`,
+  },
   youtube: {
     // OAuth credentials reuse google.* (one Google Cloud project, two APIs).
     redirectUri: process.env.YOUTUBE_REDIRECT_URI
