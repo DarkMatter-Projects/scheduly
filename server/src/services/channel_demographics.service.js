@@ -19,6 +19,13 @@ async function snapshotDemographicsForAccount(account, dateStr) {
     return fetchInstagramDemographics(account, token, day);
   }
   if (account.platform === 'youtube') {
+    // YT has two snapshot calls — the audience demographics (country +
+    // age/gender, lifetime) go through the same upsertDimensions path
+    // as FB / IG; the per-day per-dimension YouTube Analytics rows
+    // (country views / watch_time / engagements, sharing services,
+    // traffic sources) go into the dedicated youtube_analytics_dimensions
+    // table so the dashboard can render them via SUM(value) over a range.
+    await snapshotYouTubeDimensions(account, token, day);
     return fetchYouTubeDemographics(account, token, day);
   }
   if (account.platform === 'linkedin') {
@@ -97,6 +104,119 @@ async function fetchInstagramDemographics(account, token, day) {
 // be small floats. For lack of a reliable "total viewers" lifetime
 // number we just store the percentage scaled by 100 so it's an
 // integer the dashboard can render.
+// YouTube Analytics per-day dimension fan-out. Stores rows in the new
+// youtube_analytics_dimensions table. Called daily from the channel
+// insights cron so the dashboard can render the six dimension widgets.
+async function snapshotYouTubeDimensions(account, token, day) {
+  let stored = 0;
+  // Country dimension — pull views / subscribersGained / likes+comments+shares
+  // / estimatedMinutesWatched in one call per metric set.
+  try {
+    const { data } = await axios.get('https://youtubeanalytics.googleapis.com/v2/reports', {
+      params: {
+        ids: 'channel==MINE',
+        startDate: day,
+        endDate: day,
+        metrics: 'views,subscribersGained,likes,comments,shares,estimatedMinutesWatched',
+        dimensions: 'country',
+        sort: '-views',
+        maxResults: 200,
+      },
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 12000,
+    });
+    const headers = (data.columnHeaders || []).map(h => h.name);
+    for (const row of (data.rows || [])) {
+      const country = row[headers.indexOf('country')];
+      if (!country) continue;
+      const inserts = [
+        ['views',                 Number(row[headers.indexOf('views')])               || 0],
+        ['subscribers_gained',    Number(row[headers.indexOf('subscribersGained')])   || 0],
+        ['engagements',           (Number(row[headers.indexOf('likes')])    || 0)
+                                + (Number(row[headers.indexOf('comments')]) || 0)
+                                + (Number(row[headers.indexOf('shares')])   || 0)],
+        ['watch_time_seconds',    Math.round((Number(row[headers.indexOf('estimatedMinutesWatched')]) || 0) * 60)],
+      ];
+      for (const [metricType, value] of inserts) {
+        if (value === 0) continue;
+        await pool.execute(
+          `INSERT INTO youtube_analytics_dimensions
+             (social_account_id, snapshot_date, dimension_type, dimension_key, metric_type, value)
+           VALUES (?, ?, 'country', ?, ?, ?)
+           ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+          [account.id, day, country, metricType, value]
+        );
+        stored++;
+      }
+    }
+  } catch (err) {
+    logger.debug(`YouTube country dimensions skipped for ${account.id}: ${err.response?.data?.error?.message || err.message}`);
+  }
+  // Top traffic sources — views per insightTrafficSourceType.
+  try {
+    const { data } = await axios.get('https://youtubeanalytics.googleapis.com/v2/reports', {
+      params: {
+        ids: 'channel==MINE',
+        startDate: day,
+        endDate: day,
+        metrics: 'views',
+        dimensions: 'insightTrafficSourceType',
+        sort: '-views',
+      },
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 12000,
+    });
+    const headers = (data.columnHeaders || []).map(h => h.name);
+    for (const row of (data.rows || [])) {
+      const sourceType = row[headers.indexOf('insightTrafficSourceType')];
+      const views = Number(row[headers.indexOf('views')]) || 0;
+      if (!sourceType || views === 0) continue;
+      await pool.execute(
+        `INSERT INTO youtube_analytics_dimensions
+           (social_account_id, snapshot_date, dimension_type, dimension_key, metric_type, value)
+         VALUES (?, ?, 'source', ?, 'views', ?)
+         ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+        [account.id, day, sourceType, views]
+      );
+      stored++;
+    }
+  } catch (err) {
+    logger.debug(`YouTube source dimensions skipped for ${account.id}: ${err.response?.data?.error?.message || err.message}`);
+  }
+  // Sharing services — shares per sharingService.
+  try {
+    const { data } = await axios.get('https://youtubeanalytics.googleapis.com/v2/reports', {
+      params: {
+        ids: 'channel==MINE',
+        startDate: day,
+        endDate: day,
+        metrics: 'shares',
+        dimensions: 'sharingService',
+        sort: '-shares',
+      },
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 12000,
+    });
+    const headers = (data.columnHeaders || []).map(h => h.name);
+    for (const row of (data.rows || [])) {
+      const service = row[headers.indexOf('sharingService')];
+      const shares = Number(row[headers.indexOf('shares')]) || 0;
+      if (!service || shares === 0) continue;
+      await pool.execute(
+        `INSERT INTO youtube_analytics_dimensions
+           (social_account_id, snapshot_date, dimension_type, dimension_key, metric_type, value)
+         VALUES (?, ?, 'sharing', ?, 'shares', ?)
+         ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+        [account.id, day, service, shares]
+      );
+      stored++;
+    }
+  } catch (err) {
+    logger.debug(`YouTube sharing dimensions skipped for ${account.id}: ${err.response?.data?.error?.message || err.message}`);
+  }
+  return stored;
+}
+
 async function fetchYouTubeDemographics(account, token, day) {
   const dims = [];
   // Country breakdown

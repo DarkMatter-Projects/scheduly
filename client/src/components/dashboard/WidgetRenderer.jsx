@@ -108,6 +108,12 @@ function WidgetBody({ widget }) {
     case 'video_performance':              return <ContentPerformanceBody data={data} />;
     case 'longform_videos_performance':    return <PostTypePerformanceBody data={data} label="Long-form video" />;
     case 'shorts_performance':             return <PostTypePerformanceBody data={data} label="Short" />;
+    case 'net_new_subscribers_by_country': return <YoutubeDimensionListBody data={data} label="Subscribers" valueFormat="number" />;
+    case 'video_views_by_country':         return <YoutubeDimensionListBody data={data} label="Views" valueFormat="number" />;
+    case 'watch_time_by_country':          return <YoutubeDimensionListBody data={data} label="Watch time" valueFormat="duration" />;
+    case 'engagements_by_country':         return <YoutubeDimensionListBody data={data} label="Engagements" valueFormat="number" />;
+    case 'top_sources_by_views':           return <YoutubeDimensionListBody data={data} label="Views" valueFormat="number" friendly={YT_SOURCE_LABEL} />;
+    case 'shares_by_source':               return <YoutubeSharingDonutBody data={data} />;
     case 'followers_by_country':           return <FollowersByCountryBody data={data} />;
     case 'fans_by_age_gender':             return <FansByAgeGenderBody data={data} />;
     case 'reels_performance':              return <PostTypePerformanceBody data={data} label="Reel"  />;
@@ -130,6 +136,8 @@ function WidgetBody({ widget }) {
     case 'fans_by_function':
     case 'fans_by_seniority':
     case 'fans_by_association':            return <NoDataPlaceholder />;
+
+    // (no other cases)
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -1306,6 +1314,120 @@ function SummaryStat({ label, value }) {
     <div className="min-w-0">
       <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{label}</div>
       <div className="text-base font-bold text-slate-900 tabular-nums truncate">{value}</div>
+    </div>
+  );
+}
+
+// ── YouTube dimension renderers ──
+
+// Friendly labels for YT's insightTrafficSourceType. Keys are the
+// canonical enum names returned by the Analytics API.
+const YT_SOURCE_LABEL = {
+  ADVERTISING:        'Advertising',
+  ANNOTATION:         'Annotation',
+  CAMPAIGN_CARD:      'Card',
+  END_SCREEN:         'End screen',
+  EXT_APP:            'External app',
+  EXT_URL:            'External URL',
+  HASHTAGS:           'Hashtags',
+  LIVE_REDIRECT:      'Live redirect',
+  NO_LINK_EMBEDDED:   'Embedded video',
+  NO_LINK_OTHER:      'Direct or other',
+  NOTIFICATION:       'Notifications',
+  PLAYLIST:           'Playlist',
+  PROMOTED:           'Promoted',
+  RELATED_VIDEO:      'Suggested video',
+  SEARCH:             'YouTube search',
+  SHORTS:             'Shorts feed',
+  SHORTS_CONTENT_LINKS: 'Shorts content links',
+  SUBSCRIBER:         'Subscribers',
+  YT_CHANNEL:         'Channel page',
+  YT_OTHER_PAGE:      'Other YT page',
+  YT_PLAYLIST_PAGE:   'Playlist page',
+  YT_SEARCH:          'YouTube search',
+};
+
+function YoutubeDimensionListBody({ data, label, valueFormat = 'number', friendly }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0) {
+    return <ChartEmptyState height={200} title="No data yet" hint="Per-dimension data appears once the YouTube Analytics cron runs." />;
+  }
+  const max = Math.max(...rows.map(r => r.value), 0);
+  const fmt = (v) => {
+    if (valueFormat === 'duration') {
+      const totalMinutes = Math.round(v / 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    }
+    return formatCompact(v, 'number');
+  };
+  return (
+    <div className="h-full overflow-auto">
+      <ul className="divide-y divide-slate-100 text-xs">
+        {rows.map(r => (
+          <li key={r.key} className="flex items-center gap-2 py-1.5">
+            <span className="text-slate-700 truncate w-36">{friendly ? (friendly[r.key] || r.key) : r.key}</span>
+            <span className="text-slate-900 font-semibold tabular-nums w-16 text-right">{fmt(r.value)}</span>
+            <div className="flex-1 h-2 bg-slate-100 rounded overflow-hidden">
+              <div className="h-full bg-indigo-400 rounded" style={{ width: `${max > 0 ? (r.value / max) * 100 : 0}%` }} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Sharing services donut — keys come back as FACEBOOK / WHATSAPP /
+// COPY_PASTE / etc.; we humanise them via a small map.
+const YT_SHARING_LABEL = {
+  FACEBOOK:           'Facebook',
+  WHATSAPP:           'WhatsApp',
+  WHATSAPP_BUSINESS:  'WhatsApp Business',
+  COPY_PASTE:         'Copy link',
+  EMBED:              'Embed',
+  EMAIL:              'Email',
+  TWITTER:            'X',
+  REDDIT:             'Reddit',
+  PINTEREST:          'Pinterest',
+  LINKEDIN:           'LinkedIn',
+  DIRECT_SYSTEM_ACTIVITY_DIALOG: 'System share',
+  OTHER:              'Other',
+};
+const DONUT_COLORS = ['#6366f1','#ec4899','#06b6d4','#f59e0b','#10b981','#8b5cf6','#ef4444','#3b82f6','#22c55e','#f97316'];
+
+function YoutubeSharingDonutBody({ data }) {
+  const rows = (data?.rows || []).filter(r => r.value > 0);
+  if (rows.length === 0) {
+    return <ChartEmptyState height={200} title="No shares in range" hint="Donut populates once viewers share your videos." />;
+  }
+  const display = rows.map((r, i) => ({
+    name: YT_SHARING_LABEL[r.key] || r.key,
+    value: r.value,
+    share: r.share,
+    color: DONUT_COLORS[i % DONUT_COLORS.length],
+  }));
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 h-full">
+      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+        <PieChart>
+          <Pie data={display} dataKey="value" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={1} isAnimationActive={false}>
+            {display.map(r => <Cell key={r.name} fill={r.color} />)}
+          </Pie>
+          <Tooltip formatter={(v, _n, e) => [`${formatCompact(v, 'number')} (${(e.payload.share || 0).toFixed(1)}%)`, e.payload.name]} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex flex-col justify-center space-y-1.5 px-2 text-xs overflow-auto">
+        {display.map(r => (
+          <div key={r.name} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
+            <span className="text-slate-600 flex-1 truncate">{r.name}</span>
+            <span className="text-slate-900 font-semibold tabular-nums">{formatCompact(r.value, 'number')}</span>
+            <span className="text-[10px] text-slate-400 tabular-nums w-12 text-right">{r.share.toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

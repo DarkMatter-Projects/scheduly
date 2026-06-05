@@ -1461,6 +1461,45 @@ async function buildPostTypePerformance(dashboard, widget, types) {
   };
 }
 
+// Generic YouTube dimension lookup. Sums the value column from
+// youtube_analytics_dimensions across the date range, grouped by
+// dimension_key. Used by the 6 country/source/sharing widgets.
+async function buildYoutubeDimension(dashboard, widget, dimensionType, metricType) {
+  const { start, end } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  try {
+    const [rows] = await pool.execute(
+      `SELECT dimension_key, COALESCE(SUM(value), 0) AS v
+       FROM youtube_analytics_dimensions
+       WHERE dimension_type = ?
+         AND metric_type = ?
+         AND snapshot_date BETWEEN ? AND ?
+         ${accountsFilter}
+       GROUP BY dimension_key
+       ORDER BY v DESC
+       LIMIT 25`,
+      [dimensionType, metricType, start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+    );
+    const total = rows.reduce((s, r) => s + (Number(r.v) || 0), 0);
+    return {
+      range: { start, end },
+      dimensionType,
+      metricType,
+      total,
+      rows: rows.map(r => ({
+        key:   r.dimension_key,
+        value: Number(r.v) || 0,
+        share: total > 0 ? (Number(r.v) / total) * 100 : 0,
+      })),
+    };
+  } catch {
+    return { range: { start, end }, dimensionType, metricType, total: 0, rows: [] };
+  }
+}
+
 // Fans by demographic dimension (country or gender_age). Reads the
 // latest snapshot per (account, dimension_key) within or before the
 // end of range, sums fans across all in-scope accounts, returns rows
@@ -2000,6 +2039,12 @@ async function buildWidgetData(dashboard, widget) {
     case 'video_performance':              return buildVideoPerformance(dashboard, widget);
     case 'longform_videos_performance':    return buildPostTypePerformanceFiltered(dashboard, widget, { platform: 'youtube', shortOnly: false });
     case 'shorts_performance':             return buildPostTypePerformanceFiltered(dashboard, widget, { platform: 'youtube', shortOnly: true });
+    case 'net_new_subscribers_by_country': return buildYoutubeDimension(dashboard, widget, 'country', 'subscribers_gained');
+    case 'video_views_by_country':         return buildYoutubeDimension(dashboard, widget, 'country', 'views');
+    case 'watch_time_by_country':          return buildYoutubeDimension(dashboard, widget, 'country', 'watch_time_seconds');
+    case 'engagements_by_country':         return buildYoutubeDimension(dashboard, widget, 'country', 'engagements');
+    case 'top_sources_by_views':           return buildYoutubeDimension(dashboard, widget, 'source',  'views');
+    case 'shares_by_source':               return buildYoutubeDimension(dashboard, widget, 'sharing', 'shares');
     case 'follow_non_follow_split':        return buildFollowNonFollowSplit(dashboard, widget);
     case 'followers_by_country':           return buildFansByDimension(dashboard, widget, 'country');
     case 'fans_by_age_gender':             return buildFansByDimension(dashboard, widget, 'gender_age');
@@ -2009,12 +2054,6 @@ async function buildWidgetData(dashboard, widget) {
     case 'fans_online_hourly':             return { placeholder: true };
     case 'engage_sentiment_by_label':
     case 'engage_sentiment_kpi_group':
-    case 'net_new_subscribers_by_country':
-    case 'shares_by_source':
-    case 'engagements_by_country':
-    case 'top_sources_by_views':
-    case 'video_views_by_country':
-    case 'watch_time_by_country':
     case 'fans_by_function':
     case 'fans_by_seniority':
     case 'fans_by_association':            return { placeholder: true };
