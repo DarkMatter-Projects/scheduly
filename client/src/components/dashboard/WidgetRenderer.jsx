@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { format } from 'date-fns';
 import clsx from 'clsx';
-import { Trash2, AlertTriangle, Pencil, Inbox, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, AlignLeft } from 'lucide-react';
+import { Trash2, AlertTriangle, Pencil, Inbox, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, AlignLeft, Download } from 'lucide-react';
 import { getWidgetData, updateWidget } from '../../api/dashboardsApi';
 import { uploadMedia } from '../../api/mediaApi';
 import toast from 'react-hot-toast';
@@ -42,6 +42,10 @@ export default function WidgetRenderer({ widget, canEdit, onRemove }) {
   const w = Math.max(1, Math.min(12, widget.width || 4));
   const spanClass = COL_SPAN[w];
   const heightStyle = { minHeight: `${Math.max(160, (widget.height || 2) * 80)}px` };
+  // Cached widget data so the export button can re-use what the body
+  // already fetched instead of hitting the API again.
+  const queryClient = useQueryClient();
+  const cachedData = queryClient.getQueryData(['widget-data', widget.id, widget.updatedAt]);
 
   return (
     <div className={clsx('bg-white border border-slate-200 rounded-xl flex flex-col col-span-1 sm:col-span-2', spanClass)} style={heightStyle}>
@@ -49,21 +53,95 @@ export default function WidgetRenderer({ widget, canEdit, onRemove }) {
         <div className="min-w-0 flex-1">
           <EditableTitle widget={widget} canEdit={canEdit} />
         </div>
-        {canEdit && (
+        <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={onRemove}
-            className="p-1 text-slate-300 hover:text-rose-600"
-            title="Remove widget"
+            type="button"
+            onClick={() => exportWidgetCsv(widget, cachedData)}
+            className="p-1 text-slate-300 hover:text-blue-600"
+            title="Export as CSV"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5" />
           </button>
-        )}
+          {canEdit && (
+            <button
+              onClick={onRemove}
+              className="p-1 text-slate-300 hover:text-rose-600"
+              title="Remove widget"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 px-4 pb-4 pt-2">
         <WidgetBody widget={widget} />
       </div>
     </div>
   );
+}
+
+// Walk the widget data response and serialise the rows array (or
+// metrics array, or points array, or whatever the widget happens to
+// have) into a CSV. Falls back to a full JSON dump when the shape
+// isn't recognised, so the user always gets something downloadable.
+function exportWidgetCsv(widget, data) {
+  if (!data) {
+    // Last resort — kick the user to JSON download if no data is cached.
+    triggerDownload(`${widget.title || widget.widgetType}.json`, JSON.stringify({ message: 'No data loaded yet' }, null, 2));
+    return;
+  }
+  const rows = data.rows || data.metrics || data.series?.[0]?.points || data.points || data.cards || null;
+  if (!rows || rows.length === 0) {
+    triggerDownload(`${widget.title || widget.widgetType}.csv`, 'No rows to export\n');
+    return;
+  }
+  // Headers = union of all top-level keys across rows, but if a row
+  // has a `cells` object, expand each cell to its own column.
+  const expand = (r) => {
+    const flat = {};
+    for (const [k, v] of Object.entries(r)) {
+      if (k === 'cells' && v && typeof v === 'object') {
+        for (const [cellKey, cellVal] of Object.entries(v)) {
+          if (cellVal && typeof cellVal === 'object' && 'current' in cellVal) {
+            flat[`${cellKey}_current`] = cellVal.current;
+            flat[`${cellKey}_prior`]   = cellVal.prior;
+          } else {
+            flat[cellKey] = cellVal;
+          }
+        }
+      } else if (v && typeof v === 'object') {
+        // Skip nested objects we can't flatten — they'd come out as [object Object].
+        // Time series points + similar already-flat objects pass through.
+      } else {
+        flat[k] = v;
+      }
+    }
+    return flat;
+  };
+  const expanded = rows.map(expand);
+  const headers = [...new Set(expanded.flatMap(r => Object.keys(r)))];
+  const escape = (v) => {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [
+    headers.join(','),
+    ...expanded.map(r => headers.map(h => escape(r[h])).join(',')),
+  ].join('\n');
+  triggerDownload(`${widget.title || widget.widgetType}.csv`, csv);
+}
+
+function triggerDownload(filename, content) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function WidgetBody({ widget }) {
