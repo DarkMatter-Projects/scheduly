@@ -8,7 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
-import { Plus, Trash2, PenSquare, Search, Film, Image } from 'lucide-react';
+import { Plus, Trash2, PenSquare, Search, Film, Image, Upload } from 'lucide-react';
+import BulkUploadModal from '../components/posts/BulkUploadModal';
 import Thumbnail from '../components/common/Thumbnail';
 import clsx from 'clsx';
 import { SENTIMENT_STYLES } from '../utils/sentiment';
@@ -44,6 +45,7 @@ export default function PostsListPage() {
   const [accountFilter, setAccountFilter] = useState('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [showBulk, setShowBulk] = useState(false);
 
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: listClients });
   const { data: accounts = [] } = useQuery({ queryKey: ['socialAccounts'], queryFn: listAccounts });
@@ -100,14 +102,31 @@ export default function PostsListPage() {
             <p className="text-sm text-slate-500 mt-1">Scoped to {activeClient.name}</p>
           )}
         </div>
-        <Link
-          to="/posts/new"
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-        >
-          <Plus className="w-4 h-4" />
-          New Post
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBulk(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk upload
+          </button>
+          <Link
+            to="/posts/new"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+          >
+            <Plus className="w-4 h-4" />
+            New Post
+          </Link>
+        </div>
       </div>
+
+      {showBulk && (
+        <BulkUploadModal
+          accounts={accounts || []}
+          onClose={() => setShowBulk(false)}
+          onDone={() => { setShowBulk(false); queryClient.invalidateQueries({ queryKey: ['posts'] }); }}
+        />
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">

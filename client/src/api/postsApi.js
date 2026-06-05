@@ -35,3 +35,6 @@ export const refreshTiktokTargetStatus = (targetId) =>
 
 export const generateCaption = ({ prompt, platforms, tone }) =>
   api.post('/posts/ai-caption', { prompt, platforms, tone }, { timeout: 60000 }).then(r => r.data);
+
+export const bulkCreatePosts = (posts) =>
+  api.post('/posts/bulk', { posts }, { timeout: 120000 }).then(r => r.data);

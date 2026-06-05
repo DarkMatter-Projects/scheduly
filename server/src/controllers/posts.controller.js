@@ -207,6 +207,57 @@ async function refreshTiktokTargetStatus(req, res, next) {
   }
 }
 
+// Accept an array of post payloads and create them in one round trip.
+// Each row is independent — a single failure doesn't roll back the
+// successful ones, the response lists per-row results so the client
+// can show which rows landed and which need fixing. Optional
+// scheduledAt schedules + publishes through the normal publish job.
+async function bulkCreate(req, res, next) {
+  try {
+    const { posts: rows } = req.body || {};
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'posts array is required' });
+    }
+    if (rows.length > 200) {
+      return res.status(400).json({ error: 'Up to 200 posts per bulk request' });
+    }
+    const results = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i] || {};
+      try {
+        if (!r.content || !r.content.trim()) {
+          results.push({ index: i, ok: false, error: 'content required' });
+          continue;
+        }
+        const post = await postService.createPost({
+          title: r.title,
+          content: r.content,
+          postType: r.postType,
+          createdBy: req.user.userId,
+          teamId: r.teamId,
+          mediaIds: r.mediaIds,
+          targetAccountIds: r.targetAccountIds,
+          tiktokPostMode: r.tiktokPostMode,
+          tiktokPrivacyLevel: r.tiktokPrivacyLevel,
+          youtubePrivacy: r.youtubePrivacy,
+          youtubeTitle: r.youtubeTitle,
+          instagramFirstComment: r.instagramFirstComment,
+        });
+        if (r.scheduledAt) {
+          await postService.schedulePost(post.id, r.scheduledAt);
+        }
+        results.push({ index: i, ok: true, postId: post.id });
+      } catch (err) {
+        results.push({ index: i, ok: false, error: err.message });
+      }
+    }
+    const okCount = results.filter(r => r.ok).length;
+    res.status(201).json({ ok: okCount, failed: results.length - okCount, results });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function aiCaption(req, res, next) {
   try {
     const { prompt, platforms, tone } = req.body || {};
@@ -222,4 +273,4 @@ async function aiCaption(req, res, next) {
   }
 }
 
-module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption };
+module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption, bulkCreate };
