@@ -443,9 +443,9 @@ const NON_SCOPED_WIDGET_TYPES = new Set([
   'fans_by_age_gender',
   'views_from_source',
   'fans_online_hourly',
-  'engage_volume_by_network',
-  'engage_sentiment_by_network',
-  'engage_sentiment_by_channel',
+  // engage_volume_by_network, engage_sentiment_by_network and
+  // engage_sentiment_by_channel are now real scope-aware widgets,
+  // so they're no longer in the skip list.
   'engage_sentiment_by_label',
   'engage_sentiment_kpi_group',
   'net_new_subscribers_by_country',

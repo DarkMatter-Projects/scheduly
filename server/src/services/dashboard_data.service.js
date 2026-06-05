@@ -1456,6 +1456,245 @@ async function buildFansByDimension(dashboard, widget, dimension) {
   }
 }
 
+// Organic vs Paid bar chart for a given metric (impressions/views/reach).
+// Sums the matching channel_insights_daily columns over the range.
+async function buildMetricOrganicPaidSplit(dashboard, widget) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const key = (widget.metricKeys && widget.metricKeys[0]) || 'impressions';
+
+  // Map the requested metric onto a (organic_column, paid_column) pair.
+  const COLUMN_PAIRS = {
+    impressions:  { organic: 'impressions_organic',  paid: 'impressions_paid' },
+    views:        { organic: 'impressions_organic',  paid: 'impressions_paid' },
+    video_views:  { organic: 'video_views_organic',  paid: 'video_views_paid' },
+    reach:        { organic: 'reach_organic',        paid: 'impressions_paid' }, // best proxy
+  };
+  const cols = COLUMN_PAIRS[key] || COLUMN_PAIRS.impressions;
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+
+  async function fetchTotals(s, e) {
+    try {
+      const [rows] = await pool.execute(
+        `SELECT COALESCE(SUM(${cols.organic}), 0) AS organic,
+                COALESCE(SUM(${cols.paid}),    0) AS paid
+         FROM channel_insights_daily
+         WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+        [s.slice(0,10), e.slice(0,10), ...(channelIds || [])]
+      );
+      return { organic: Number(rows[0]?.organic) || 0, paid: Number(rows[0]?.paid) || 0 };
+    } catch { return { organic: 0, paid: 0 }; }
+  }
+  const [cur, pri] = await Promise.all([fetchTotals(start, end), fetchTotals(priorStart, priorEnd)]);
+  return {
+    range: { start, end, priorStart, priorEnd },
+    rows: [
+      { key: 'organic', label: 'Organic', current: cur.organic, prior: pri.organic },
+      { key: 'paid',    label: 'Paid',    current: cur.paid,    prior: pri.paid },
+    ],
+  };
+}
+
+// Reach split: follower vs non-follower vs unknown (= reach_unique - the
+// two known buckets). Drives the donut on Distribution overview.
+async function buildReachByFollowerType(dashboard, widget) {
+  const { start, end } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COALESCE(SUM(follower_views),     0) AS follower,
+              COALESCE(SUM(non_follower_views), 0) AS non_follower,
+              COALESCE(SUM(reach_unique),       0) AS total
+       FROM channel_insights_daily
+       WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+      [start.slice(0,10), end.slice(0,10), ...(channelIds || [])]
+    );
+    const follower = Number(rows[0]?.follower) || 0;
+    const nonFollower = Number(rows[0]?.non_follower) || 0;
+    const total = Number(rows[0]?.total) || (follower + nonFollower);
+    return {
+      range: { start, end },
+      total,
+      rows: [
+        { key: 'follower',     label: 'Follower',     value: follower,    share: total > 0 ? (follower    / total) * 100 : 0 },
+        { key: 'non_follower', label: 'Non-follower', value: nonFollower, share: total > 0 ? (nonFollower / total) * 100 : 0 },
+      ],
+    };
+  } catch {
+    return { range: { start, end }, total: 0, rows: [] };
+  }
+}
+
+// Reach split: non-viral / viral / paid horizontal bar chart on FB.
+async function buildReachByDistribution(dashboard, widget) {
+  const { start, end } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COALESCE(SUM(reach_nonviral), 0) AS non_viral,
+              COALESCE(SUM(reach_viral),    0) AS viral,
+              COALESCE(SUM(reach_organic),  0) AS organic,
+              COALESCE(SUM(impressions_paid), 0) AS paid_proxy
+       FROM channel_insights_daily
+       WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+      [start.slice(0,10), end.slice(0,10), ...(channelIds || [])]
+    );
+    const r = rows[0] || {};
+    return {
+      range: { start, end },
+      rows: [
+        { key: 'non_viral', label: 'Non-viral', value: Number(r.non_viral)  || 0 },
+        { key: 'viral',     label: 'Viral',     value: Number(r.viral)      || 0 },
+        { key: 'paid',      label: 'Paid',      value: Number(r.paid_proxy) || 0 },
+      ],
+    };
+  } catch {
+    return { range: { start, end }, rows: [] };
+  }
+}
+
+// Engage volume per platform — count of incoming engage messages
+// grouped by social_accounts.platform. Header row totals everything.
+async function buildEngageVolumeByNetwork(dashboard) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  async function fetchByPlatform(s, e) {
+    const [rows] = await pool.execute(
+      `SELECT sa.platform, COUNT(*) AS v
+       FROM engage_messages m
+       JOIN engage_threads t ON m.thread_id = t.id
+       JOIN social_accounts sa ON t.social_account_id = sa.id
+       WHERE m.direction = 'incoming' AND m.sent_at BETWEEN ? AND ?
+       GROUP BY sa.platform`,
+      [s, e]
+    );
+    const map = new Map();
+    for (const r of rows) map.set(r.platform, Number(r.v) || 0);
+    return map;
+  }
+  const [cur, pri] = await Promise.all([fetchByPlatform(start, end), fetchByPlatform(priorStart, priorEnd)]);
+  const platforms = [...new Set([...cur.keys(), ...pri.keys()])];
+  const rows = platforms.map(p => ({
+    platform: p,
+    current: cur.get(p) || 0,
+    prior:   pri.get(p) || 0,
+  })).sort((a, b) => b.current - a.current);
+  const totalCurrent = rows.reduce((s, r) => s + r.current, 0);
+  const totalPrior   = rows.reduce((s, r) => s + r.prior,   0);
+  return {
+    range: { start, end, priorStart, priorEnd },
+    total: { current: totalCurrent, prior: totalPrior },
+    rows,
+  };
+}
+
+// Incoming sentiment broken down by platform. Header has aggregate sentiment totals.
+async function buildEngageSentimentByNetwork(dashboard) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  async function fetchBy(s, e) {
+    const [rows] = await pool.execute(
+      `SELECT sa.platform,
+              SUM(CASE WHEN m.sentiment = 'positive' THEN 1 ELSE 0 END) AS positive,
+              SUM(CASE WHEN m.sentiment = 'neutral'  THEN 1 ELSE 0 END) AS neutral,
+              SUM(CASE WHEN m.sentiment = 'negative' THEN 1 ELSE 0 END) AS negative,
+              SUM(CASE WHEN m.sentiment IS NULL      THEN 1 ELSE 0 END) AS uncategorized
+       FROM engage_messages m
+       JOIN engage_threads t ON m.thread_id = t.id
+       JOIN social_accounts sa ON t.social_account_id = sa.id
+       WHERE m.direction = 'incoming' AND m.sent_at BETWEEN ? AND ?
+       GROUP BY sa.platform`,
+      [s, e]
+    );
+    return rows;
+  }
+  const [cur, pri] = await Promise.all([fetchBy(start, end), fetchBy(priorStart, priorEnd)]);
+  const platforms = [...new Set([...cur.map(r => r.platform), ...pri.map(r => r.platform)])];
+  const rows = platforms.map(p => {
+    const c = cur.find(r => r.platform === p) || {};
+    const r = pri.find(x => x.platform === p) || {};
+    return {
+      platform: p,
+      cells: {
+        positive:      { current: Number(c.positive)      || 0, prior: Number(r.positive)      || 0 },
+        neutral:       { current: Number(c.neutral)       || 0, prior: Number(r.neutral)       || 0 },
+        negative:      { current: Number(c.negative)      || 0, prior: Number(r.negative)      || 0 },
+        uncategorized: { current: Number(c.uncategorized) || 0, prior: Number(r.uncategorized) || 0 },
+      },
+    };
+  });
+  // Header totals.
+  const totals = {};
+  for (const key of ['positive','neutral','negative','uncategorized']) {
+    totals[key] = {
+      current: rows.reduce((s, r) => s + r.cells[key].current, 0),
+      prior:   rows.reduce((s, r) => s + r.cells[key].prior,   0),
+    };
+  }
+  // Sort rows by positive desc so the dominant platforms surface first.
+  rows.sort((a, b) => b.cells.positive.current - a.cells.positive.current);
+  return { range: { start, end, priorStart, priorEnd }, totals, rows };
+}
+
+// Same as by-network but per social account row instead of platform.
+async function buildEngageSentimentByChannel(dashboard, widget) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const channelFilter = channelIds && channelIds.length > 0
+    ? `AND t.social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  async function fetchBy(s, e) {
+    const [rows] = await pool.execute(
+      `SELECT sa.id AS social_account_id, sa.platform, sa.account_name, sa.profile_picture_url,
+              SUM(CASE WHEN m.sentiment = 'positive' THEN 1 ELSE 0 END) AS positive,
+              SUM(CASE WHEN m.sentiment = 'neutral'  THEN 1 ELSE 0 END) AS neutral,
+              SUM(CASE WHEN m.sentiment = 'negative' THEN 1 ELSE 0 END) AS negative,
+              SUM(CASE WHEN m.sentiment IS NULL      THEN 1 ELSE 0 END) AS uncategorized
+       FROM engage_messages m
+       JOIN engage_threads t ON m.thread_id = t.id
+       JOIN social_accounts sa ON t.social_account_id = sa.id
+       WHERE m.direction = 'incoming' AND m.sent_at BETWEEN ? AND ? ${channelFilter}
+       GROUP BY sa.id, sa.platform, sa.account_name, sa.profile_picture_url`,
+      [s, e, ...(channelIds || [])]
+    );
+    return rows;
+  }
+  const [cur, pri] = await Promise.all([fetchBy(start, end), fetchBy(priorStart, priorEnd)]);
+  const ids = [...new Set([...cur.map(r => r.social_account_id), ...pri.map(r => r.social_account_id)])];
+  const rows = ids.map(id => {
+    const c = cur.find(r => r.social_account_id === id) || {};
+    const r = pri.find(x => x.social_account_id === id) || {};
+    const meta = c.account_name ? c : r;
+    return {
+      socialAccountId: id,
+      platform: meta.platform,
+      accountName: meta.account_name,
+      profilePictureUrl: meta.profile_picture_url,
+      cells: {
+        positive:      { current: Number(c.positive)      || 0, prior: Number(r.positive)      || 0 },
+        neutral:       { current: Number(c.neutral)       || 0, prior: Number(r.neutral)       || 0 },
+        negative:      { current: Number(c.negative)      || 0, prior: Number(r.negative)      || 0 },
+        uncategorized: { current: Number(c.uncategorized) || 0, prior: Number(r.uncategorized) || 0 },
+      },
+    };
+  });
+  const totals = {};
+  for (const key of ['positive','neutral','negative','uncategorized']) {
+    totals[key] = {
+      current: rows.reduce((s, r) => s + r.cells[key].current, 0),
+      prior:   rows.reduce((s, r) => s + r.cells[key].prior,   0),
+    };
+  }
+  rows.sort((a, b) => b.cells.positive.current - a.cells.positive.current);
+  return { range: { start, end, priorStart, priorEnd }, totals, rows };
+}
+
 // Follow vs Non-follow view split — single-call summary from
 // channel_insights_daily.follower_views / non_follower_views. Rendered
 // as a horizontal bar chart on the IG/FB templates.
@@ -1694,6 +1933,12 @@ async function buildWidgetData(dashboard, widget) {
     case 'metric_by_post_type_over_time':  return buildMetricByPostTypeOverTime(dashboard, widget);
     case 'top_err_profiles':               return buildTopErrProfiles(dashboard, widget);
     case 'engagements_by_profile':         return buildEngagementsByProfile(dashboard, widget);
+    case 'metric_organic_paid_split':      return buildMetricOrganicPaidSplit(dashboard, widget);
+    case 'reach_by_follower_type':         return buildReachByFollowerType(dashboard, widget);
+    case 'reach_by_distribution':          return buildReachByDistribution(dashboard, widget);
+    case 'engage_volume_by_network':       return buildEngageVolumeByNetwork(dashboard, widget);
+    case 'engage_sentiment_by_network':    return buildEngageSentimentByNetwork(dashboard, widget);
+    case 'engage_sentiment_by_channel':    return buildEngageSentimentByChannel(dashboard, widget);
     case 'follow_non_follow_split':        return buildFollowNonFollowSplit(dashboard, widget);
     case 'followers_by_country':           return buildFansByDimension(dashboard, widget, 'country');
     case 'fans_by_age_gender':             return buildFansByDimension(dashboard, widget, 'gender_age');
@@ -1701,9 +1946,6 @@ async function buildWidgetData(dashboard, widget) {
     case 'story_performance':              return buildPostTypePerformance(dashboard, widget, ['story']);
     case 'views_from_source':              return { placeholder: true };
     case 'fans_online_hourly':             return { placeholder: true };
-    case 'engage_volume_by_network':
-    case 'engage_sentiment_by_network':
-    case 'engage_sentiment_by_channel':
     case 'engage_sentiment_by_label':
     case 'engage_sentiment_kpi_group':
     case 'net_new_subscribers_by_country':
@@ -1717,10 +1959,7 @@ async function buildWidgetData(dashboard, widget) {
     case 'video_performance':
     case 'fans_by_function':
     case 'fans_by_seniority':
-    case 'fans_by_association':
-    case 'reach_by_follower_type':
-    case 'reach_by_distribution':
-    case 'metric_organic_paid_split':      return { placeholder: true };
+    case 'fans_by_association':            return { placeholder: true };
     default:                      return { unsupported: widget.widget_type || widget.widgetType };
   }
 }

@@ -98,6 +98,12 @@ function WidgetBody({ widget }) {
     case 'top_err_profiles':               return <TopErrProfilesBody data={data} />;
     case 'engagements_by_profile':         return <EngagementsByProfileBody data={data} />;
     case 'follow_non_follow_split':        return <FollowNonFollowBody data={data} />;
+    case 'metric_organic_paid_split':      return <OrganicPaidSplitBody data={data} />;
+    case 'reach_by_follower_type':         return <ReachByFollowerTypeBody data={data} />;
+    case 'reach_by_distribution':          return <ReachByDistributionBody data={data} />;
+    case 'engage_volume_by_network':       return <EngageVolumeByNetworkBody data={data} />;
+    case 'engage_sentiment_by_network':    return <EngageSentimentByNetworkBody data={data} />;
+    case 'engage_sentiment_by_channel':    return <EngageSentimentByChannelBody data={data} />;
     case 'followers_by_country':           return <FollowersByCountryBody data={data} />;
     case 'fans_by_age_gender':             return <FansByAgeGenderBody data={data} />;
     case 'reels_performance':              return <PostTypePerformanceBody data={data} label="Reel"  />;
@@ -109,9 +115,6 @@ function WidgetBody({ widget }) {
     case 'geographics':
     case 'views_from_source':
     case 'fans_online_hourly':
-    case 'engage_volume_by_network':
-    case 'engage_sentiment_by_network':
-    case 'engage_sentiment_by_channel':
     case 'engage_sentiment_by_label':
     case 'engage_sentiment_kpi_group':
     case 'net_new_subscribers_by_country':
@@ -125,10 +128,7 @@ function WidgetBody({ widget }) {
     case 'video_performance':
     case 'fans_by_function':
     case 'fans_by_seniority':
-    case 'fans_by_association':
-    case 'reach_by_follower_type':
-    case 'reach_by_distribution':
-    case 'metric_organic_paid_split':      return <NoDataPlaceholder />;
+    case 'fans_by_association':            return <NoDataPlaceholder />;
     default:
       return (
         <div className="h-full flex items-center justify-center text-center text-xs text-slate-400">
@@ -1399,6 +1399,266 @@ function FansByAgeGenderBody({ data }) {
           <Bar dataKey="Unknown" fill="#94a3b8" radius={[3,3,0,0]} />
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ── Organic vs Paid split (vertical bar) ──
+
+function OrganicPaidSplitBody({ data }) {
+  const rows = data?.rows || [];
+  const anyValue = rows.some(r => Number(r.current) > 0);
+  if (!anyValue) {
+    return <ChartEmptyState height={180} title="No data in range" hint="Organic vs paid split appears once channel insights are ingested." />;
+  }
+  const display = rows.map(r => ({ name: r.label, value: Number(r.current) || 0 }));
+  return (
+    <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+      <BarChart data={display} margin={{ top: 16, right: 16, left: 4, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} tickLine={false} axisLine={false} />
+        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => formatCompact(v, 'number')} tickLine={false} axisLine={false} width={50} />
+        <Tooltip formatter={(v) => [formatCompact(v, 'number'), 'Value']} />
+        <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} label={{ position: 'top', fontSize: 10, fill: '#64748b', formatter: (v) => formatCompact(v, 'number') }} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Reach by follower type (donut) ──
+
+function ReachByFollowerTypeBody({ data }) {
+  const rows = data?.rows || [];
+  if (rows.length === 0 || !rows.some(r => Number(r.value) > 0)) {
+    return <ChartEmptyState height={180} title="No data yet" hint="Follower / non-follower split appears once page insights are ingested." />;
+  }
+  const COLORS = { follower: '#6366f1', non_follower: '#ec4899' };
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 h-full">
+      <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+        <PieChart>
+          <Pie data={rows} dataKey="value" nameKey="label" innerRadius="55%" outerRadius="85%" paddingAngle={1} isAnimationActive={false}>
+            {rows.map(r => <Cell key={r.key} fill={COLORS[r.key] || '#6366f1'} />)}
+          </Pie>
+          <Tooltip formatter={(v, _n, e) => [`${formatCompact(v, 'number')} (${(e.payload.share || 0).toFixed(1)}%)`, e.payload.label]} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex flex-col justify-center space-y-2 px-2 text-xs">
+        {rows.map(r => (
+          <div key={r.key} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[r.key] || '#6366f1' }} />
+            <span className="text-slate-600 flex-1">{r.label}</span>
+            <span className="text-slate-900 font-semibold tabular-nums">{formatCompact(r.value, 'number')}</span>
+            <span className="text-[10px] text-slate-400 tabular-nums w-12 text-right">{(r.share || 0).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Reach by distribution (horizontal bar) ──
+
+function ReachByDistributionBody({ data }) {
+  const rows = data?.rows || [];
+  if (!rows.some(r => Number(r.value) > 0)) {
+    return <ChartEmptyState height={180} title="No data yet" hint="Distribution mix appears once page insights are ingested." />;
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+      <BarChart data={rows.map(r => ({ name: r.label, value: Number(r.value) || 0 }))}
+                layout="vertical" margin={{ top: 8, right: 32, left: 4, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={(v) => formatCompact(v, 'number')} />
+        <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11, fill: '#475569' }} tickLine={false} axisLine={false} />
+        <Tooltip formatter={(v) => [formatCompact(v, 'number'), 'Reach']} />
+        <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} label={{ position: 'right', fontSize: 10, fill: '#64748b', formatter: (v) => formatCompact(v, 'number') }} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Engage volume by network (table) ──
+
+const PLATFORM_LABEL_FULL = {
+  facebook_page: 'Facebook',
+  instagram_business: 'Instagram',
+  tiktok: 'TikTok',
+  linkedin: 'LinkedIn',
+  youtube: 'YouTube',
+  twitter: 'X',
+};
+
+function EngageVolumeByNetworkBody({ data }) {
+  const rows = data?.rows || [];
+  const total = data?.total || { current: 0, prior: 0 };
+  if (rows.length === 0) return <EmptyHint hint="No incoming messages in range." />;
+  return (
+    <div className="overflow-auto h-full -mx-1">
+      <table className="min-w-full text-xs">
+        <thead>
+          <tr className="border-b border-slate-200">
+            <th className="px-2 py-3 text-left">
+              <span className="text-[10px] uppercase tracking-wider font-medium text-slate-500">Network</span>
+            </th>
+            <th className="px-2 py-3 text-right whitespace-nowrap font-normal align-bottom">
+              <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">Incoming messages</div>
+              <div className="flex items-baseline justify-end gap-1.5 mt-0.5">
+                <span className="text-base font-bold text-slate-900 tabular-nums">{formatCompact(total.current, 'number')}</span>
+                <DeltaPill current={total.current} prior={total.prior} />
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const Icon = PLATFORM_ICON[r.platform];
+            return (
+              <tr key={r.platform} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="px-2 py-2">
+                  <div className="flex items-center gap-2">
+                    {Icon ? <Icon className="w-4 h-4 text-slate-500" /> : null}
+                    <span className="text-slate-800">{PLATFORM_LABEL_FULL[r.platform] || r.platform}</span>
+                  </div>
+                </td>
+                <td className="px-2 py-2 text-right whitespace-nowrap">
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm font-semibold text-slate-900 tabular-nums leading-tight">{formatCompact(r.current, 'number')}</span>
+                    <DeltaPill current={r.current} prior={r.prior} />
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Engage sentiment by network (table) ──
+
+function EngageSentimentByNetworkBody({ data }) {
+  const rows = data?.rows || [];
+  const totals = data?.totals || {};
+  if (rows.length === 0) return <EmptyHint hint="No incoming messages in range." />;
+  const cols = [
+    { key: 'positive',      label: 'Positive messages' },
+    { key: 'neutral',       label: 'Neutral messages' },
+    { key: 'negative',      label: 'Negative messages' },
+    { key: 'uncategorized', label: 'Uncategorized messages' },
+  ];
+  return (
+    <div className="overflow-auto h-full -mx-1">
+      <table className="min-w-full text-xs">
+        <thead>
+          <tr className="border-b border-slate-200">
+            <th className="px-2 py-3 text-left">
+              <span className="text-[10px] uppercase tracking-wider font-medium text-slate-500">Network</span>
+            </th>
+            {cols.map(c => {
+              const t = totals[c.key] || { current: 0, prior: 0 };
+              return (
+                <th key={c.key} className="px-2 py-3 text-left whitespace-nowrap font-normal align-bottom">
+                  <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{c.label}</div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-base font-bold text-slate-900 tabular-nums">{formatCompact(t.current, 'number')}</span>
+                    <DeltaPill current={t.current} prior={t.prior} />
+                  </div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const Icon = PLATFORM_ICON[r.platform];
+            return (
+              <tr key={r.platform} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="px-2 py-3">
+                  <div className="flex items-center gap-2">
+                    {Icon ? <Icon className="w-4 h-4 text-slate-500" /> : null}
+                    <span className="text-slate-800">{PLATFORM_LABEL_FULL[r.platform] || r.platform}</span>
+                  </div>
+                </td>
+                {cols.map(c => {
+                  const cell = r.cells?.[c.key] || { current: 0, prior: 0 };
+                  return (
+                    <td key={c.key} className="px-2 py-3 whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-slate-900 tabular-nums leading-tight">{formatCompact(cell.current, 'number')}</span>
+                        <DeltaPill current={cell.current} prior={cell.prior} />
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Engage sentiment by channel (table) ──
+
+function EngageSentimentByChannelBody({ data }) {
+  const rows = data?.rows || [];
+  const totals = data?.totals || {};
+  if (rows.length === 0) return <EmptyHint hint="No incoming messages in range." />;
+  const cols = [
+    { key: 'positive',      label: 'Positive messages' },
+    { key: 'neutral',       label: 'Neutral messages' },
+    { key: 'negative',      label: 'Negative messages' },
+    { key: 'uncategorized', label: 'Uncategorized messages' },
+  ];
+  return (
+    <div className="overflow-auto h-full -mx-1">
+      <table className="min-w-full text-xs">
+        <thead>
+          <tr className="border-b border-slate-200">
+            <th className="px-2 py-3 text-left">
+              <span className="text-[10px] uppercase tracking-wider font-medium text-slate-500">Channel</span>
+            </th>
+            {cols.map(c => {
+              const t = totals[c.key] || { current: 0, prior: 0 };
+              return (
+                <th key={c.key} className="px-2 py-3 text-left whitespace-nowrap font-normal align-bottom">
+                  <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{c.label}</div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-base font-bold text-slate-900 tabular-nums">{formatCompact(t.current, 'number')}</span>
+                    <DeltaPill current={t.current} prior={t.prior} />
+                  </div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.socialAccountId} className="border-b border-slate-100 hover:bg-slate-50">
+              <td className="px-2 py-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ChannelAvatar row={r} />
+                  <span className="text-slate-800 font-medium truncate">{r.accountName}</span>
+                </div>
+              </td>
+              {cols.map(c => {
+                const cell = r.cells?.[c.key] || { current: 0, prior: 0 };
+                return (
+                  <td key={c.key} className="px-2 py-3 whitespace-nowrap">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-slate-900 tabular-nums leading-tight">{formatCompact(cell.current, 'number')}</span>
+                      <DeltaPill current={cell.current} prior={cell.prior} />
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
