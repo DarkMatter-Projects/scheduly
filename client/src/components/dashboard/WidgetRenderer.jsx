@@ -104,6 +104,10 @@ function WidgetBody({ widget }) {
     case 'engage_volume_by_network':       return <EngageVolumeByNetworkBody data={data} />;
     case 'engage_sentiment_by_network':    return <EngageSentimentByNetworkBody data={data} />;
     case 'engage_sentiment_by_channel':    return <EngageSentimentByChannelBody data={data} />;
+    case 'engage_sentiment_kpi_group':     return <EngageSentimentKpiGroupBody data={data} />;
+    case 'video_performance':              return <ContentPerformanceBody data={data} />;
+    case 'longform_videos_performance':    return <PostTypePerformanceBody data={data} label="Long-form video" />;
+    case 'shorts_performance':             return <PostTypePerformanceBody data={data} label="Short" />;
     case 'followers_by_country':           return <FollowersByCountryBody data={data} />;
     case 'fans_by_age_gender':             return <FansByAgeGenderBody data={data} />;
     case 'reels_performance':              return <PostTypePerformanceBody data={data} label="Reel"  />;
@@ -123,9 +127,6 @@ function WidgetBody({ widget }) {
     case 'top_sources_by_views':
     case 'video_views_by_country':
     case 'watch_time_by_country':
-    case 'longform_videos_performance':
-    case 'shorts_performance':
-    case 'video_performance':
     case 'fans_by_function':
     case 'fans_by_seniority':
     case 'fans_by_association':            return <NoDataPlaceholder />;
@@ -1659,6 +1660,27 @@ function EngageSentimentByChannelBody({ data }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── Engage sentiment KPI group (4-up subtype sentiment cards) ──
+
+function EngageSentimentKpiGroupBody({ data }) {
+  const cards = data?.cards || [];
+  if (cards.length === 0) return <EmptyHint hint="No data in range." />;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 h-full">
+      {cards.map(c => (
+        <KpiCard
+          key={c.key}
+          label={c.label}
+          value={formatValue(c.current, 'number')}
+          current={c.current}
+          prior={c.prior}
+          priorValue={formatValue(c.prior, 'number')}
+        />
+      ))}
     </div>
   );
 }

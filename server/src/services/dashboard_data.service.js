@@ -1337,6 +1337,57 @@ async function buildEngagementsByProfile(dashboard, widget) {
   };
 }
 
+// Per-subtype sentiment KPI group — four cards (Positive / Neutral /
+// Negative / Uncategorized) of the chosen engage subtype (DM, fan
+// post, mention, comment, review). config.noun customises the card
+// label text e.g. "Positive direct messages".
+async function buildEngageSentimentKpiGroup(dashboard, widget) {
+  const { start, end, priorStart, priorEnd } = resolveRange(dashboard);
+  const subtype = widget.config?.subtype || 'comment';
+  const noun = widget.config?.noun || 'messages';
+  async function counts(s, e) {
+    const [r] = await pool.execute(
+      `SELECT SUM(CASE WHEN m.sentiment = 'positive' THEN 1 ELSE 0 END) AS positive,
+              SUM(CASE WHEN m.sentiment = 'neutral'  THEN 1 ELSE 0 END) AS neutral,
+              SUM(CASE WHEN m.sentiment = 'negative' THEN 1 ELSE 0 END) AS negative,
+              SUM(CASE WHEN m.sentiment IS NULL      THEN 1 ELSE 0 END) AS uncategorized
+       FROM engage_messages m
+       JOIN engage_threads t ON m.thread_id = t.id
+       WHERE m.direction = 'incoming'
+         AND m.sent_at BETWEEN ? AND ?
+         AND t.source_type = ?`,
+      [s, e, subtype]
+    );
+    return r[0] || {};
+  }
+  const [cur, pri] = await Promise.all([counts(start, end), counts(priorStart, priorEnd)]);
+  const cards = ['positive','neutral','negative','uncategorized'].map(k => ({
+    key: k,
+    label: `${k.charAt(0).toUpperCase()}${k.slice(1)} ${noun}`,
+    current: Number(cur[k]) || 0,
+    prior:   Number(pri[k]) || 0,
+  }));
+  return { range: { start, end, priorStart, priorEnd }, subtype, noun, cards };
+}
+
+// Generic content_performance variant filtered to posts whose primary
+// media is a video. Reuses the existing PostThumb / ContentCellHover
+// renderers on the client. The platform filter scopes to a specific
+// network (YouTube) when supplied.
+async function buildVideoPerformance(dashboard, widget) {
+  return buildContentPerformance(dashboard, { ...widget, _videoOnly: true });
+}
+
+// Post-type performance with extra filters — used by longform vs
+// shorts on YouTube. We don't store duration so "short" is best-effort:
+// post_type = 'reel' OR linked media duration is unknown. For YouTube
+// Shorts the publisher service hasn't tagged them yet, so until that
+// lands this just splits any IG-style reels out from feed videos.
+async function buildPostTypePerformanceFiltered(dashboard, widget, { platform, shortOnly }) {
+  const wantedTypes = shortOnly ? ['reel'] : ['video','image','carousel'];
+  return buildPostTypePerformance(dashboard, { ...widget, _platform: platform }, wantedTypes);
+}
+
 // Top posts in the range whose post_type is in the supplied list.
 // Drives the Reels performance + Story performance cards. Same column
 // shape as content_performance so the client can reuse the renderer.
@@ -1781,7 +1832,11 @@ async function buildContentPerformance(dashboard, widget) {
   const accountsFilter = channelIds && channelIds.length > 0
     ? `AND pt.social_account_id IN (${channelIds.map(() => '?').join(',')})`
     : '';
-  const params = [start, end, ...(channelIds || [])];
+  // Internal flags from buildVideoPerformance / buildPostTypePerformanceFiltered
+  // — let those callers narrow the result set without forking the whole query.
+  const videoOnlyFilter = widget._videoOnly ? `AND m.mime_type LIKE 'video/%'` : '';
+  const platformFilter  = widget._platform  ? `AND sa.platform = ?`            : '';
+  const params = [start, end, ...(channelIds || []), ...(widget._platform ? [widget._platform] : [])];
 
   // Join the post's first media (by sort_order) so the client can show its
   // thumbnail. Correlated subquery instead of a window function so this
@@ -1815,6 +1870,8 @@ async function buildContentPerformance(dashboard, widget) {
      )
      WHERE p.published_at BETWEEN ? AND ?
        ${accountsFilter}
+       ${platformFilter}
+       ${videoOnlyFilter}
      ORDER BY sort_val DESC
      LIMIT 10`,
     params
@@ -1939,6 +1996,10 @@ async function buildWidgetData(dashboard, widget) {
     case 'engage_volume_by_network':       return buildEngageVolumeByNetwork(dashboard, widget);
     case 'engage_sentiment_by_network':    return buildEngageSentimentByNetwork(dashboard, widget);
     case 'engage_sentiment_by_channel':    return buildEngageSentimentByChannel(dashboard, widget);
+    case 'engage_sentiment_kpi_group':     return buildEngageSentimentKpiGroup(dashboard, widget);
+    case 'video_performance':              return buildVideoPerformance(dashboard, widget);
+    case 'longform_videos_performance':    return buildPostTypePerformanceFiltered(dashboard, widget, { platform: 'youtube', shortOnly: false });
+    case 'shorts_performance':             return buildPostTypePerformanceFiltered(dashboard, widget, { platform: 'youtube', shortOnly: true });
     case 'follow_non_follow_split':        return buildFollowNonFollowSplit(dashboard, widget);
     case 'followers_by_country':           return buildFansByDimension(dashboard, widget, 'country');
     case 'fans_by_age_gender':             return buildFansByDimension(dashboard, widget, 'gender_age');
@@ -1954,9 +2015,6 @@ async function buildWidgetData(dashboard, widget) {
     case 'top_sources_by_views':
     case 'video_views_by_country':
     case 'watch_time_by_country':
-    case 'longform_videos_performance':
-    case 'shorts_performance':
-    case 'video_performance':
     case 'fans_by_function':
     case 'fans_by_seniority':
     case 'fans_by_association':            return { placeholder: true };
