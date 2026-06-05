@@ -268,6 +268,7 @@ export default function PostCreatePage() {
   const [youtubePrivacy, setYoutubePrivacy] = useState('private');
   const [youtubeTitle, setYoutubeTitle] = useState('');
   const [youtubeMadeForKids, setYoutubeMadeForKids] = useState(false);
+  const [instagramFirstComment, setInstagramFirstComment] = useState('');
   const [autoPublish, setAutoPublish] = useState(true);
   const [scheduleDate, setScheduleDate] = useState(() => {
     const d = new Date();
@@ -400,6 +401,7 @@ export default function PostCreatePage() {
         tiktokDisableStitch,
         youtubePrivacy,
         youtubeTitle: youtubeTitle || undefined,
+        instagramFirstComment: instagramFirstComment || undefined,
         youtubeMadeForKids,
       });
 
@@ -433,6 +435,7 @@ export default function PostCreatePage() {
         tiktokDisableStitch,
         youtubePrivacy,
         youtubeTitle: youtubeTitle || undefined,
+        instagramFirstComment: instagramFirstComment || undefined,
         youtubeMadeForKids,
       });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
@@ -451,6 +454,7 @@ export default function PostCreatePage() {
   const selectedAccounts = activeAccounts.filter(a => selectedAccountIds.includes(a.id));
   const hasTiktokTarget = selectedAccounts.some(a => a.platform === 'tiktok');
   const youtubeTargetCount = selectedAccounts.filter(a => a.platform === 'youtube').length;
+  const instagramTargetCount = selectedAccounts.filter(a => a.platform === 'instagram_business').length;
   const youtubeOverQuota = youtubeTargetCount > 0
     && youtubeQuota
     && youtubeQuota.uploadsRemaining < youtubeTargetCount;
@@ -766,6 +770,28 @@ export default function PostCreatePage() {
                     />
                     Disable stitch
                   </label>
+                </div>
+              </div>
+            )}
+
+            {/* Instagram-specific options — only when an IG account is targeted */}
+            {instagramTargetCount > 0 && (
+              <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-4 space-y-3">
+                <h4 className="text-xs font-semibold text-pink-900 uppercase tracking-wider">Instagram options</h4>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    First comment <span className="text-slate-400">(optional)</span>
+                  </label>
+                  <textarea
+                    value={instagramFirstComment}
+                    onChange={(e) => setInstagramFirstComment(e.target.value)}
+                    placeholder="Drop the hashtag dump here so it doesn't clutter the caption…"
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-pink-200 focus:ring-2 focus:ring-pink-400 outline-none resize-y"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Posted as a comment under the published Instagram post immediately after it goes live.
+                  </p>
                 </div>
               </div>
             )}

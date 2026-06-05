@@ -246,6 +246,20 @@ async function waitForMediaProcessing(containerId, token, maxAttempts = 30) {
   throw new Error('Instagram media processing timed out');
 }
 
+// Post a comment on a freshly-published IG media. Used by the "first
+// comment" feature so users can dump the hashtag list under the post
+// instead of cluttering the caption.
+async function postInstagramComment(mediaId, encryptedToken, message) {
+  if (!message || !message.trim()) return null;
+  const token = decrypt(encryptedToken);
+  const { data } = await axios.post(
+    `${ig.IG_GRAPH_URL}/${mediaId}/comments`,
+    null,
+    { params: { message: message.trim(), access_token: token }, timeout: 12000 }
+  );
+  return data?.id || null;
+}
+
 module.exports = {
   getAuthUrl,
   exchangeCodeForToken,
@@ -253,4 +267,5 @@ module.exports = {
   refreshLongLivedToken,
   fetchInstagramAccount,
   publishToInstagram,
+  postInstagramComment,
 };

@@ -1,6 +1,6 @@
 const pool = require('../config/db');
 const { publishToPage } = require('./facebook.service');
-const { publishToInstagram } = require('./instagram.service');
+const { publishToInstagram, postInstagramComment } = require('./instagram.service');
 const { publishToTikTok } = require('./tiktok_posting.service');
 const { publishToLinkedIn } = require('./linkedin.service');
 const { publishToYouTube } = require('./youtube.service');
@@ -12,7 +12,7 @@ const env = require('../config/env');
 async function publishPost(postId) {
   // Get post with media + TikTok-specific options
   const [postRows] = await pool.execute(
-    `SELECT id, content,
+    `SELECT id, content, instagram_first_comment,
             tiktok_post_mode, tiktok_privacy_level,
             tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
             youtube_privacy, youtube_title, youtube_made_for_kids
@@ -84,6 +84,17 @@ async function publishPost(postId) {
         const isReel = onlyMedia && (onlyMedia.mimeType || onlyMedia.mime_type || '').startsWith('video/');
         if (isReel) {
           await pool.execute("UPDATE posts SET post_type = 'reel' WHERE id = ?", [postId]);
+        }
+        // First comment — best effort, failure here doesn't unwind the
+        // publish status (the post still went live, only the comment
+        // dropped). Log + continue.
+        if (post.instagram_first_comment && platformPostId) {
+          try {
+            await postInstagramComment(platformPostId, target.access_token, post.instagram_first_comment);
+            logger.info(`Post ${postId}: IG first comment posted on ${platformPostId}`);
+          } catch (commentErr) {
+            logger.warn(`Post ${postId}: IG first comment failed on ${platformPostId}: ${commentErr.response?.data?.error?.message || commentErr.message}`);
+          }
         }
       } else if (target.platform === 'linkedin') {
         platformPostId = await publishToLinkedIn(
