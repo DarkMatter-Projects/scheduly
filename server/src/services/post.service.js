@@ -316,6 +316,22 @@ async function submitForApproval(id, userId) {
     "INSERT INTO activity_log (user_id, action, entity_type, entity_id) VALUES (?, 'post.submitted', 'post', ?)",
     [userId, id]
   );
+  // Notify managers/admins on the team that an approval is waiting.
+  try {
+    const notifs = require('./notifications.service');
+    const teamRow = post.teamId ? (await pool.execute('SELECT name FROM teams WHERE id = ?', [post.teamId]))[0][0] : null;
+    if (post.teamId) {
+      await notifs.notify({
+        type: 'post_pending_approval',
+        severity: 'info',
+        teamId: post.teamId,
+        title: `Post needs approval${teamRow ? ` (${teamRow.name})` : ''}`,
+        body: post.title || (post.content || '').slice(0, 120),
+        link: `/posts/${id}`,
+        payload: { postId: id, submittedBy: userId },
+      });
+    }
+  } catch (e) { /* notifications are best-effort */ }
   return getPost(id);
 }
 
@@ -334,7 +350,18 @@ async function approvePost(id, reviewerId, note) {
     "INSERT INTO activity_log (user_id, action, entity_type, entity_id, details) VALUES (?, 'post.approved', 'post', ?, ?)",
     [reviewerId, id, JSON.stringify({ note })]
   );
-
+  try {
+    const notifs = require('./notifications.service');
+    await notifs.notify({
+      type: 'post_approved',
+      severity: 'info',
+      targetUserId: post.createdBy,
+      title: 'Your post was approved',
+      body: post.title || (post.content || '').slice(0, 120),
+      link: `/posts/${id}`,
+      payload: { postId: id, reviewerId, note },
+    });
+  } catch (e) { /* best-effort */ }
   return getPost(id);
 }
 
@@ -353,7 +380,18 @@ async function rejectPost(id, reviewerId, note) {
     "INSERT INTO activity_log (user_id, action, entity_type, entity_id, details) VALUES (?, 'post.rejected', 'post', ?, ?)",
     [reviewerId, id, JSON.stringify({ note })]
   );
-
+  try {
+    const notifs = require('./notifications.service');
+    await notifs.notify({
+      type: 'post_rejected',
+      severity: 'warning',
+      targetUserId: post.createdBy,
+      title: 'Your post was sent back for changes',
+      body: note ? note.slice(0, 200) : 'Reviewer didn\'t leave a note.',
+      link: `/posts/${id}`,
+      payload: { postId: id, reviewerId, note },
+    });
+  } catch (e) { /* best-effort */ }
   return getPost(id);
 }
 
