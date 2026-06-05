@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createPost, schedulePost } from '../api/postsApi';
+import { createPost, schedulePost, generateCaption } from '../api/postsApi';
 import { listMedia, uploadMedia } from '../api/mediaApi';
 import { listAccounts, getYoutubeQuota } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
@@ -269,6 +269,27 @@ export default function PostCreatePage() {
   const [youtubeTitle, setYoutubeTitle] = useState('');
   const [youtubeMadeForKids, setYoutubeMadeForKids] = useState(false);
   const [instagramFirstComment, setInstagramFirstComment] = useState('');
+  // AI caption modal state.
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiTone, setAiTone] = useState('engaging');
+  const aiMut = useMutation({
+    mutationFn: () => generateCaption({
+      prompt: aiPrompt,
+      platforms: [...new Set(selectedAccounts.map(a => a.platform))],
+      tone: aiTone,
+    }),
+    onSuccess: (data) => {
+      setContent(data.caption);
+      setAiOpen(false);
+      setAiPrompt('');
+      toast.success('Caption generated');
+    },
+    onError: (err) => {
+      const detail = err.response?.data?.error || err.message;
+      toast.error(`AI caption failed: ${detail}`);
+    },
+  });
   const [autoPublish, setAutoPublish] = useState(true);
   const [scheduleDate, setScheduleDate] = useState(() => {
     const d = new Date();
@@ -628,11 +649,11 @@ export default function PostCreatePage() {
                   <div className="px-4 py-2 flex items-center justify-between">
                     <button
                       type="button"
-                      onClick={() => toast('AI caption suggestions coming soon', { icon: '✨' })}
+                      onClick={() => { setAiPrompt(content || ''); setAiOpen(true); }}
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-50 transition"
                     >
                       <Sparkles className="w-3 h-3" />
-                      Improve this caption
+                      Generate with AI
                     </button>
                     <span className={clsx('text-[11px] font-medium', overLimit ? 'text-red-500' : 'text-slate-400')}>
                       {charCount.toLocaleString()}/{limit.toLocaleString()}
@@ -977,6 +998,65 @@ export default function PostCreatePage() {
         fileCount={uploadProgress.fileCount}
         errorMessage={uploadProgress.errorMessage}
       />
+
+      {/* AI caption modal — small, no separate component, just an inline div. */}
+      {aiOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setAiOpen(false); }}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-violet-600" />
+              <h3 className="text-sm font-semibold text-slate-900">Generate caption with AI</h3>
+            </div>
+            <p className="text-xs text-slate-500 leading-snug">
+              Describe what the post should be about. The model adjusts tone and length per platform
+              ({[...new Set(selectedAccounts.map(a => a.platform))].join(', ') || 'no accounts selected yet'}).
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Prompt</label>
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="e.g. New product launch — vintage-style leather notebooks, eco-friendly tanning, available next Monday"
+                rows={5}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-violet-400 outline-none resize-y"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Tone</label>
+              <select
+                value={aiTone}
+                onChange={(e) => setAiTone(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-violet-400 outline-none"
+              >
+                <option value="engaging">Engaging</option>
+                <option value="professional">Professional</option>
+                <option value="playful">Playful</option>
+                <option value="witty">Witty</option>
+                <option value="authoritative">Authoritative</option>
+                <option value="inspirational">Inspirational</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setAiOpen(false)}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => aiMut.mutate()}
+                disabled={!aiPrompt.trim() || aiMut.isPending}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-md text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50"
+              >
+                <Sparkles className="w-3 h-3" />
+                {aiMut.isPending ? 'Generating…' : 'Generate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

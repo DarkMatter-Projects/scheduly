@@ -73,6 +73,13 @@ const env = {
     redirectUri: process.env.TWITTER_REDIRECT_URI
       || `${process.env.SERVER_URL || 'http://localhost:3001'}/api/social/auth/twitter/callback`,
   },
+  anthropic: {
+    // Used for the AI caption generation endpoint. The composer's "Generate
+    // with AI" button hits a server route that calls the Anthropic SDK
+    // with this key. Falls back to a friendly error when unset.
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+  },
   youtube: {
     // OAuth credentials reuse google.* (one Google Cloud project, two APIs).
     redirectUri: process.env.YOUTUBE_REDIRECT_URI

@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const postService = require('../services/post.service');
+const aiCaptionService = require('../services/ai_caption.service');
 const tiktokPosting = require('../services/tiktok_posting.service');
 
 async function list(req, res, next) {
@@ -206,4 +207,19 @@ async function refreshTiktokTargetStatus(req, res, next) {
   }
 }
 
-module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus };
+async function aiCaption(req, res, next) {
+  try {
+    const { prompt, platforms, tone } = req.body || {};
+    const out = await aiCaptionService.generateCaption({
+      prompt,
+      platforms: Array.isArray(platforms) ? platforms : [],
+      tone: tone || 'engaging',
+    });
+    res.json(out);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
+module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption };

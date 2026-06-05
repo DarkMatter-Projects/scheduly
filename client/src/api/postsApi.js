@@ -32,3 +32,6 @@ export const publishNow = (id) =>
 
 export const refreshTiktokTargetStatus = (targetId) =>
   api.get(`/posts/targets/${targetId}/tiktok-status`).then(r => r.data);
+
+export const generateCaption = ({ prompt, platforms, tone }) =>
+  api.post('/posts/ai-caption', { prompt, platforms, tone }, { timeout: 60000 }).then(r => r.data);
