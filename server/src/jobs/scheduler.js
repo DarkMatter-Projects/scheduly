@@ -7,6 +7,7 @@ const { runEngageIngestJob } = require('./engageIngestJob');
 const { runFollowerSnapshotJob } = require('./followerSnapshotJob');
 const { runChannelInsightsJob } = require('./channelInsightsJob');
 const { runChannelDemographicsJob } = require('./channelDemographicsJob');
+const { runSentimentAlertJob } = require('./sentimentAlertJob');
 const logger = require('../utils/logger');
 
 function startScheduler() {
@@ -62,7 +63,15 @@ function startScheduler() {
     await runEngageIngestJob();
   });
 
-  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), token refresh (3 AM), follower snapshot (5 AM), channel insights (5:15 AM), channel demographics (Sun 5:30 AM), analytics (6 AM), ads sync (7 AM)');
+  // Hourly sweep for negative-sentiment spikes — sends an in-app
+  // notification to the team's bell dropdown when the ratio crosses
+  // the alert threshold.
+  cron.schedule('15 * * * *', async () => {
+    logger.debug('Scheduler: running sentiment alert job');
+    await runSentimentAlertJob();
+  });
+
+  logger.info('Scheduler started: publish (every min), engage ingest (every 5 min), sentiment alert (every hour), token refresh (3 AM), follower snapshot (5 AM), channel insights (5:15 AM), channel demographics (Sun 5:30 AM), analytics (6 AM), ads sync (7 AM)');
 }
 
 module.exports = { startScheduler };
