@@ -8,6 +8,9 @@ import { listClients } from '../api/clientsApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
 import { useDropzone } from 'react-dropzone';
+import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
+import { SortableContext, useSortable, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import toast from 'react-hot-toast';
 // Emoji picker is large (~300KB), so we lazy-load it.
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -570,26 +573,13 @@ export default function PostCreatePage() {
                   )}
                 </div>
 
-                {/* Thumbnail strip for multiple */}
+                {/* Thumbnail strip for multiple — drag to reorder */}
                 {attachedMedia.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {attachedMedia.map((m, idx) => (
-                      <div key={m.id} className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 group border border-slate-200">
-                        {m.mimeType?.startsWith('video/') ? (
-                          <div className="w-full h-full bg-slate-200 flex items-center justify-center"><Film className="w-5 h-5 text-slate-400" /></div>
-                        ) : (
-                          <img src={m.thumbnailUrl || m.url} alt="" className="w-full h-full object-cover" />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMedia(m.id)}
-                          className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  <CarouselThumbStrip
+                    media={attachedMedia}
+                    onReorder={(newOrder) => setAttachedMedia(newOrder)}
+                    onRemove={handleRemoveMedia}
+                  />
                 )}
 
                 {/* Action buttons */}
@@ -1077,6 +1067,65 @@ function YoutubeQuotaBadge({ quota, needed }) {
       <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
       YouTube quota: {quota.uploadsRemaining} of {Math.floor(quota.dailyLimit / quota.costPerUpload)} uploads remaining today
       {blocked && ` — need ${needed}`}
+    </div>
+  );
+}
+
+// Carousel thumbnail strip — drag any thumbnail to reorder. The order
+// drives both the preview "first slide" image and the order the media
+// IDs hit the platform publishers, so dragging reorders the live
+// carousel that gets published.
+function CarouselThumbStrip({ media, onReorder, onRemove }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = media.map(m => m.id);
+    const oldIndex = ids.indexOf(active.id);
+    const newIndex = ids.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    onReorder(arrayMove(media, oldIndex, newIndex));
+  }
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={media.map(m => m.id)} strategy={horizontalListSortingStrategy}>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {media.map(m => (
+            <SortableCarouselThumb key={m.id} media={m} onRemove={onRemove} />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+function SortableCarouselThumb({ media, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: media.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    cursor: 'grab',
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 group border border-slate-200"
+    >
+      {media.mimeType?.startsWith('video/')
+        ? <div className="w-full h-full bg-slate-200 flex items-center justify-center"><Film className="w-5 h-5 text-slate-400" /></div>
+        : <img src={media.thumbnailUrl || media.url} alt="" className="w-full h-full object-cover pointer-events-none" />}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onRemove(media.id); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100"
+      >
+        <X className="w-3 h-3" />
+      </button>
     </div>
   );
 }
