@@ -19,5 +19,6 @@ router.post('/:id/reject', authenticate, requireRole('admin', 'manager'), postsC
 router.post('/:id/schedule', authenticate, requireRole('admin', 'manager'), postsController.schedule);
 router.post('/:id/publish-now', authenticate, requireRole('admin', 'manager'), postsController.publishNow);
 router.get('/targets/:targetId/tiktok-status', authenticate, postsController.refreshTiktokTargetStatus);
+router.post('/targets/:targetId/pin', authenticate, requireRole('admin', 'manager'), postsController.setTargetPinned);
 
 module.exports = router;

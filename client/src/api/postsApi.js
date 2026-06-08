@@ -38,3 +38,6 @@ export const generateCaption = ({ prompt, platforms, tone }) =>
 
 export const bulkCreatePosts = (posts) =>
   api.post('/posts/bulk', { posts }, { timeout: 120000 }).then(r => r.data);
+
+export const setTargetPinned = (targetId, pinned) =>
+  api.post(`/posts/targets/${targetId}/pin`, { pinned }).then(r => r.data);

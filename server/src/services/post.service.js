@@ -130,6 +130,8 @@ async function getPost(id) {
     status: t.status,
     errorMessage: t.error_message,
     publishedAt: t.published_at,
+    isPinned: !!t.is_pinned,
+    pinnedAt: t.pinned_at,
   }));
 
   // Get approval history
@@ -465,8 +467,60 @@ function formatPost(row) {
   };
 }
 
+// Pin or unpin a published post on its platform. Looks up the
+// post_target row, dispatches the platform-specific pin call (FB Page
+// is_pinned, X /pinned_tweets), and flips the post_targets.is_pinned
+// flag on success. Throws on unsupported platforms.
+async function setPostTargetPinned(targetId, pinned, userId) {
+  const [rows] = await pool.execute(
+    `SELECT pt.id, pt.platform_post_id, pt.post_id, pt.is_pinned,
+            sa.platform, sa.platform_account_id, sa.access_token, sa.refresh_token, sa.token_expires_at, sa.id AS social_account_row_id
+     FROM post_targets pt
+     JOIN social_accounts sa ON pt.social_account_id = sa.id
+     WHERE pt.id = ?`,
+    [targetId]
+  );
+  if (rows.length === 0) throw Object.assign(new Error('Post target not found'), { status: 404 });
+  const t = rows[0];
+  if (!t.platform_post_id) throw Object.assign(new Error('Post is not published yet'), { status: 400 });
+
+  if (t.platform === 'facebook_page') {
+    const facebook = require('./facebook.service');
+    await facebook.setPinned(t.access_token, t.platform_post_id, pinned);
+  } else if (t.platform === 'twitter') {
+    const { decrypt } = require('./token.service');
+    const twitter = require('./twitter.service');
+    let accessToken = decrypt(t.access_token);
+    // Refresh if close to expiry — pin endpoints need a current token.
+    const expiresAt = t.token_expires_at ? new Date(t.token_expires_at).getTime() : 0;
+    if (expiresAt && expiresAt < Date.now() + 60000 && t.refresh_token) {
+      const refreshed = await twitter.refreshAccessToken(decrypt(t.refresh_token));
+      accessToken = refreshed.accessToken;
+      const { encrypt } = require('./token.service');
+      await pool.execute(
+        'UPDATE social_accounts SET access_token = ?, refresh_token = ?, token_expires_at = ? WHERE id = ?',
+        [encrypt(accessToken), refreshed.refreshToken ? encrypt(refreshed.refreshToken) : t.refresh_token,
+         refreshed.expiresIn ? new Date(Date.now() + refreshed.expiresIn * 1000) : null, t.social_account_row_id]
+      );
+    }
+    await twitter.setPinnedTweet(accessToken, t.platform_account_id, t.platform_post_id, pinned);
+  } else {
+    throw Object.assign(new Error(`Pinning isn't supported on ${t.platform}`), { status: 400 });
+  }
+
+  await pool.execute(
+    `UPDATE post_targets SET is_pinned = ?, pinned_at = ${pinned ? 'NOW()' : 'NULL'} WHERE id = ?`,
+    [pinned ? 1 : 0, targetId]
+  );
+  await pool.execute(
+    "INSERT INTO activity_log (user_id, action, entity_type, entity_id, details) VALUES (?, ?, 'post_target', ?, ?)",
+    [userId, pinned ? 'post.pinned' : 'post.unpinned', targetId, JSON.stringify({ platform: t.platform })]
+  );
+  return { ok: true, isPinned: pinned };
+}
+
 module.exports = {
   createPost, getPost, listPosts, updatePost, deletePost,
   submitForApproval, approvePost, rejectPost, schedulePost, publishNow,
-  getStats,
+  getStats, setPostTargetPinned,
 };

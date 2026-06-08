@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPost, deletePost, submitForApproval, approvePost, rejectPost, schedulePost, refreshTiktokTargetStatus } from '../api/postsApi';
+import { getPost, deletePost, submitForApproval, approvePost, rejectPost, schedulePost, refreshTiktokTargetStatus, setTargetPinned } from '../api/postsApi';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import {
   ArrowLeft, Trash2, Send, CheckCircle, XCircle, Clock,
-  Edit3, Film, Calendar, RefreshCw, ExternalLink,
+  Edit3, Film, Calendar, RefreshCw, ExternalLink, Pin,
 } from 'lucide-react';
 import clsx from 'clsx';
 import CommentThread from '../components/posts/CommentThread';
@@ -42,6 +42,8 @@ function TargetRow({ target }) {
   const queryClient = useQueryClient();
   const [ttStatus, setTtStatus] = useState(null);
   const isTiktok = target.platform === 'tiktok';
+  const canPin = (target.platform === 'facebook_page' || target.platform === 'twitter')
+    && target.status === 'published';
 
   const refreshMut = useMutation({
     mutationFn: () => refreshTiktokTargetStatus(target.id),
@@ -58,6 +60,15 @@ function TargetRow({ target }) {
       }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to fetch status'),
+  });
+
+  const pinMut = useMutation({
+    mutationFn: () => setTargetPinned(target.id, !target.isPinned),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['post'] });
+      toast.success(target.isPinned ? 'Unpinned' : 'Pinned to top');
+    },
+    onError: (err) => toast.error(err.response?.data?.error || err.message),
   });
 
   return (
@@ -80,6 +91,19 @@ function TargetRow({ target }) {
               title="Check TikTok processing status"
             >
               <RefreshCw className={clsx('w-3.5 h-3.5', refreshMut.isPending && 'animate-spin')} />
+            </button>
+          )}
+          {canPin && (
+            <button
+              onClick={() => pinMut.mutate()}
+              disabled={pinMut.isPending}
+              className={clsx(
+                'p-1 rounded',
+                target.isPinned ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+              )}
+              title={target.isPinned ? 'Unpin from top' : 'Pin to top'}
+            >
+              <Pin className={clsx('w-3.5 h-3.5', target.isPinned && 'fill-current')} />
             </button>
           )}
           {target.status === 'published' && (() => {

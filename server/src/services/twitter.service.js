@@ -165,6 +165,26 @@ async function publishTweet(accessToken, text) {
   return data.data?.id;
 }
 
+// Pin or unpin a tweet. X v2 exposes
+//   PUT /2/users/:user_id/pinned_tweets   {tweet_id}  (pin)
+//   DELETE /2/users/:user_id/pinned_tweets/:tweet_id  (unpin)
+// access_token is the OAuth 2.0 user-context token, NOT a bearer.
+async function setPinnedTweet(accessToken, userId, tweetId, pinned) {
+  if (pinned) {
+    const { data } = await axios.post(
+      `${tw.TWITTER_API_BASE}/users/${userId}/pinned_tweets`,
+      { tweet_id: tweetId },
+      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, timeout: 12000 }
+    );
+    return data?.data?.pinned !== false;
+  }
+  await axios.delete(
+    `${tw.TWITTER_API_BASE}/users/${userId}/pinned_tweets/${tweetId}`,
+    { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 12000 }
+  );
+  return true;
+}
+
 module.exports = {
   getAuthUrl,
   exchangeCodeForToken,
@@ -172,4 +192,5 @@ module.exports = {
   fetchUserInfo,
   storeAccount,
   publishTweet,
+  setPinnedTweet,
 };

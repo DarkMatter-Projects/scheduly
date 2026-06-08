@@ -193,10 +193,23 @@ async function refreshLongLivedToken(currentToken) {
   };
 }
 
+// Pin or unpin a feed post at the top of the Page. is_pinned=true /
+// false on a POST /{post-id} with a page access token. Errors bubble
+// so the controller can translate them.
+async function setPinned(pageAccessToken, platformPostId, pinned) {
+  const { data } = await axios.post(
+    `${fb.FB_GRAPH_URL}/${platformPostId}`,
+    null,
+    { params: { is_pinned: pinned ? 'true' : 'false', access_token: decrypt(pageAccessToken) }, timeout: 12000 }
+  );
+  return data?.success !== false;
+}
+
 module.exports = {
   getAuthUrl,
   exchangeCodeForToken,
   fetchPagesAndInstagram,
   publishToPage,
   refreshLongLivedToken,
+  setPinned,
 };
