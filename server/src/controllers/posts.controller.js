@@ -38,7 +38,8 @@ async function create(req, res, next) {
       tiktokPostMode, tiktokPrivacyLevel,
       tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
       youtubePrivacy, youtubeTitle, youtubeMadeForKids, youtubeIsShort,
-      instagramFirstComment, customThumbnailMediaId,
+      instagramFirstComment, instagramCollaborators, customThumbnailMediaId,
+      linkedinArticleUrl,
       geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
     } = req.body;
     if (!content) {
@@ -62,7 +63,9 @@ async function create(req, res, next) {
       youtubeMadeForKids,
       youtubeIsShort,
       instagramFirstComment,
+      instagramCollaborators,
       customThumbnailMediaId,
+      linkedinArticleUrl,
       geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
     });
     res.status(201).json(post);

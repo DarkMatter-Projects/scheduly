@@ -118,7 +118,7 @@ async function fetchInstagramAccount(accessToken, userId, connectedBy, teamId) {
  * Publishes content to Instagram via the direct Instagram API.
  * Note: Instagram still requires media to be accessible via a public URL.
  */
-async function publishToInstagram(igAccountId, encryptedToken, content, mediaFiles, publicBaseUrl) {
+async function publishToInstagram(igAccountId, encryptedToken, content, mediaFiles, publicBaseUrl, options = {}) {
   const token = decrypt(encryptedToken);
 
   if (!mediaFiles || mediaFiles.length === 0) {
@@ -139,13 +139,13 @@ async function publishToInstagram(igAccountId, encryptedToken, content, mediaFil
   }
 
   if (mediaFiles.length === 1) {
-    return publishSingleMedia(igAccountId, token, content, mediaFiles[0], publicBaseUrl);
+    return publishSingleMedia(igAccountId, token, content, mediaFiles[0], publicBaseUrl, options);
   }
 
-  return publishCarousel(igAccountId, token, content, mediaFiles, publicBaseUrl);
+  return publishCarousel(igAccountId, token, content, mediaFiles, publicBaseUrl, options);
 }
 
-async function publishSingleMedia(igAccountId, token, content, media, publicBaseUrl) {
+async function publishSingleMedia(igAccountId, token, content, media, publicBaseUrl, options = {}) {
   const isVideo = media.mimeType.startsWith('video/');
   const mediaUrl = publicMediaUrl(media, publicBaseUrl);
 
@@ -159,6 +159,12 @@ async function publishSingleMedia(igAccountId, token, content, media, publicBase
     params.media_type = 'REELS';
   } else {
     params.image_url = mediaUrl;
+  }
+  // Collaborators get a JSON array of IG usernames. Each invitee
+  // receives a notification and the post lands on their profile
+  // once accepted.
+  if (Array.isArray(options.collaborators) && options.collaborators.length > 0) {
+    params.collaborators = JSON.stringify(options.collaborators);
   }
 
   logger.info(`IG publish: creating media container at ${ig.IG_GRAPH_URL}/${igAccountId}/media`, {
@@ -185,7 +191,7 @@ async function publishSingleMedia(igAccountId, token, content, media, publicBase
   return publishData.id;
 }
 
-async function publishCarousel(igAccountId, token, content, mediaFiles, publicBaseUrl) {
+async function publishCarousel(igAccountId, token, content, mediaFiles, publicBaseUrl, options = {}) {
   const childIds = [];
 
   for (const media of mediaFiles) {
@@ -209,15 +215,19 @@ async function publishCarousel(igAccountId, token, content, mediaFiles, publicBa
     await waitForMediaProcessing(data.id, token);
   }
 
+  const carouselParams = {
+    caption: content,
+    media_type: 'CAROUSEL',
+    children: childIds.join(','),
+    access_token: token,
+  };
+  if (Array.isArray(options.collaborators) && options.collaborators.length > 0) {
+    carouselParams.collaborators = JSON.stringify(options.collaborators);
+  }
   const { data: carousel } = await axios.post(
     `${ig.IG_GRAPH_URL}/${igAccountId}/media`,
     null,
-    { params: {
-      caption: content,
-      media_type: 'CAROUSEL',
-      children: childIds.join(','),
-      access_token: token,
-    } }
+    { params: carouselParams }
   );
 
   await waitForMediaProcessing(carousel.id, token);

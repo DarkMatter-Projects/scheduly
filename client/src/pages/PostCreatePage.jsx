@@ -282,6 +282,12 @@ export default function PostCreatePage() {
   const [geoFacebookPlaceId, setGeoFacebookPlaceId] = useState('');
   const [geoTwitterPlaceId, setGeoTwitterPlaceId] = useState('');
   const [instagramFirstComment, setInstagramFirstComment] = useState('');
+  // IG collaborators — comma-separated usernames at the form level,
+  // split into an array before submission.
+  const [instagramCollaboratorsInput, setInstagramCollaboratorsInput] = useState('');
+  // LinkedIn-specific — article URL share. When set, the post body
+  // becomes a link preview card instead of a text + media post.
+  const [linkedinArticleUrl, setLinkedinArticleUrl] = useState('');
   // Custom video thumbnail — references a media row from the library.
   // Used by the YouTube publisher (and FB Page video if we extend it).
   const [customThumbnail, setCustomThumbnail] = useState(null);
@@ -441,7 +447,15 @@ export default function PostCreatePage() {
         youtubeTitle: youtubeTitle || undefined,
         youtubeIsShort,
         instagramFirstComment: instagramFirstComment || undefined,
+        instagramCollaborators: instagramCollaboratorsInput
+          ? instagramCollaboratorsInput
+              .split(',')
+              .map(s => s.trim().replace(/^@/, ''))
+              .filter(Boolean)
+              .slice(0, 20)
+          : undefined,
         customThumbnailMediaId: customThumbnail?.id || undefined,
+        linkedinArticleUrl: linkedinArticleUrl || undefined,
         geoLabel: geoLabel || undefined,
         geoFacebookPlaceId: geoFacebookPlaceId || undefined,
         geoTwitterPlaceId: geoTwitterPlaceId || undefined,
@@ -480,7 +494,15 @@ export default function PostCreatePage() {
         youtubeTitle: youtubeTitle || undefined,
         youtubeIsShort,
         instagramFirstComment: instagramFirstComment || undefined,
+        instagramCollaborators: instagramCollaboratorsInput
+          ? instagramCollaboratorsInput
+              .split(',')
+              .map(s => s.trim().replace(/^@/, ''))
+              .filter(Boolean)
+              .slice(0, 20)
+          : undefined,
         customThumbnailMediaId: customThumbnail?.id || undefined,
+        linkedinArticleUrl: linkedinArticleUrl || undefined,
         geoLabel: geoLabel || undefined,
         geoFacebookPlaceId: geoFacebookPlaceId || undefined,
         geoTwitterPlaceId: geoTwitterPlaceId || undefined,
@@ -505,6 +527,7 @@ export default function PostCreatePage() {
   const instagramTargetCount = selectedAccounts.filter(a => a.platform === 'instagram_business').length;
   const facebookTargetCount  = selectedAccounts.filter(a => a.platform === 'facebook_page').length;
   const twitterTargetCount   = selectedAccounts.filter(a => a.platform === 'twitter').length;
+  const linkedinTargetCount  = selectedAccounts.filter(a => a.platform === 'linkedin').length;
   const youtubeOverQuota = youtubeTargetCount > 0
     && youtubeQuota
     && youtubeQuota.uploadsRemaining < youtubeTargetCount;
@@ -729,6 +752,9 @@ export default function PostCreatePage() {
                   <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">TikTok options</h4>
                   <span className="text-[10px] text-slate-400">Applied to all TikTok targets</span>
                 </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Attach a single video for a regular post, or multiple photos for a slideshow post (TikTok auto-adds music). Mixing video and images in one post isn't allowed.
+                </p>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Post mode</label>
@@ -884,6 +910,46 @@ export default function PostCreatePage() {
                     Posted as a comment under the published Instagram post immediately after it goes live.
                   </p>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Collaborators <span className="text-slate-400">(optional, up to 20 usernames)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={instagramCollaboratorsInput}
+                    onChange={(e) => setInstagramCollaboratorsInput(e.target.value)}
+                    placeholder="@brandpartner, @influencer, @photographer"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-pink-200 focus:ring-2 focus:ring-pink-400 outline-none font-mono"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Comma-separated. Each invitee gets a notification and the post lands on their profile once they accept.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* LinkedIn-specific options — only when a LinkedIn account is targeted */}
+            {linkedinTargetCount > 0 && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-4 space-y-3">
+                <h4 className="text-xs font-semibold text-sky-900 uppercase tracking-wider">LinkedIn options</h4>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Article URL <span className="text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={linkedinArticleUrl}
+                    onChange={(e) => setLinkedinArticleUrl(e.target.value)}
+                    placeholder="https://blog.example.com/our-latest-post"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-sky-200 focus:ring-2 focus:ring-sky-400 outline-none"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    When set, the post renders as a link-preview card (title / description / thumbnail auto-scraped by LinkedIn). Overrides any attached image / video.
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Attach a PDF / DOC / PPT in the media library and we'll publish it as a native LinkedIn document post automatically — no extra config needed.
+                </p>
               </div>
             )}
 

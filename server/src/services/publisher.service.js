@@ -12,7 +12,8 @@ const env = require('../config/env');
 async function publishPost(postId) {
   // Get post with media + TikTok-specific options
   const [postRows] = await pool.execute(
-    `SELECT id, content, instagram_first_comment, custom_thumbnail_media_id,
+    `SELECT id, content, instagram_first_comment, instagram_collaborators, custom_thumbnail_media_id,
+            linkedin_article_url,
             tiktok_post_mode, tiktok_privacy_level,
             tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
             youtube_privacy, youtube_title, youtube_made_for_kids, youtube_is_short,
@@ -73,12 +74,23 @@ async function publishPost(postId) {
         );
       } else if (target.platform === 'instagram_business') {
         const publicBaseUrl = env.igPublicBaseUrl || null;
+        // Parse the JSON column once — IG container accepts an array
+        // of usernames as `collaborators`.
+        let collaborators = [];
+        if (post.instagram_collaborators) {
+          try {
+            collaborators = typeof post.instagram_collaborators === 'string'
+              ? JSON.parse(post.instagram_collaborators)
+              : post.instagram_collaborators;
+          } catch { collaborators = []; }
+        }
         platformPostId = await publishToInstagram(
           target.platform_account_id,
           target.access_token,
           post.content,
           mediaFiles,
-          publicBaseUrl
+          publicBaseUrl,
+          { collaborators: Array.isArray(collaborators) ? collaborators : [] }
         );
         // IG treats any single-video post as a Reel (see instagram.service:
         // params.media_type = 'REELS'). Tag the post so dashboard widgets
@@ -104,7 +116,8 @@ async function publishPost(postId) {
         platformPostId = await publishToLinkedIn(
           target.social_account_row_id,
           post.content,
-          mediaFiles
+          mediaFiles,
+          { articleUrl: post.linkedin_article_url || null }
         );
       } else if (target.platform === 'youtube') {
         // Resolve the custom thumbnail media row if the user set one

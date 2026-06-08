@@ -111,6 +111,49 @@ function publicMediaUrl(media) {
 // (versioned, LinkedIn-Version header required) are the modern path.
 const LINKEDIN_API_VERSION = '202507';
 
+// LinkedIn document upload — supports PDF, PPT, PPTX, DOC, DOCX. We
+// detect by mime type so the publisher can route PDF attachments to
+// this path instead of the image one (which would fail with an
+// "unsupported_mime_type" error).
+function isDocumentMime(mime) {
+  if (!mime) return false;
+  return mime === 'application/pdf'
+      || mime === 'application/msword'
+      || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || mime === 'application/vnd.ms-powerpoint'
+      || mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+}
+
+async function uploadDocument(accessToken, ownerUrn, media) {
+  // Documents follow the same initialize-then-PUT pattern as images,
+  // but on a dedicated /rest/documents endpoint.
+  const { data: init } = await axios.post(
+    `${li.LINKEDIN_API_BASE}/rest/documents?action=initializeUpload`,
+    { initializeUploadRequest: { owner: ownerUrn } },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0',
+        'LinkedIn-Version': LINKEDIN_API_VERSION,
+        'Content-Type': 'application/json',
+      },
+      timeout: 15000,
+    }
+  );
+  const uploadUrl = init.value.uploadUrl;
+  const docUrn = init.value.document;
+
+  const sourceUrl = publicMediaUrl(media);
+  const { data: bytes } = await axios.get(sourceUrl, { responseType: 'arraybuffer', timeout: 120000 });
+  await axios.put(uploadUrl, bytes, {
+    headers: { 'Content-Type': media.mimeType || 'application/octet-stream' },
+    timeout: 180000,
+    maxBodyLength: Infinity,
+  });
+
+  return docUrn;
+}
+
 async function uploadImage(accessToken, ownerUrn, media) {
   // Step 1: initialize the image upload.
   const { data: init } = await axios.post(
@@ -209,7 +252,7 @@ async function uploadVideo(accessToken, ownerUrn, media) {
   return videoUrn;
 }
 
-async function publishToLinkedIn(socialAccountId, content, mediaFiles) {
+async function publishToLinkedIn(socialAccountId, content, mediaFiles, options = {}) {
   const [rows] = await pool.execute('SELECT * FROM social_accounts WHERE id = ?', [socialAccountId]);
   if (rows.length === 0) throw new Error(`social_account ${socialAccountId} not found`);
   const account = rows[0];
@@ -230,13 +273,22 @@ async function publishToLinkedIn(socialAccountId, content, mediaFiles) {
     isReshareDisabledByAuthor: false,
   };
 
-  if (!mediaFiles || mediaFiles.length === 0) {
+  // Article share — when an article URL is set, LinkedIn renders it
+  // as a link preview card. We pass just the URL and let LinkedIn
+  // scrape the title / description / thumbnail itself.
+  if (options.articleUrl) {
+    body.content = { article: { source: options.articleUrl } };
+  } else if (!mediaFiles || mediaFiles.length === 0) {
     // Text-only post — no content block needed.
   } else if (mediaFiles.length === 1) {
     const m = mediaFiles[0];
     if ((m.mimeType || '').startsWith('video/')) {
       const videoUrn = await uploadVideo(accessToken, authorUrn, m);
       body.content = { media: { id: videoUrn } };
+    } else if (isDocumentMime(m.mimeType)) {
+      // Native PDF / DOC upload — separate /rest/documents endpoint.
+      const docUrn = await uploadDocument(accessToken, authorUrn, m);
+      body.content = { media: { id: docUrn, title: m.originalName || 'Document' } };
     } else {
       const imageUrn = await uploadImage(accessToken, authorUrn, m);
       body.content = { media: { id: imageUrn } };
