@@ -16,20 +16,20 @@ async function createPost({
   tiktokPostMode, tiktokPrivacyLevel,
   tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
   youtubePrivacy, youtubeTitle, youtubeMadeForKids,
-  instagramFirstComment,
+  instagramFirstComment, customThumbnailMediaId,
 }) {
   const s = sentiment.analyze(content);
   const [result] = await pool.execute(
     `INSERT INTO posts
-       (title, content, instagram_first_comment,
+       (title, content, instagram_first_comment, custom_thumbnail_media_id,
         caption_sentiment_score, caption_sentiment_label,
         post_type, status, created_by, team_id,
         tiktok_post_mode, tiktok_privacy_level,
         tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
         youtube_privacy, youtube_title, youtube_made_for_kids)
-     VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      title || null, content, instagramFirstComment || null,
+      title || null, content, instagramFirstComment || null, customThumbnailMediaId || null,
       s.comparative, s.label,
       postType || 'text', createdBy, teamId || null,
       tiktokPostMode || 'INBOX',

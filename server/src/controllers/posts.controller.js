@@ -38,7 +38,7 @@ async function create(req, res, next) {
       tiktokPostMode, tiktokPrivacyLevel,
       tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
       youtubePrivacy, youtubeTitle, youtubeMadeForKids,
-      instagramFirstComment,
+      instagramFirstComment, customThumbnailMediaId,
     } = req.body;
     if (!content) {
       return res.status(400).json({ error: 'Content is required' });
@@ -60,6 +60,7 @@ async function create(req, res, next) {
       youtubeTitle,
       youtubeMadeForKids,
       instagramFirstComment,
+      customThumbnailMediaId,
     });
     res.status(201).json(post);
   } catch (err) {

@@ -12,7 +12,7 @@ const env = require('../config/env');
 async function publishPost(postId) {
   // Get post with media + TikTok-specific options
   const [postRows] = await pool.execute(
-    `SELECT id, content, instagram_first_comment,
+    `SELECT id, content, instagram_first_comment, custom_thumbnail_media_id,
             tiktok_post_mode, tiktok_privacy_level,
             tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
             youtube_privacy, youtube_title, youtube_made_for_kids
@@ -103,6 +103,25 @@ async function publishPost(postId) {
           mediaFiles
         );
       } else if (target.platform === 'youtube') {
+        // Resolve the custom thumbnail media row if the user set one
+        // on the composer, so publishToYouTube can call
+        // /thumbnails/set after the upload completes.
+        let customThumbnail = null;
+        if (post.custom_thumbnail_media_id) {
+          const [thumbRows] = await pool.execute(
+            'SELECT * FROM media WHERE id = ?',
+            [post.custom_thumbnail_media_id]
+          );
+          if (thumbRows.length > 0) {
+            const t = thumbRows[0];
+            customThumbnail = {
+              id: t.id,
+              filePath: t.file_path,
+              mimeType: t.mime_type,
+              originalName: t.original_name,
+            };
+          }
+        }
         platformPostId = await publishToYouTube(
           target.social_account_row_id,
           post.content,
@@ -113,6 +132,7 @@ async function publishPost(postId) {
             // first line if the user didn't set one.
             title: post.youtube_title || undefined,
             madeForKids: !!post.youtube_made_for_kids,
+            customThumbnail,
           }
         );
       } else if (target.platform === 'twitter') {

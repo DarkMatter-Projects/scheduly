@@ -203,13 +203,15 @@ function ProfilePicker({ accounts, clients, selected, onChange }) {
   );
 }
 
-function MediaLibraryModal({ onSelect, onClose }) {
+function MediaLibraryModal({ onSelect, onClose, mimeFilter }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const { data, isLoading } = useQuery({
     queryKey: ['media', 1, ''],
     queryFn: () => listMedia({ page: 1, limit: 48 }),
   });
-  const items = data?.data || [];
+  // Optional client-side filter — used for the YouTube custom-thumbnail
+  // picker so only images are selectable.
+  const items = (data?.data || []).filter(m => !mimeFilter || (m.mimeType || '').startsWith(mimeFilter));
   const toggle = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   return (
@@ -272,6 +274,10 @@ export default function PostCreatePage() {
   const [youtubeTitle, setYoutubeTitle] = useState('');
   const [youtubeMadeForKids, setYoutubeMadeForKids] = useState(false);
   const [instagramFirstComment, setInstagramFirstComment] = useState('');
+  // Custom video thumbnail — references a media row from the library.
+  // Used by the YouTube publisher (and FB Page video if we extend it).
+  const [customThumbnail, setCustomThumbnail] = useState(null);
+  const [showThumbPicker, setShowThumbPicker] = useState(false);
   // AI caption modal state.
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -426,6 +432,7 @@ export default function PostCreatePage() {
         youtubePrivacy,
         youtubeTitle: youtubeTitle || undefined,
         instagramFirstComment: instagramFirstComment || undefined,
+        customThumbnailMediaId: customThumbnail?.id || undefined,
         youtubeMadeForKids,
       });
 
@@ -460,6 +467,7 @@ export default function PostCreatePage() {
         youtubePrivacy,
         youtubeTitle: youtubeTitle || undefined,
         instagramFirstComment: instagramFirstComment || undefined,
+        customThumbnailMediaId: customThumbnail?.id || undefined,
         youtubeMadeForKids,
       });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
@@ -831,6 +839,35 @@ export default function PostCreatePage() {
                   <p className="text-[10px] text-slate-400 mt-1 text-right">{youtubeTitle.length}/100</p>
                 </div>
 
+                {/* Custom thumbnail — channel must be verified or YT
+                    silently ignores the call. We log a warning then. */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Custom thumbnail <span className="text-slate-400">(optional, JPG / PNG up to 2 MB)</span>
+                  </label>
+                  {customThumbnail ? (
+                    <div className="flex items-center gap-3">
+                      <img src={customThumbnail.url || customThumbnail.thumbnailUrl} alt="Thumbnail" className="w-32 h-18 object-cover rounded-lg border border-slate-200" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-800 truncate">{customThumbnail.originalName}</p>
+                        <button onClick={() => setCustomThumbnail(null)} className="text-[11px] text-rose-600 hover:underline mt-1">
+                          Remove thumbnail
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowThumbPicker(true)}
+                      className="w-full px-3 py-3 text-xs font-medium text-slate-600 bg-white border border-dashed border-slate-300 hover:border-red-400 rounded-lg"
+                    >
+                      Choose thumbnail from media library
+                    </button>
+                  )}
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Channel must be verified for custom thumbnails. Unverified channels keep YouTube's auto-generated one.
+                  </p>
+                </div>
+
                 {/* Visibility */}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Visibility</label>
@@ -977,6 +1014,17 @@ export default function PostCreatePage() {
             setAttachedMedia(prev => [...prev, ...items.filter(i => !existing.has(i.id))]);
           }}
           onClose={() => setShowMediaPicker(false)}
+        />
+      )}
+      {showThumbPicker && (
+        <MediaLibraryModal
+          mimeFilter="image/"
+          onSelect={(items) => {
+            const img = items.find(i => (i.mimeType || '').startsWith('image/'));
+            if (img) setCustomThumbnail(img);
+            setShowThumbPicker(false);
+          }}
+          onClose={() => setShowThumbPicker(false)}
         />
       )}
 

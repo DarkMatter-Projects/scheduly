@@ -262,6 +262,37 @@ async function publishToYouTube(socialAccountId, content, mediaFiles, options = 
   const videoId = upload.data?.id;
   if (!videoId) throw new Error('YouTube returned no video id after upload');
   logger.info(`YouTube video uploaded: ${videoId}`);
+
+  // Custom thumbnail — best-effort. YouTube requires the channel to be
+  // verified and supports JPG/PNG up to 2MB; if either constraint fails
+  // we log + continue so the video still publishes.
+  if (options.customThumbnail) {
+    try {
+      const thumbUrl = publicMediaUrl(options.customThumbnail);
+      const { data: thumbBytes } = await axios.get(thumbUrl, {
+        responseType: 'arraybuffer',
+        timeout: 60000,
+        maxContentLength: 10 * 1024 * 1024,
+      });
+      await axios.post(
+        `${yt.YOUTUBE_UPLOAD_BASE}/thumbnails/set?videoId=${videoId}`,
+        thumbBytes,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': options.customThumbnail.mimeType || 'image/jpeg',
+            'Content-Length': String(thumbBytes.length),
+          },
+          timeout: 60000,
+          maxBodyLength: Infinity,
+        }
+      );
+      logger.info(`YouTube thumbnail set on ${videoId}`);
+    } catch (thumbErr) {
+      logger.warn(`YouTube thumbnail set failed on ${videoId}: ${thumbErr.response?.data?.error?.message || thumbErr.message}`);
+    }
+  }
+
   return videoId;
 }
 
