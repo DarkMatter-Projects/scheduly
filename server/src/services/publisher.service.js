@@ -15,7 +15,8 @@ async function publishPost(postId) {
     `SELECT id, content, instagram_first_comment, custom_thumbnail_media_id,
             tiktok_post_mode, tiktok_privacy_level,
             tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
-            youtube_privacy, youtube_title, youtube_made_for_kids
+            youtube_privacy, youtube_title, youtube_made_for_kids, youtube_is_short,
+            geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id
        FROM posts WHERE id = ?`,
     [postId]
   );
@@ -65,7 +66,10 @@ async function publishPost(postId) {
           target.platform_account_id,
           target.access_token,
           post.content,
-          mediaFiles
+          mediaFiles,
+          // FB Page /feed accepts place=<page-id>. We only pass it when
+          // the user picked a place via the geotag picker.
+          { placeId: post.geo_facebook_place_id || null }
         );
       } else if (target.platform === 'instagram_business') {
         const publicBaseUrl = env.igPublicBaseUrl || null;
@@ -122,9 +126,18 @@ async function publishPost(postId) {
             };
           }
         }
+        // For YouTube Shorts append "#Shorts" to the description if
+        // it's not already there — YouTube's identifier for Shorts is
+        // the hashtag presence + vertical aspect + <=60s duration.
+        // Aspect / duration are properties of the uploaded video we
+        // can't influence; the hashtag is the only knob we control.
+        let contentForYT = post.content || '';
+        if (post.youtube_is_short && !/#shorts\b/i.test(contentForYT)) {
+          contentForYT = `${contentForYT}\n\n#Shorts`.trim();
+        }
         platformPostId = await publishToYouTube(
           target.social_account_row_id,
-          post.content,
+          contentForYT,
           mediaFiles,
           {
             privacy: post.youtube_privacy || 'private',
@@ -135,6 +148,12 @@ async function publishPost(postId) {
             customThumbnail,
           }
         );
+        // Tag the post_type as 'reel' for Shorts so the dashboard's
+        // "Shorts performance" widget bucket can find it (the resolver
+        // shares the IG Reels filter — both surface short-form video).
+        if (post.youtube_is_short) {
+          await pool.execute("UPDATE posts SET post_type = 'reel' WHERE id = ?", [postId]);
+        }
       } else if (target.platform === 'twitter') {
         // X / Twitter: text-only post via OAuth 2.0. Refresh the access
         // token first if it's expired (X access tokens last ~2h).
@@ -149,7 +168,9 @@ async function publishPost(postId) {
             [encrypt(refreshed.accessToken), refreshed.refreshToken ? encrypt(refreshed.refreshToken) : null, newExpires, target.social_account_row_id]
           );
         }
-        platformPostId = await twitterService.publishTweet(accessToken, post.content);
+        platformPostId = await twitterService.publishTweet(accessToken, post.content, {
+          geoPlaceId: post.geo_twitter_place_id || null,
+        });
       } else if (target.platform === 'tiktok') {
         // TikTok returns a publish_id, not a platform post id — the post
         // finishes processing async on TikTok's side. We store the publish_id

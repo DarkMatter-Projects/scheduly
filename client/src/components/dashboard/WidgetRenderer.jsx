@@ -199,6 +199,7 @@ function WidgetBody({ widget }) {
     case 'engagements_by_country':         return <YoutubeDimensionListBody data={data} label="Engagements" valueFormat="number" />;
     case 'top_sources_by_views':           return <YoutubeDimensionListBody data={data} label="Views" valueFormat="number" friendly={YT_SOURCE_LABEL} />;
     case 'shares_by_source':               return <YoutubeSharingDonutBody data={data} />;
+    case 'reaction_breakdown':             return <ReactionBreakdownBody data={data} />;
     case 'followers_by_country':           return <FollowersByCountryBody data={data} />;
     case 'fans_by_age_gender':             return <FansByAgeGenderBody data={data} />;
     case 'reels_performance':              return <PostTypePerformanceBody data={data} label="Reel"  />;
@@ -1441,6 +1442,34 @@ function SummaryStat({ label, value }) {
     <div className="min-w-0">
       <div className="text-[10px] uppercase tracking-wider font-medium text-slate-500">{label}</div>
       <div className="text-base font-bold text-slate-900 tabular-nums truncate">{value}</div>
+    </div>
+  );
+}
+
+// ── FB reaction breakdown (horizontal bar list with emoji) ──
+
+function ReactionBreakdownBody({ data }) {
+  const rows = data?.rows || [];
+  if (!rows.some(r => r.value > 0)) {
+    return <ChartEmptyState height={180} title="No reactions in range" hint="Page reaction breakdown appears once channel insights are ingested." />;
+  }
+  const max = Math.max(...rows.map(r => r.value), 0);
+  const COLORS = { like: '#2563eb', love: '#ec4899', haha: '#f59e0b', wow: '#a855f7', sad: '#64748b', angry: '#ef4444' };
+  return (
+    <div className="h-full overflow-auto">
+      <ul className="divide-y divide-slate-100 text-xs">
+        {rows.map(r => (
+          <li key={r.key} className="flex items-center gap-2 py-1.5">
+            <span className="w-5 text-base text-center">{r.emoji}</span>
+            <span className="text-slate-700 w-12">{r.label}</span>
+            <span className="text-slate-900 font-semibold tabular-nums w-16 text-right">{formatCompact(r.value, 'number')}</span>
+            <div className="flex-1 h-2 bg-slate-100 rounded overflow-hidden">
+              <div className="h-full rounded" style={{ width: `${max > 0 ? (r.value / max) * 100 : 0}%`, backgroundColor: COLORS[r.key] || '#6366f1' }} />
+            </div>
+            <span className="text-[10px] text-slate-400 tabular-nums w-12 text-right">{r.share.toFixed(1)}%</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

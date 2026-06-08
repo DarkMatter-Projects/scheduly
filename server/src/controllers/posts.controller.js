@@ -37,8 +37,9 @@ async function create(req, res, next) {
       title, content, postType, teamId, mediaIds, targetAccountIds,
       tiktokPostMode, tiktokPrivacyLevel,
       tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
-      youtubePrivacy, youtubeTitle, youtubeMadeForKids,
+      youtubePrivacy, youtubeTitle, youtubeMadeForKids, youtubeIsShort,
       instagramFirstComment, customThumbnailMediaId,
+      geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
     } = req.body;
     if (!content) {
       return res.status(400).json({ error: 'Content is required' });
@@ -59,8 +60,10 @@ async function create(req, res, next) {
       youtubePrivacy,
       youtubeTitle,
       youtubeMadeForKids,
+      youtubeIsShort,
       instagramFirstComment,
       customThumbnailMediaId,
+      geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
     });
     res.status(201).json(post);
   } catch (err) {

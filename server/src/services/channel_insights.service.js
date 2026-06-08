@@ -74,6 +74,13 @@ async function fetchFacebookPageInsights(account, token, day) {
     'page_video_repeat_views',
     'page_video_views_10s',
     'page_video_complete_views_30s',
+    // Per-reaction-type page totals — drive the reaction_breakdown widget.
+    'page_actions_post_reactions_like_total',
+    'page_actions_post_reactions_love_total',
+    'page_actions_post_reactions_haha_total',
+    'page_actions_post_reactions_wow_total',
+    'page_actions_post_reactions_sorry_total',
+    'page_actions_post_reactions_anger_total',
     // Impressions breakdown
     'page_impressions_organic_v2',
     'page_impressions_paid',
@@ -133,6 +140,12 @@ async function fetchFacebookPageInsights(account, token, day) {
       video_views_organic:  valueOf('page_video_views_organic'),
       video_views_10s:      valueOf('page_video_views_10s'),
       video_views_30s:      valueOf('page_video_complete_views_30s'),
+      reactions_like:       valueOf('page_actions_post_reactions_like_total'),
+      reactions_love:       valueOf('page_actions_post_reactions_love_total'),
+      reactions_haha:       valueOf('page_actions_post_reactions_haha_total'),
+      reactions_wow:        valueOf('page_actions_post_reactions_wow_total'),
+      reactions_sorry:      valueOf('page_actions_post_reactions_sorry_total'),
+      reactions_anger:      valueOf('page_actions_post_reactions_anger_total'),
       impressions_organic:  valueOf('page_impressions_organic_v2'),
       impressions_paid:     valueOf('page_impressions_paid'),
       impressions_viral:    valueOf('page_impressions_viral_unique'),
@@ -406,7 +419,9 @@ async function recordSnapshot(socialAccountId, day, values) {
         fan_posts_count, reviews_count, blocked_dm_count,
         linkedin_organic_gain, linkedin_paid_gain,
         video_views_paid, video_views_organic,
-        video_views_10s, video_views_30s)
+        video_views_10s, video_views_30s,
+        reactions_like, reactions_love, reactions_haha,
+        reactions_wow, reactions_sorry, reactions_anger)
      VALUES (?, ?,
              ?, ?, ?,
              ?, ?, ?,
@@ -419,7 +434,9 @@ async function recordSnapshot(socialAccountId, day, values) {
              ?, ?, ?,
              ?, ?,
              ?, ?,
-             ?, ?)
+             ?, ?,
+             ?, ?, ?,
+             ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        engaged_users        = VALUES(engaged_users),
        profile_views        = VALUES(profile_views),
@@ -453,7 +470,13 @@ async function recordSnapshot(socialAccountId, day, values) {
        video_views_paid     = VALUES(video_views_paid),
        video_views_organic  = VALUES(video_views_organic),
        video_views_10s      = VALUES(video_views_10s),
-       video_views_30s      = VALUES(video_views_30s)`,
+       video_views_30s      = VALUES(video_views_30s),
+       reactions_like       = VALUES(reactions_like),
+       reactions_love       = VALUES(reactions_love),
+       reactions_haha       = VALUES(reactions_haha),
+       reactions_wow        = VALUES(reactions_wow),
+       reactions_sorry      = VALUES(reactions_sorry),
+       reactions_anger      = VALUES(reactions_anger)`,
     [
       socialAccountId, day,
       n(values.engaged_users), n(values.profile_views), n(values.profile_taps),
@@ -468,6 +491,8 @@ async function recordSnapshot(socialAccountId, day, values) {
       n(values.linkedin_organic_gain), n(values.linkedin_paid_gain),
       n(values.video_views_paid), n(values.video_views_organic),
       n(values.video_views_10s), n(values.video_views_30s),
+      n(values.reactions_like), n(values.reactions_love), n(values.reactions_haha),
+      n(values.reactions_wow), n(values.reactions_sorry), n(values.reactions_anger),
     ]
   );
   return true;

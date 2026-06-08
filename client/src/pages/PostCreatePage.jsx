@@ -273,6 +273,14 @@ export default function PostCreatePage() {
   const [youtubePrivacy, setYoutubePrivacy] = useState('private');
   const [youtubeTitle, setYoutubeTitle] = useState('');
   const [youtubeMadeForKids, setYoutubeMadeForKids] = useState(false);
+  const [youtubeIsShort, setYoutubeIsShort] = useState(false);
+  // Geotag — display label plus optional platform-specific place IDs.
+  // For FB Page posts the place ID is required; for X the place_id
+  // is required. The label alone shows up in the composer preview but
+  // doesn't actually publish a geotag (the platforms need an ID).
+  const [geoLabel, setGeoLabel] = useState('');
+  const [geoFacebookPlaceId, setGeoFacebookPlaceId] = useState('');
+  const [geoTwitterPlaceId, setGeoTwitterPlaceId] = useState('');
   const [instagramFirstComment, setInstagramFirstComment] = useState('');
   // Custom video thumbnail — references a media row from the library.
   // Used by the YouTube publisher (and FB Page video if we extend it).
@@ -431,8 +439,12 @@ export default function PostCreatePage() {
         tiktokDisableStitch,
         youtubePrivacy,
         youtubeTitle: youtubeTitle || undefined,
+        youtubeIsShort,
         instagramFirstComment: instagramFirstComment || undefined,
         customThumbnailMediaId: customThumbnail?.id || undefined,
+        geoLabel: geoLabel || undefined,
+        geoFacebookPlaceId: geoFacebookPlaceId || undefined,
+        geoTwitterPlaceId: geoTwitterPlaceId || undefined,
         youtubeMadeForKids,
       });
 
@@ -466,8 +478,12 @@ export default function PostCreatePage() {
         tiktokDisableStitch,
         youtubePrivacy,
         youtubeTitle: youtubeTitle || undefined,
+        youtubeIsShort,
         instagramFirstComment: instagramFirstComment || undefined,
         customThumbnailMediaId: customThumbnail?.id || undefined,
+        geoLabel: geoLabel || undefined,
+        geoFacebookPlaceId: geoFacebookPlaceId || undefined,
+        geoTwitterPlaceId: geoTwitterPlaceId || undefined,
         youtubeMadeForKids,
       });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
@@ -487,6 +503,8 @@ export default function PostCreatePage() {
   const hasTiktokTarget = selectedAccounts.some(a => a.platform === 'tiktok');
   const youtubeTargetCount = selectedAccounts.filter(a => a.platform === 'youtube').length;
   const instagramTargetCount = selectedAccounts.filter(a => a.platform === 'instagram_business').length;
+  const facebookTargetCount  = selectedAccounts.filter(a => a.platform === 'facebook_page').length;
+  const twitterTargetCount   = selectedAccounts.filter(a => a.platform === 'twitter').length;
   const youtubeOverQuota = youtubeTargetCount > 0
     && youtubeQuota
     && youtubeQuota.uploadsRemaining < youtubeTargetCount;
@@ -793,6 +811,60 @@ export default function PostCreatePage() {
               </div>
             )}
 
+            {/* Location / geotag — only for FB Pages + X (the platforms
+                whose API actually accepts a place tag). IG removed
+                geotagging via Graph API in 2018, TikTok / LinkedIn / YT
+                don't expose it at all. */}
+            {(facebookTargetCount > 0 || twitterTargetCount > 0) && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
+                <h4 className="text-xs font-semibold text-emerald-900 uppercase tracking-wider">Location (optional)</h4>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Display label</label>
+                  <input
+                    type="text"
+                    value={geoLabel}
+                    onChange={(e) => setGeoLabel(e.target.value)}
+                    placeholder="Cape Town, South Africa"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-400 outline-none"
+                  />
+                </div>
+                {facebookTargetCount > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Facebook Place ID <span className="text-slate-400">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={geoFacebookPlaceId}
+                      onChange={(e) => setGeoFacebookPlaceId(e.target.value)}
+                      placeholder="e.g. 110506962309835"
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-400 outline-none font-mono"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Find on Facebook: the Page's numeric ID becomes the place tag. Without an ID the location label is just visual — not posted as a geotag.
+                    </p>
+                  </div>
+                )}
+                {twitterTargetCount > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      X Place ID <span className="text-slate-400">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={geoTwitterPlaceId}
+                      onChange={(e) => setGeoTwitterPlaceId(e.target.value)}
+                      placeholder="e.g. 01a9a39529b27f36"
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-400 outline-none font-mono"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Look up via X's geo/search/reverse_geocode endpoint. Without an ID nothing geo lands on the tweet.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Instagram-specific options — only when an IG account is targeted */}
             {instagramTargetCount > 0 && (
               <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-4 space-y-3">
@@ -893,6 +965,40 @@ export default function PostCreatePage() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Shorts vs long-form — appends #Shorts to the description
+                    when toggled on (combined with vertical aspect <= 60s
+                    YouTube decides on its end whether it qualifies). */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Video format</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setYoutubeIsShort(false)}
+                      className={clsx(
+                        'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                        !youtubeIsShort ? 'border-red-300 bg-white text-red-900' : 'border-slate-200 bg-white text-slate-700'
+                      )}
+                    >
+                      <div className="font-semibold">Long-form video</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Standard YouTube upload, any duration / aspect</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setYoutubeIsShort(true)}
+                      className={clsx(
+                        'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                        youtubeIsShort ? 'border-red-300 bg-white text-red-900' : 'border-slate-200 bg-white text-slate-700'
+                      )}
+                    >
+                      <div className="font-semibold">YouTube Short</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Vertical 9:16, ≤60s. Adds "#Shorts" to description.</div>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1.5">
+                    The "Short" badge in YouTube Studio only appears for videos that meet the format rules. Tagging here lights up Scheduly's Shorts dashboards.
+                  </p>
                 </div>
 
                 {/* Made for kids — COPPA required */}

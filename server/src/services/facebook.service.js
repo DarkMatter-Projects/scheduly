@@ -124,14 +124,19 @@ async function fetchPagesAndInstagram(userAccessToken, userId, teamId) {
 
 // ── Publishing ──
 
-async function publishToPage(pageId, pageToken, content, mediaFiles) {
+async function publishToPage(pageId, pageToken, content, mediaFiles, options = {}) {
   const token = decrypt(pageToken);
+  // FB's /feed and /photos endpoints both accept `place` = a Page ID
+  // that the user previously resolved via the geotag search. The
+  // /videos endpoint doesn't, so video posts skip the geotag.
+  const placeId = options.placeId || null;
 
   if (!mediaFiles || mediaFiles.length === 0) {
     // Text-only post
     const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/feed`, {
       message: content,
       access_token: token,
+      ...(placeId ? { place: placeId } : {}),
     });
     return data.id;
   }
@@ -141,7 +146,7 @@ async function publishToPage(pageId, pageToken, content, mediaFiles) {
     // it works the same on Railway as locally, no fs access required.
     const imageUrl = publicMediaUrl(mediaFiles[0]);
     const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/photos`, null, {
-      params: { url: imageUrl, caption: content, access_token: token },
+      params: { url: imageUrl, caption: content, access_token: token, ...(placeId ? { place: placeId } : {}) },
     });
     return data.id || data.post_id;
   }
@@ -167,7 +172,7 @@ async function publishToPage(pageId, pageToken, content, mediaFiles) {
     photoIds.push(data.id);
   }
 
-  const postBody = { message: content, access_token: token };
+  const postBody = { message: content, access_token: token, ...(placeId ? { place: placeId } : {}) };
   photoIds.forEach((id, i) => {
     postBody[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
   });

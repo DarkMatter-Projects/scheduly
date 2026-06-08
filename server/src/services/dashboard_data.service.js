@@ -1473,6 +1473,46 @@ async function buildPostTypePerformance(dashboard, widget, types) {
   };
 }
 
+// Page-level FB reaction totals broken out by type (Like / Love /
+// Haha / Wow / Sad / Angry). Stored daily, summed over range.
+async function buildReactionBreakdown(dashboard, widget) {
+  const { start, end } = resolveRange(dashboard);
+  const channelIds = resolveChannelIds(dashboard, widget);
+  const accountsFilter = channelIds && channelIds.length > 0
+    ? `AND social_account_id IN (${channelIds.map(() => '?').join(',')})`
+    : '';
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COALESCE(SUM(reactions_like),  0) AS likes,
+              COALESCE(SUM(reactions_love),  0) AS love,
+              COALESCE(SUM(reactions_haha),  0) AS haha,
+              COALESCE(SUM(reactions_wow),   0) AS wow,
+              COALESCE(SUM(reactions_sorry), 0) AS sad,
+              COALESCE(SUM(reactions_anger), 0) AS angry
+       FROM channel_insights_daily
+       WHERE snapshot_date BETWEEN ? AND ? ${accountsFilter}`,
+      [start.slice(0, 10), end.slice(0, 10), ...(channelIds || [])]
+    );
+    const r = rows[0] || {};
+    const items = [
+      { key: 'like',  label: 'Like',  emoji: '👍', value: Number(r.likes) || 0 },
+      { key: 'love',  label: 'Love',  emoji: '❤️', value: Number(r.love)  || 0 },
+      { key: 'haha',  label: 'Haha',  emoji: '😆', value: Number(r.haha)  || 0 },
+      { key: 'wow',   label: 'Wow',   emoji: '😮', value: Number(r.wow)   || 0 },
+      { key: 'sad',   label: 'Sad',   emoji: '😢', value: Number(r.sad)   || 0 },
+      { key: 'angry', label: 'Angry', emoji: '😡', value: Number(r.angry) || 0 },
+    ];
+    const total = items.reduce((s, x) => s + x.value, 0);
+    return {
+      range: { start, end },
+      total,
+      rows: items.map(x => ({ ...x, share: total > 0 ? (x.value / total) * 100 : 0 })),
+    };
+  } catch {
+    return { range: { start, end }, total: 0, rows: [] };
+  }
+}
+
 // Generic YouTube dimension lookup. Sums the value column from
 // youtube_analytics_dimensions across the date range, grouped by
 // dimension_key. Used by the 6 country/source/sharing widgets.
@@ -2057,6 +2097,7 @@ async function buildWidgetData(dashboard, widget) {
     case 'engagements_by_country':         return buildYoutubeDimension(dashboard, widget, 'country', 'engagements');
     case 'top_sources_by_views':           return buildYoutubeDimension(dashboard, widget, 'source',  'views');
     case 'shares_by_source':               return buildYoutubeDimension(dashboard, widget, 'sharing', 'shares');
+    case 'reaction_breakdown':             return buildReactionBreakdown(dashboard, widget);
     case 'follow_non_follow_split':        return buildFollowNonFollowSplit(dashboard, widget);
     case 'followers_by_country':           return buildFansByDimension(dashboard, widget, 'country');
     case 'fans_by_age_gender':             return buildFansByDimension(dashboard, widget, 'gender_age');

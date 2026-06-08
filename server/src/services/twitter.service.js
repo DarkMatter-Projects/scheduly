@@ -148,11 +148,16 @@ async function storeAccount({ tokens, userInfo, userId, teamId }) {
 // Post a tweet on behalf of the authenticated user. media support comes
 // later — text-only is fine for the initial wire-up. tweets.write scope is
 // required.
-async function publishTweet(accessToken, text) {
+async function publishTweet(accessToken, text, options = {}) {
   if (!text || !text.trim()) throw new Error('Tweet text is required');
   const trimmed = text.length > 280 ? text.slice(0, 280) : text;
+  const body = { text: trimmed };
+  // X v2 /tweets accepts geo.place_id when the user picked a location.
+  if (options.geoPlaceId) {
+    body.geo = { place_id: options.geoPlaceId };
+  }
   const { data } = await axios.post(`${tw.TWITTER_API_BASE}/tweets`,
-    { text: trimmed },
+    body,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
