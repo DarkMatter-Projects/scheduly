@@ -40,12 +40,24 @@ function resolveRange(dashboard) {
     endDay = fmtDate(today);
     startDay = fmtDate(new Date(today.getTime() - (days - 1) * 86400000));
   }
-  // Same-length prior window immediately before [start, end].
+  // Comparison window: previous-period (same-length window immediately
+  // before [start, end]) vs yoy (same range one year earlier).
   const sDate = new Date(startDay);
   const eDate = new Date(endDay);
   const span = Math.round((eDate - sDate) / 86400000) + 1;
-  const priorEndDay = fmtDate(new Date(sDate.getTime() - 86400000));
-  const priorStartDay = fmtDate(new Date(sDate.getTime() - span * 86400000));
+  let priorEndDay, priorStartDay;
+  if (dashboard.comparison_mode === 'yoy') {
+    const subYear = (d) => {
+      const x = new Date(d);
+      x.setFullYear(x.getFullYear() - 1);
+      return x;
+    };
+    priorStartDay = fmtDate(subYear(sDate));
+    priorEndDay   = fmtDate(subYear(eDate));
+  } else {
+    priorEndDay   = fmtDate(new Date(sDate.getTime() - 86400000));
+    priorStartDay = fmtDate(new Date(sDate.getTime() - span * 86400000));
+  }
 
   // Expand to full-day datetimes so BETWEEN matches DATETIME columns correctly.
   return {

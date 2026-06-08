@@ -120,7 +120,7 @@ export default function DateRangePicker({ value, onChange, disabled }) {
           </div>
 
           {/* Preset column */}
-          <div className="border-l border-slate-200 p-3 space-y-1 min-w-[180px]">
+          <div className="border-l border-slate-200 p-3 space-y-1 min-w-[200px]">
             {PRESETS.map(p => (
               <button
                 key={p.key}
@@ -135,6 +135,28 @@ export default function DateRangePicker({ value, onChange, disabled }) {
                 {p.label}
               </button>
             ))}
+
+            {/* Compare-to mode — drives the prior-period delta on every KPI card */}
+            <div className="pt-2 mt-2 border-t border-slate-200">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 px-3 mb-1">Compare to</p>
+              {[
+                { key: 'previous_period', label: 'Previous period' },
+                { key: 'yoy',             label: 'Same period last year' },
+              ].map(mode => (
+                <button
+                  key={mode.key}
+                  onClick={() => onChange?.({ comparisonMode: mode.key })}
+                  className={clsx(
+                    'w-full text-left px-3 py-1.5 rounded-md text-[11px] font-medium border',
+                    (value?.comparisonMode || 'previous_period') === mode.key
+                      ? 'border-indigo-400 text-indigo-700 bg-indigo-50'
+                      : 'border-transparent text-slate-600 hover:bg-slate-50'
+                  )}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

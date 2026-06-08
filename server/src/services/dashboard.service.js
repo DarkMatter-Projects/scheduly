@@ -118,7 +118,7 @@ async function createDashboard({ name, templateKey, description, clientId, teamI
 }
 
 async function updateDashboard(id, fields) {
-  const allowed = ['name', 'description', 'client_id', 'channel_ids', 'default_range', 'range_start', 'range_end'];
+  const allowed = ['name', 'description', 'client_id', 'channel_ids', 'default_range', 'range_start', 'range_end', 'comparison_mode'];
   const sets = [];
   const values = [];
   for (const k of allowed) {
@@ -275,6 +275,7 @@ function formatDashboard(row) {
     clientColor: row.client_color,
     channelIds: parseJsonField(row.channel_ids) || [],
     defaultRange: row.default_range,
+    comparisonMode: row.comparison_mode || 'previous_period',
     rangeStart: row.range_start,
     rangeEnd: row.range_end,
     widgetCount: row.widget_count != null ? Number(row.widget_count) : undefined,

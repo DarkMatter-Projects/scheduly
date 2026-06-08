@@ -177,6 +177,7 @@ export default function DashboardBuilderPage() {
               defaultRange: dashboard.defaultRange,
               rangeStart: dashboard.rangeStart,
               rangeEnd: dashboard.rangeEnd,
+              comparisonMode: dashboard.comparisonMode,
             }}
             onChange={(range) => rangeMut.mutate(range)}
             disabled={!canEdit}
