@@ -23,6 +23,12 @@ router.put('/widgets/:widgetId', authenticate, requireRole('admin', 'manager', '
 router.delete('/widgets/:widgetId', authenticate, requireRole('admin', 'manager', 'editor'), ctrl.deleteWidget);
 router.put('/:id/widgets/order', authenticate, requireRole('admin', 'manager', 'editor'), ctrl.reorderWidgets);
 
+// Annotations — vertical event markers on the dashboard's time-series widgets.
+router.get('/:id/annotations',           authenticate, ctrl.listAnnotations);
+router.post('/:id/annotations',          authenticate, requireRole('admin', 'manager', 'editor'), ctrl.createAnnotation);
+router.put('/annotations/:annotationId', authenticate, requireRole('admin', 'manager', 'editor'), ctrl.updateAnnotation);
+router.delete('/annotations/:annotationId', authenticate, requireRole('admin', 'manager'), ctrl.deleteAnnotation);
+
 // Share links
 router.post('/:id/share', authenticate, requireRole('admin', 'manager'), ctrl.createShare);
 router.delete('/share/:tokenId', authenticate, requireRole('admin', 'manager'), ctrl.revokeShare);

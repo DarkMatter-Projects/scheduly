@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const dashboardService = require('../services/dashboard.service');
 const { buildWidgetData } = require('../services/dashboard_data.service');
 const { METRICS } = require('../services/dashboard_metrics');
+const annotationsService = require('../services/annotations.service');
 
 // JSON columns come back from mysql2 already parsed in recent versions but as
 // strings in older configs. Tolerate both, plus null.
@@ -180,9 +181,58 @@ async function viewShared(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function listAnnotations(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const rows = await annotationsService.listForDashboard(id);
+    res.json(rows);
+  } catch (err) { next(err); }
+}
+
+async function createAnnotation(req, res, next) {
+  try {
+    const dashboardId = parseInt(req.params.id, 10);
+    const [drows] = await pool.execute(
+      `SELECT client_id, team_id FROM dashboards WHERE id = ?`,
+      [dashboardId]
+    );
+    if (drows.length === 0) return res.status(404).json({ error: 'Dashboard not found' });
+    const { occurredAt, label, description, color, scope } = req.body || {};
+    // scope: 'dashboard' (default) ties to this dashboard only.
+    //        'client'   ties to the dashboard's client so other dashboards
+    //                   for the same client pick up the marker too.
+    const a = await annotationsService.create({
+      dashboardId: scope === 'client' ? null : dashboardId,
+      clientId:    scope === 'client' ? drows[0].client_id : null,
+      teamId:      drows[0].team_id,
+      occurredAt, label, description, color,
+      createdBy:   req.user.userId,
+    });
+    res.status(201).json(a);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
+async function updateAnnotation(req, res, next) {
+  try {
+    const a = await annotationsService.update(parseInt(req.params.annotationId, 10), req.body || {});
+    res.json(a);
+  } catch (err) { next(err); }
+}
+
+async function deleteAnnotation(req, res, next) {
+  try {
+    await annotationsService.remove(parseInt(req.params.annotationId, 10));
+    res.status(204).end();
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   list, get, create, update, remove,
   addWidget, updateWidget, deleteWidget, reorderWidgets,
   createShare, revokeShare, viewShared,
   listMetrics, getWidgetData,
+  listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
 };

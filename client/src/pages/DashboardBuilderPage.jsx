@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, Share2, Trash2, LayoutGrid, Copy, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Share2, Trash2, LayoutGrid, Copy, ExternalLink, BookmarkPlus } from 'lucide-react';
+import { listAnnotations, createAnnotation, deleteAnnotation } from '../api/annotationsApi';
+import { AnnotationsContext } from '../components/dashboard/WidgetRenderer';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
@@ -39,6 +41,13 @@ export default function DashboardBuilderPage() {
     queryKey: ['socialAccounts'],
     queryFn: listAccounts,
   });
+
+  const { data: annotations = [] } = useQuery({
+    queryKey: ['dashboard-annotations', id],
+    queryFn: () => listAnnotations(id),
+    enabled: !!id,
+  });
+  const [showAnnotationsModal, setShowAnnotationsModal] = useState(false);
 
   const renameMut = useMutation({
     mutationFn: (name) => updateDashboard(id, { name }),
@@ -212,6 +221,17 @@ export default function DashboardBuilderPage() {
                 Add text / images
               </button>
               <button
+                onClick={() => setShowAnnotationsModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+                title="Annotations are vertical markers on time-series charts (campaign launches, holidays, outages)."
+              >
+                <BookmarkPlus className="w-3.5 h-3.5" />
+                Annotations
+                {annotations.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">{annotations.length}</span>
+                )}
+              </button>
+              <button
                 onClick={() => setShowAddWidget(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white bg-blue-600 rounded-lg hover:bg-blue-700"
               >
@@ -241,6 +261,7 @@ export default function DashboardBuilderPage() {
           </p>
         </div>
       ) : (
+        <AnnotationsContext.Provider value={annotations}>
         <WidgetGrid
           dashboard={dashboard}
           canEdit={canEdit}
@@ -266,12 +287,24 @@ export default function DashboardBuilderPage() {
             resizeWidgetMut.mutate({ widgetId, width, height });
           }}
         />
+        </AnnotationsContext.Provider>
       )}
 
       {showAddWidget && (
         <AddWidgetModal
           onClose={() => setShowAddWidget(false)}
           onSave={(w) => addWidgetMut.mutate(w)}
+        />
+      )}
+
+      {showAnnotationsModal && (
+        <AnnotationsModal
+          dashboardId={id}
+          dashboardClientId={dashboard?.clientId}
+          annotations={annotations}
+          canEdit={canEdit}
+          onClose={() => setShowAnnotationsModal(false)}
+          onChange={() => queryClient.invalidateQueries({ queryKey: ['dashboard-annotations', id] })}
         />
       )}
     </div>
@@ -559,6 +592,107 @@ function SharePanel({ dashboard, onCreate, onRevoke }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// Annotation management modal. Lists current annotations, lets the
+// user add new ones, and choose between dashboard-scope (only this
+// dashboard) and client-scope (renders on every dashboard scoped to
+// the same client) so a one-off agency-wide event like "Black Friday"
+// doesn't need to be re-entered per dashboard.
+function AnnotationsModal({ dashboardId, dashboardClientId, annotations, canEdit, onClose, onChange }) {
+  const [label, setLabel] = useState('');
+  const [description, setDescription] = useState('');
+  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [color, setColor] = useState('#6366f1');
+  const [scope, setScope] = useState('dashboard');
+  const createMut = useMutation({
+    mutationFn: () => createAnnotation(dashboardId, { label, description, occurredAt, color, scope }),
+    onSuccess: () => { setLabel(''); setDescription(''); onChange(); toast.success('Annotation added'); },
+    onError: (err) => toast.error(err.response?.data?.error || err.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id) => deleteAnnotation(id),
+    onSuccess: () => { onChange(); toast.success('Annotation removed'); },
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="border-b border-slate-200 px-5 py-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-900">Annotations</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-lg leading-none">×</button>
+        </div>
+        <div className="flex-1 overflow-auto p-5 space-y-5">
+          {canEdit && (
+            <div className="border border-slate-200 rounded-lg p-4 space-y-3 bg-slate-50/40">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-600">Add new</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Label</label>
+                  <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Campaign launch" className="w-full text-sm px-3 py-1.5 border border-slate-300 rounded-md outline-none focus:border-indigo-400" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Date / time</label>
+                  <input type="datetime-local" value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} className="w-full text-sm px-3 py-1.5 border border-slate-300 rounded-md outline-none focus:border-indigo-400" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Description <span className="text-slate-300">(optional)</span></label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Pinned IG post + Meta Ads kickoff" className="w-full text-sm px-3 py-1.5 border border-slate-300 rounded-md outline-none focus:border-indigo-400 resize-y" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Color</label>
+                  <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-12 h-7 rounded border border-slate-300" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Scope</label>
+                  <select value={scope} onChange={(e) => setScope(e.target.value)} className="w-full text-sm px-3 py-1.5 border border-slate-300 rounded-md outline-none focus:border-indigo-400">
+                    <option value="dashboard">This dashboard only</option>
+                    {dashboardClientId && <option value="client">All dashboards for this client</option>}
+                  </select>
+                </div>
+              </div>
+              <button
+                onClick={() => createMut.mutate()}
+                disabled={!label.trim() || createMut.isPending}
+                className="w-full sm:w-auto px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-md"
+              >
+                {createMut.isPending ? 'Adding…' : 'Add annotation'}
+              </button>
+            </div>
+          )}
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Existing ({annotations.length})</h4>
+            {annotations.length === 0 ? (
+              <p className="text-xs text-slate-500 italic">No annotations yet. Add one above to mark events on the time-series charts.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                {annotations.map(a => (
+                  <li key={a.id} className="flex items-start gap-3 px-3 py-2 hover:bg-slate-50">
+                    <span className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: a.color }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900">{a.label}</p>
+                      {a.description && <p className="text-xs text-slate-600 mt-0.5">{a.description}</p>}
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(a.occurredAt).toLocaleString()} ·{' '}
+                        {a.dashboardId ? 'This dashboard' : 'Client-wide'}
+                      </p>
+                    </div>
+                    {canEdit && (
+                      <button onClick={() => deleteMut.mutate(a.id)} className="text-rose-400 hover:text-rose-700 text-xs">
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+        <div className="border-t border-slate-200 px-5 py-3 flex justify-end">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md">Close</button>
+        </div>
+      </div>
     </div>
   );
 }

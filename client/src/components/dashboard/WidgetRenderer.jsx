@@ -1,7 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, ReferenceLine } from 'recharts';
+import { createContext, useContext } from 'react';
+
+// Dashboard-level annotation context — populated at the dashboard
+// builder level and consumed by TimeSeriesBody / SentimentTrendBody
+// so they render vertical lines on the timeline without each widget
+// having to fetch annotations itself.
+export const AnnotationsContext = createContext([]);
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import { Trash2, AlertTriangle, Pencil, Inbox, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, AlignLeft, Download } from 'lucide-react';
@@ -524,6 +531,7 @@ function TimeSeriesBody({ data }) {
           }}
         />
         <Legend wrapperStyle={{ fontSize: 11 }} />
+        <AnnotationMarkers points={merged} />
         {series.map((s, i) => (
           <Line
             key={s.key}
@@ -539,6 +547,47 @@ function TimeSeriesBody({ data }) {
       </LineChart>
     </ResponsiveContainer>
   );
+}
+
+// Render dashboard annotations as vertical ReferenceLine markers. We
+// snap each annotation to the nearest series point by date so the
+// line lands on the right X position regardless of timezone drift.
+function AnnotationMarkers({ points }) {
+  const annotations = useContext(AnnotationsContext);
+  if (!annotations || annotations.length === 0 || !points || points.length === 0) return null;
+  const dates = points.map(p => p.date);
+  const start = new Date(dates[0]).getTime();
+  const end   = new Date(dates[dates.length - 1]).getTime();
+  return annotations
+    .filter(a => {
+      const t = new Date(a.occurredAt).getTime();
+      return t >= start && t <= end;
+    })
+    .map(a => {
+      // Snap to nearest existing X value so ReferenceLine actually shows.
+      const target = new Date(a.occurredAt).getTime();
+      let nearest = dates[0];
+      let nearestDelta = Infinity;
+      for (const d of dates) {
+        const delta = Math.abs(new Date(d).getTime() - target);
+        if (delta < nearestDelta) { nearest = d; nearestDelta = delta; }
+      }
+      return (
+        <ReferenceLine
+          key={a.id}
+          x={nearest}
+          stroke={a.color || '#6366f1'}
+          strokeDasharray="3 3"
+          label={{
+            value: a.label,
+            position: 'top',
+            fontSize: 10,
+            fill: a.color || '#6366f1',
+            offset: 5,
+          }}
+        />
+      );
+    });
 }
 
 // ── Channel comparison ──
