@@ -1,18 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef, useLayoutEffect, useEffect } from 'react';
+import { useState, useRef, useLayoutEffect, useEffect, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, ReferenceLine } from 'recharts';
-import { createContext, useContext } from 'react';
+import { format } from 'date-fns';
+import clsx from 'clsx';
+import { Trash2, AlertTriangle, Pencil, Inbox, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, AlignLeft, Download } from 'lucide-react';
+import { getWidgetData, updateWidget } from '../../api/dashboardsApi';
 
 // Dashboard-level annotation context — populated at the dashboard
 // builder level and consumed by TimeSeriesBody / SentimentTrendBody
 // so they render vertical lines on the timeline without each widget
 // having to fetch annotations itself.
 export const AnnotationsContext = createContext([]);
-import { format } from 'date-fns';
-import clsx from 'clsx';
-import { Trash2, AlertTriangle, Pencil, Inbox, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, AlignLeft, Download } from 'lucide-react';
-import { getWidgetData, updateWidget } from '../../api/dashboardsApi';
 import { uploadMedia } from '../../api/mediaApi';
 import toast from 'react-hot-toast';
 import KpiCard from '../common/KpiCard';

@@ -1,4 +1,4 @@
-import api from './client';
+import api from './axiosInstance';
 
 export const listNotifications = (unreadOnly = false) =>
   api.get('/notifications', { params: unreadOnly ? { unreadOnly: 1 } : {} }).then(r => r.data);

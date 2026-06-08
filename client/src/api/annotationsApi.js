@@ -1,4 +1,4 @@
-import api from './client';
+import api from './axiosInstance';
 
 export const listAnnotations = (dashboardId) =>
   api.get(`/dashboards/${dashboardId}/annotations`).then(r => r.data);
