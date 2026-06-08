@@ -80,6 +80,17 @@ const env = {
     apiKey: process.env.ANTHROPIC_API_KEY,
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
   },
+  email: {
+    // Resend (https://resend.com) — cheapest transactional email
+    // provider to wire up. Sentiment alerts + approval pings dispatch
+    // via this when RESEND_API_KEY is set; otherwise the email side
+    // is silently skipped and only the in-app bell notification fires.
+    resendApiKey: process.env.RESEND_API_KEY,
+    fromAddress: process.env.EMAIL_FROM || 'Scheduly <notifications@darkm.co.za>',
+    // Public URL of the app so email CTAs can deep-link back into
+    // Scheduly (e.g. "/posts/123"). Defaults to the prod frontend.
+    appUrl: process.env.APP_URL || 'https://scheduly.darkm.co',
+  },
   youtube: {
     // OAuth credentials reuse google.* (one Google Cloud project, two APIs).
     redirectUri: process.env.YOUTUBE_REDIRECT_URI
