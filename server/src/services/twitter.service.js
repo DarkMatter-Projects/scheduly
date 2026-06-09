@@ -149,12 +149,18 @@ async function storeAccount({ tokens, userInfo, userId, teamId }) {
 // later — text-only is fine for the initial wire-up. tweets.write scope is
 // required.
 async function publishTweet(accessToken, text, options = {}) {
-  if (!text || !text.trim()) throw new Error('Tweet text is required');
-  const trimmed = text.length > 280 ? text.slice(0, 280) : text;
+  if ((!text || !text.trim()) && !(options.mediaIds && options.mediaIds.length)) {
+    throw new Error('Tweet text or media is required');
+  }
+  const trimmed = (text || '').length > 280 ? text.slice(0, 280) : (text || '');
   const body = { text: trimmed };
-  // X v2 /tweets accepts geo.place_id when the user picked a location.
   if (options.geoPlaceId) {
     body.geo = { place_id: options.geoPlaceId };
+  }
+  // X v2 expects media_ids on the `media` block; up to 4 images, 1 GIF
+  // or 1 video. We trim to 4 entries to match the upstream limit.
+  if (options.mediaIds && options.mediaIds.length > 0) {
+    body.media = { media_ids: options.mediaIds.slice(0, 4).map(String) };
   }
   const { data } = await axios.post(`${tw.TWITTER_API_BASE}/tweets`,
     body,
@@ -166,8 +172,103 @@ async function publishTweet(accessToken, text, options = {}) {
       timeout: 15000,
     }
   );
-  // Response shape: { data: { id, edit_history_tweet_ids: [...], text } }
   return data.data?.id;
+}
+
+// ── Media upload (chunked v2) ────────────────────────────────────────────────
+//
+// X exposes an INIT / APPEND / FINALIZE flow on /2/media/upload. We use it
+// for every upload regardless of size because (a) videos need it anyway and
+// (b) it accepts OAuth 2.0 user-context tokens that we already have, while
+// the older v1.1 single-shot path needs OAuth 1.0a.
+//
+// Returns the media_id_string that publishTweet attaches via media.media_ids.
+async function uploadMedia(accessToken, { bytes, mimeType, mediaCategory }) {
+  if (!bytes || !bytes.length) throw new Error('uploadMedia: empty buffer');
+  const totalBytes = bytes.length;
+  const category = mediaCategory || categoryFor(mimeType);
+
+  // 1. INIT — returns the media_id we use for the rest of the dance.
+  const initForm = new (require('form-data'))();
+  initForm.append('command', 'INIT');
+  initForm.append('total_bytes', String(totalBytes));
+  initForm.append('media_type', mimeType);
+  if (category) initForm.append('media_category', category);
+  const { data: initData } = await axios.post(
+    `${tw.TWITTER_API_BASE}/media/upload`,
+    initForm,
+    {
+      headers: { Authorization: `Bearer ${accessToken}`, ...initForm.getHeaders() },
+      timeout: 30000,
+    }
+  );
+  const mediaId = initData?.data?.id || initData?.media_id_string;
+  if (!mediaId) throw new Error('X media INIT returned no media_id');
+
+  // 2. APPEND — push chunks. X recommends <= 5MB per chunk.
+  const chunkSize = 4 * 1024 * 1024;
+  let segment = 0;
+  for (let offset = 0; offset < totalBytes; offset += chunkSize) {
+    const chunk = bytes.slice(offset, Math.min(offset + chunkSize, totalBytes));
+    const appendForm = new (require('form-data'))();
+    appendForm.append('command', 'APPEND');
+    appendForm.append('media_id', mediaId);
+    appendForm.append('segment_index', String(segment));
+    appendForm.append('media', chunk, { filename: `chunk-${segment}`, contentType: 'application/octet-stream' });
+    await axios.post(
+      `${tw.TWITTER_API_BASE}/media/upload`,
+      appendForm,
+      {
+        headers: { Authorization: `Bearer ${accessToken}`, ...appendForm.getHeaders() },
+        timeout: 120000,
+        maxBodyLength: Infinity,
+      }
+    );
+    segment++;
+  }
+
+  // 3. FINALIZE — X validates the upload and (for videos) starts async processing.
+  const finForm = new (require('form-data'))();
+  finForm.append('command', 'FINALIZE');
+  finForm.append('media_id', mediaId);
+  const { data: finData } = await axios.post(
+    `${tw.TWITTER_API_BASE}/media/upload`,
+    finForm,
+    {
+      headers: { Authorization: `Bearer ${accessToken}`, ...finForm.getHeaders() },
+      timeout: 60000,
+    }
+  );
+
+  // 4. Optional STATUS poll for videos / gifs.
+  let processingInfo = finData?.data?.processing_info || finData?.processing_info;
+  let attempts = 0;
+  while (processingInfo && processingInfo.state !== 'succeeded') {
+    if (processingInfo.state === 'failed') {
+      const err = processingInfo.error || {};
+      throw new Error(`X media processing failed: ${err.message || err.name || 'unknown'}`);
+    }
+    if (attempts++ > 30) throw new Error('X media processing timed out');
+    const delaySec = Math.max(1, Number(processingInfo.check_after_secs) || 5);
+    await new Promise(r => setTimeout(r, delaySec * 1000));
+    const { data: statusData } = await axios.get(
+      `${tw.TWITTER_API_BASE}/media/upload?command=STATUS&media_id=${mediaId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 15000 }
+    );
+    processingInfo = statusData?.data?.processing_info || statusData?.processing_info;
+  }
+
+  return mediaId;
+}
+
+// X requires media_category for chunked uploads on videos / GIFs. Images
+// upload fine without it but supplying it doesn't hurt.
+function categoryFor(mime) {
+  if (!mime) return null;
+  if (mime.startsWith('video/')) return 'tweet_video';
+  if (mime === 'image/gif')       return 'tweet_gif';
+  if (mime.startsWith('image/'))  return 'tweet_image';
+  return null;
 }
 
 // Pin or unpin a tweet. X v2 exposes
@@ -197,5 +298,6 @@ module.exports = {
   fetchUserInfo,
   storeAccount,
   publishTweet,
+  uploadMedia,
   setPinnedTweet,
 };

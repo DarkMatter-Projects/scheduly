@@ -1,3 +1,4 @@
+const axios = require('axios');
 const pool = require('../config/db');
 const { publishToPage } = require('./facebook.service');
 const { publishToInstagram, postInstagramComment } = require('./instagram.service');
@@ -6,8 +7,20 @@ const { publishToLinkedIn } = require('./linkedin.service');
 const { publishToYouTube } = require('./youtube.service');
 const twitterService = require('./twitter.service');
 const { decrypt, encrypt } = require('./token.service');
+const storage = require('./storage.service');
 const logger = require('../utils/logger');
 const env = require('../config/env');
+
+// Public URL we can hand to Meta / Google / X so they can pull the
+// asset directly. Mirrors the helper in facebook.service so we don't
+// need to cross-require — small enough to copy.
+function publicMediaUrl(media) {
+  const url = storage.publicUrlFor(media.filePath);
+  if (url && url.startsWith('http')) return url;
+  const base = env.igPublicBaseUrl || process.env.IG_PUBLIC_BASE_URL || null;
+  if (!base) throw new Error('publisher: no public base URL for media');
+  return `${base.replace(/\/+$/, '')}/${String(media.filePath).replace(/^\/+/, '')}`;
+}
 
 async function publishPost(postId) {
   // Get post with media + TikTok-specific options
@@ -168,8 +181,9 @@ async function publishPost(postId) {
           await pool.execute("UPDATE posts SET post_type = 'reel' WHERE id = ?", [postId]);
         }
       } else if (target.platform === 'twitter') {
-        // X / Twitter: text-only post via OAuth 2.0. Refresh the access
-        // token first if it's expired (X access tokens last ~2h).
+        // X / Twitter: text post (with optional media) via OAuth 2.0.
+        // Refresh the access token first if it's expired (X access
+        // tokens last ~2h).
         let accessToken = decrypt(target.access_token);
         const expiresAt = target.token_expires_at ? new Date(target.token_expires_at).getTime() : 0;
         if (expiresAt && expiresAt < Date.now() + 60000 && target.refresh_token) {
@@ -181,8 +195,34 @@ async function publishPost(postId) {
             [encrypt(refreshed.accessToken), refreshed.refreshToken ? encrypt(refreshed.refreshToken) : null, newExpires, target.social_account_row_id]
           );
         }
+        // Upload each attached media to X via the chunked v2 flow, then
+        // pass the resulting media_id strings on the tweet. Up to 4
+        // images / 1 GIF / 1 video; if multiple videos are attached
+        // we just take the first to match X's limits.
+        const mediaIds = [];
+        if (mediaFiles && mediaFiles.length > 0) {
+          const hasVideo = mediaFiles.some(m => (m.mimeType || '').startsWith('video/'));
+          const toUpload = hasVideo
+            ? mediaFiles.filter(m => (m.mimeType || '').startsWith('video/')).slice(0, 1)
+            : mediaFiles.filter(m => (m.mimeType || '').startsWith('image/')).slice(0, 4);
+          for (const m of toUpload) {
+            const url = publicMediaUrl(m);
+            const { data: bytes } = await axios.get(url, {
+              responseType: 'arraybuffer',
+              timeout: 120000,
+              maxContentLength: Infinity,
+              maxBodyLength: Infinity,
+            });
+            const mediaId = await twitterService.uploadMedia(accessToken, {
+              bytes: Buffer.from(bytes),
+              mimeType: m.mimeType || (hasVideo ? 'video/mp4' : 'image/jpeg'),
+            });
+            mediaIds.push(mediaId);
+          }
+        }
         platformPostId = await twitterService.publishTweet(accessToken, post.content, {
           geoPlaceId: post.geo_twitter_place_id || null,
+          mediaIds,
         });
       } else if (target.platform === 'tiktok') {
         // TikTok returns a publish_id, not a platform post id — the post
