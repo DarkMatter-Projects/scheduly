@@ -65,6 +65,7 @@ const AccountsPage          = lazyWithRetry(() => import('./pages/AccountsPage')
 const ClientsPage           = lazyWithRetry(() => import('./pages/ClientsPage'));
 const SettingsPage          = lazyWithRetry(() => import('./pages/SettingsPage'));
 const AuditLogPage          = lazyWithRetry(() => import('./pages/AuditLogPage'));
+const ApprovalPage          = lazyWithRetry(() => import('./pages/ApprovalPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -110,6 +111,8 @@ function App() {
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               {/* Public shared dashboard viewer (token-auth via URL) */}
               <Route path="/share/dashboards/:token" element={<SharedDashboardPage />} />
+              {/* Public tokenized post approval page (no login required) */}
+              <Route path="/approve/:token" element={<ApprovalPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppShell />}>
                   <Route path="/dashboard" element={<DashboardPage />} />

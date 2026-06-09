@@ -41,3 +41,21 @@ export const bulkCreatePosts = (posts) =>
 
 export const setTargetPinned = (targetId, pinned) =>
   api.post(`/posts/targets/${targetId}/pin`, { pinned }).then(r => r.data);
+
+// Tokenized approval links — surface in PostDetailPage; created/revoked
+// by the agency, consumed by the brand stakeholder via a public page.
+export const createApprovalToken = (postId, opts = {}) =>
+  api.post(`/posts/${postId}/approval-tokens`, opts).then(r => r.data);
+
+export const listApprovalTokens = (postId) =>
+  api.get(`/posts/${postId}/approval-tokens`).then(r => r.data);
+
+export const revokeApprovalToken = (tokenId) =>
+  api.delete(`/posts/approval-tokens/${tokenId}`).then(r => r.data);
+
+// Public, no-auth endpoints used by ApprovePage.
+export const fetchApprovalLink = (token) =>
+  api.get(`/approve/${token}`).then(r => r.data);
+
+export const submitApprovalDecision = (token, payload) =>
+  api.post(`/approve/${token}/decide`, payload).then(r => r.data);

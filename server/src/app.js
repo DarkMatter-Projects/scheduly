@@ -24,6 +24,7 @@ const engageRoutes = require('./routes/engage.routes');
 const diagnoseRoutes = require('./routes/diagnose.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
 const webhooksRoutes = require('./routes/webhooks.routes');
+const approveRoutes = require('./routes/approve.routes');
 
 const app = express();
 
@@ -100,6 +101,7 @@ app.use('/api/dashboards', dashboardsRoutes);
 app.use('/api/engage', engageRoutes);
 app.use('/api/diagnose', diagnoseRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/approve', approveRoutes);
 
 // Error handler
 app.use(errorHandler);

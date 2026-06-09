@@ -21,4 +21,11 @@ router.post('/:id/publish-now', authenticate, requireRole('admin', 'manager'), p
 router.get('/targets/:targetId/tiktok-status', authenticate, postsController.refreshTiktokTargetStatus);
 router.post('/targets/:targetId/pin', authenticate, requireRole('admin', 'manager'), postsController.setTargetPinned);
 
+// Client sign-off tokens — let the brand stakeholder approve / reject
+// via a public link without logging in. Token creation + listing is
+// behind auth; the public resolve + decide endpoints sit on /approve.
+router.post('/:id/approval-tokens',  authenticate, requireRole('admin', 'manager', 'editor'), postsController.createApprovalToken);
+router.get('/:id/approval-tokens',   authenticate, requireRole('admin', 'manager', 'editor'), postsController.listApprovalTokens);
+router.delete('/approval-tokens/:tokenId', authenticate, requireRole('admin', 'manager'), postsController.revokeApprovalToken);
+
 module.exports = router;

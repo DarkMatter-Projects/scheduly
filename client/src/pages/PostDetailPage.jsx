@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPost, deletePost, submitForApproval, approvePost, rejectPost, schedulePost, refreshTiktokTargetStatus, setTargetPinned } from '../api/postsApi';
+import { getPost, deletePost, submitForApproval, approvePost, rejectPost, schedulePost, refreshTiktokTargetStatus, setTargetPinned, createApprovalToken, listApprovalTokens, revokeApprovalToken } from '../api/postsApi';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import {
   ArrowLeft, Trash2, Send, CheckCircle, XCircle, Clock,
-  Edit3, Film, Calendar, RefreshCw, ExternalLink, Pin,
+  Edit3, Film, Calendar, RefreshCw, ExternalLink, Pin, Link2, Copy,
 } from 'lucide-react';
 import clsx from 'clsx';
 import CommentThread from '../components/posts/CommentThread';
@@ -314,6 +314,11 @@ export default function PostDetailPage() {
             </div>
           )}
 
+          {/* Client sign-off tokens — surface only when the post can still receive a decision */}
+          {(post.status === 'draft' || post.status === 'pending_approval' || post.status === 'approved') && (
+            <ApprovalTokensPanel postId={parseInt(id, 10)} />
+          )}
+
           {/* Comments */}
           <CommentThread postId={parseInt(id, 10)} />
         </div>
@@ -474,6 +479,135 @@ export default function PostDetailPage() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// Tokenized approval links — agency creates a link, sends it to the
+// brand stakeholder, brand stakeholder clicks it and approves /
+// rejects without a Scheduly login. Each link shows its current
+// state and is one-shot (used or revoked).
+function ApprovalTokensPanel({ postId }) {
+  const queryClient = useQueryClient();
+  const { data: tokens = [], isLoading } = useQuery({
+    queryKey: ['approval-tokens', postId],
+    queryFn: () => listApprovalTokens(postId),
+  });
+  const [expiresInDays, setExpiresInDays] = useState('14');
+  const createMut = useMutation({
+    mutationFn: () => createApprovalToken(postId, {
+      expiresInDays: expiresInDays ? Number(expiresInDays) : null,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['approval-tokens', postId] });
+      toast.success('Approval link created');
+    },
+    onError: (err) => toast.error(err.response?.data?.error || err.message),
+  });
+  const revokeMut = useMutation({
+    mutationFn: (id) => revokeApprovalToken(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['approval-tokens', postId] });
+      queryClient.invalidateQueries({ queryKey: ['post', String(postId)] });
+      toast.success('Link revoked');
+    },
+  });
+
+  const copyLink = (token) => {
+    const url = `${window.location.origin}/approve/${token}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Link copied');
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+          <Link2 className="w-4 h-4 text-slate-400" />
+          Client sign-off links
+        </h3>
+      </div>
+      <p className="text-xs text-slate-500 mb-3">
+        Generate a public link to send the brand. They can approve or send back without a Scheduly login.
+      </p>
+      <div className="flex items-center gap-2 mb-4">
+        <div>
+          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Expires in (days)</label>
+          <input
+            type="number"
+            min="0"
+            value={expiresInDays}
+            onChange={(e) => setExpiresInDays(e.target.value)}
+            className="w-24 px-2 py-1 text-xs rounded-md border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="14"
+          />
+        </div>
+        <button
+          onClick={() => createMut.mutate()}
+          disabled={createMut.isPending}
+          className="px-3 py-2 text-xs font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 self-end"
+        >
+          {createMut.isPending ? 'Creating…' : 'Create link'}
+        </button>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-slate-400">Loading…</p>
+      ) : tokens.length === 0 ? (
+        <p className="text-xs text-slate-400 italic">No links yet.</p>
+      ) : (
+        <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+          {tokens.map(t => (
+            <li key={t.id} className="px-3 py-2 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded truncate max-w-[180px] inline-block">{t.token.slice(0, 14)}…</code>
+                  {t.decision === 'approved' && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0.5">
+                      Approved
+                    </span>
+                  )}
+                  {t.decision === 'rejected' && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-1.5 py-0.5">
+                      Rejected
+                    </span>
+                  )}
+                  {!t.decision && t.expiresAt && new Date(t.expiresAt) < new Date() && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200 rounded-full px-1.5 py-0.5">
+                      Expired
+                    </span>
+                  )}
+                </div>
+                {t.reviewerName && (
+                  <p className="text-[11px] text-slate-600 mt-1">
+                    {t.reviewerName}{t.decisionNote ? ` — "${t.decisionNote}"` : ''}
+                  </p>
+                )}
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {t.decidedAt ? `Decided ${format(new Date(t.decidedAt), 'MMM d')}`
+                   : t.expiresAt ? `Expires ${format(new Date(t.expiresAt), 'MMM d')}`
+                   : 'No expiry'}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button
+                  onClick={() => copyLink(t.token)}
+                  className="p-1.5 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                  title="Copy public approval URL"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => { if (confirm('Revoke this link? Existing copies will stop working.')) revokeMut.mutate(t.id); }}
+                  className="p-1.5 rounded text-rose-400 hover:text-rose-700 hover:bg-rose-50"
+                  title="Revoke link"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

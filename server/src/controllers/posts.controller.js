@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const postService = require('../services/post.service');
 const aiCaptionService = require('../services/ai_caption.service');
+const approvalTokens = require('../services/post_approval_tokens.service');
 const tiktokPosting = require('../services/tiktok_posting.service');
 
 async function list(req, res, next) {
@@ -265,6 +266,34 @@ async function bulkCreate(req, res, next) {
   }
 }
 
+async function createApprovalToken(req, res, next) {
+  try {
+    const postId = parseInt(req.params.id, 10);
+    const { expiresInDays } = req.body || {};
+    const out = await approvalTokens.createApprovalToken({
+      postId,
+      expiresInDays: expiresInDays != null ? Number(expiresInDays) : null,
+      createdBy: req.user.userId,
+    });
+    res.status(201).json(out);
+  } catch (err) { next(err); }
+}
+
+async function listApprovalTokens(req, res, next) {
+  try {
+    const postId = parseInt(req.params.id, 10);
+    const rows = await approvalTokens.listTokensForPost(postId);
+    res.json(rows);
+  } catch (err) { next(err); }
+}
+
+async function revokeApprovalToken(req, res, next) {
+  try {
+    await approvalTokens.revokeToken(parseInt(req.params.tokenId, 10));
+    res.status(204).end();
+  } catch (err) { next(err); }
+}
+
 async function setTargetPinned(req, res, next) {
   try {
     const targetId = parseInt(req.params.targetId, 10);
@@ -292,4 +321,4 @@ async function aiCaption(req, res, next) {
   }
 }
 
-module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption, bulkCreate, setTargetPinned };
+module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption, bulkCreate, setTargetPinned, createApprovalToken, listApprovalTokens, revokeApprovalToken };
