@@ -285,6 +285,7 @@ export default function PostCreatePage() {
   // IG collaborators — comma-separated usernames at the form level,
   // split into an array before submission.
   const [instagramCollaboratorsInput, setInstagramCollaboratorsInput] = useState('');
+  const [instagramPublishAsStory, setInstagramPublishAsStory] = useState(false);
   // LinkedIn-specific — article URL share. When set, the post body
   // becomes a link preview card instead of a text + media post.
   const [linkedinArticleUrl, setLinkedinArticleUrl] = useState('');
@@ -447,6 +448,7 @@ export default function PostCreatePage() {
         youtubeTitle: youtubeTitle || undefined,
         youtubeIsShort,
         instagramFirstComment: instagramFirstComment || undefined,
+        instagramPublishAsStory,
         instagramCollaborators: instagramCollaboratorsInput
           ? instagramCollaboratorsInput
               .split(',')
@@ -494,6 +496,7 @@ export default function PostCreatePage() {
         youtubeTitle: youtubeTitle || undefined,
         youtubeIsShort,
         instagramFirstComment: instagramFirstComment || undefined,
+        instagramPublishAsStory,
         instagramCollaborators: instagramCollaboratorsInput
           ? instagramCollaboratorsInput
               .split(',')
@@ -895,6 +898,38 @@ export default function PostCreatePage() {
             {instagramTargetCount > 0 && (
               <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-4 space-y-3">
                 <h4 className="text-xs font-semibold text-pink-900 uppercase tracking-wider">Instagram options</h4>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Post type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInstagramPublishAsStory(false)}
+                      className={clsx(
+                        'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                        !instagramPublishAsStory ? 'border-pink-300 bg-white text-pink-900' : 'border-slate-200 bg-white text-slate-700'
+                      )}
+                    >
+                      <div className="font-semibold">Feed post</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Standard caption + media. Reels for single video.</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInstagramPublishAsStory(true)}
+                      className={clsx(
+                        'px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                        instagramPublishAsStory ? 'border-pink-300 bg-white text-pink-900' : 'border-slate-200 bg-white text-slate-700'
+                      )}
+                    >
+                      <div className="font-semibold">Story (24h)</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Single image or video. Caption / collaborators ignored.</div>
+                    </button>
+                  </div>
+                  {instagramPublishAsStory && (
+                    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 mt-2">
+                      Stories publish only a single image or video. Caption, collaborators, and first comment don't apply.
+                    </p>
+                  )}
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">
                     First comment <span className="text-slate-400">(optional)</span>

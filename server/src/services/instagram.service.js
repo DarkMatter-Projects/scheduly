@@ -138,11 +138,49 @@ async function publishToInstagram(igAccountId, encryptedToken, content, mediaFil
     });
   }
 
+  // Stories — single image OR single video, posted as a 24h story
+  // instead of a feed post. IG container accepts the same image_url /
+  // video_url, but media_type must be STORIES and we skip the
+  // carousel / collaborator / first-comment plumbing (Stories don't
+  // support those).
+  if (options.publishAsStory) {
+    if (mediaFiles.length !== 1) {
+      throw new Error('Instagram Stories must contain exactly one image or video');
+    }
+    return publishStory(igAccountId, token, mediaFiles[0], publicBaseUrl);
+  }
+
   if (mediaFiles.length === 1) {
     return publishSingleMedia(igAccountId, token, content, mediaFiles[0], publicBaseUrl, options);
   }
 
   return publishCarousel(igAccountId, token, content, mediaFiles, publicBaseUrl, options);
+}
+
+// Story container — media_type=STORIES on /me/media, then media_publish.
+async function publishStory(igAccountId, token, media, publicBaseUrl) {
+  const isVideo = (media.mimeType || '').startsWith('video/');
+  const mediaUrl = publicMediaUrl(media, publicBaseUrl);
+  const params = {
+    media_type: 'STORIES',
+    access_token: token,
+  };
+  if (isVideo) params.video_url = mediaUrl;
+  else         params.image_url = mediaUrl;
+
+  logger.info(`IG story container creating (type=${isVideo ? 'video' : 'image'})`);
+  const { data: container } = await axios.post(
+    `${ig.IG_GRAPH_URL}/${igAccountId}/media`,
+    null,
+    { params }
+  );
+  await waitForMediaProcessing(container.id, token);
+  const { data: publishData } = await axios.post(
+    `${ig.IG_GRAPH_URL}/${igAccountId}/media_publish`,
+    null,
+    { params: { creation_id: container.id, access_token: token } }
+  );
+  return publishData.id;
 }
 
 async function publishSingleMedia(igAccountId, token, content, media, publicBaseUrl, options = {}) {

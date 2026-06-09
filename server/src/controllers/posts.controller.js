@@ -39,7 +39,8 @@ async function create(req, res, next) {
       tiktokPostMode, tiktokPrivacyLevel,
       tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
       youtubePrivacy, youtubeTitle, youtubeMadeForKids, youtubeIsShort,
-      instagramFirstComment, instagramCollaborators, customThumbnailMediaId,
+      instagramFirstComment, instagramCollaborators, instagramPublishAsStory,
+      customThumbnailMediaId,
       linkedinArticleUrl,
       geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
     } = req.body;
@@ -65,6 +66,7 @@ async function create(req, res, next) {
       youtubeIsShort,
       instagramFirstComment,
       instagramCollaborators,
+      instagramPublishAsStory,
       customThumbnailMediaId,
       linkedinArticleUrl,
       geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,

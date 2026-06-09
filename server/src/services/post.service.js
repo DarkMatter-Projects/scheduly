@@ -16,25 +16,28 @@ async function createPost({
   tiktokPostMode, tiktokPrivacyLevel,
   tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
   youtubePrivacy, youtubeTitle, youtubeMadeForKids, youtubeIsShort,
-  instagramFirstComment, instagramCollaborators, customThumbnailMediaId,
+  instagramFirstComment, instagramCollaborators, instagramPublishAsStory,
+  customThumbnailMediaId,
   linkedinArticleUrl,
   geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
 }) {
   const s = sentiment.analyze(content);
   const [result] = await pool.execute(
     `INSERT INTO posts
-       (title, content, instagram_first_comment, instagram_collaborators, linkedin_article_url, custom_thumbnail_media_id,
+       (title, content, instagram_first_comment, instagram_collaborators, instagram_publish_as_story,
+        linkedin_article_url, custom_thumbnail_media_id,
         caption_sentiment_score, caption_sentiment_label,
         post_type, status, created_by, team_id,
         tiktok_post_mode, tiktok_privacy_level,
         tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
         youtube_privacy, youtube_title, youtube_made_for_kids, youtube_is_short,
         geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title || null, content, instagramFirstComment || null,
       Array.isArray(instagramCollaborators) && instagramCollaborators.length > 0
         ? JSON.stringify(instagramCollaborators) : null,
+      instagramPublishAsStory ? 1 : 0,
       linkedinArticleUrl || null,
       customThumbnailMediaId || null,
       s.comparative, s.label,

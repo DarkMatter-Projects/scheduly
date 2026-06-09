@@ -25,7 +25,8 @@ function publicMediaUrl(media) {
 async function publishPost(postId) {
   // Get post with media + TikTok-specific options
   const [postRows] = await pool.execute(
-    `SELECT id, content, instagram_first_comment, instagram_collaborators, custom_thumbnail_media_id,
+    `SELECT id, content, instagram_first_comment, instagram_collaborators, instagram_publish_as_story,
+            custom_thumbnail_media_id,
             linkedin_article_url,
             tiktok_post_mode, tiktok_privacy_level,
             tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
@@ -103,7 +104,10 @@ async function publishPost(postId) {
           post.content,
           mediaFiles,
           publicBaseUrl,
-          { collaborators: Array.isArray(collaborators) ? collaborators : [] }
+          {
+            collaborators: Array.isArray(collaborators) ? collaborators : [],
+            publishAsStory: !!post.instagram_publish_as_story,
+          }
         );
         // IG treats any single-video post as a Reel (see instagram.service:
         // params.media_type = 'REELS'). Tag the post so dashboard widgets
