@@ -12,7 +12,27 @@ import {
 } from 'lucide-react';
 import { FacebookIcon as Facebook, InstagramIcon as Instagram } from '../components/common/SocialIcons';
 import PostComposer from '../components/posts/PostComposer';
+import PostOptionPanels from '../components/posts/PostOptionPanels';
 import clsx from 'clsx';
+
+// All platform-specific option fields the Edit page mirrors from Create.
+// Kept as one bundle so PostOptionPanels can read/write everything via
+// a single onChange.
+const EMPTY_OPTIONS = {
+  // Geo
+  geoLabel: '', geoFacebookPlaceId: '', geoTwitterPlaceId: '',
+  // FB
+  facebookPhotoTags: [],
+  // IG
+  instagramFirstComment: '', instagramCollaborators: [],
+  instagramPublishAsStory: false, instagramProductTags: [],
+  // LinkedIn
+  linkedinArticleUrl: '',
+  // YouTube
+  youtubeTitle: '', youtubePrivacy: 'private',
+  youtubeMadeForKids: false, youtubeIsShort: false,
+  customThumbnail: null,
+};
 
 function MediaPickerModal({ onSelect, onClose }) {
   const [selectedIds, setSelectedIds] = useState([]);
@@ -73,6 +93,7 @@ export default function PostEditPage() {
   const [attachedMedia, setAttachedMedia] = useState([]);
   const [selectedTargets, setSelectedTargets] = useState([]);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [options, setOptions] = useState(EMPTY_OPTIONS);
 
   useEffect(() => {
     if (post) {
@@ -80,8 +101,35 @@ export default function PostEditPage() {
       setContent(post.content || '');
       setAttachedMedia(post.media || []);
       setSelectedTargets(post.targets?.map(t => t.socialAccountId) || []);
+      // Prefill platform-specific options from the post row.
+      setOptions({
+        geoLabel: post.geoLabel || '',
+        geoFacebookPlaceId: post.geoFacebookPlaceId || '',
+        geoTwitterPlaceId: post.geoTwitterPlaceId || '',
+        facebookPhotoTags: post.facebookPhotoTags || [],
+        instagramFirstComment: post.instagramFirstComment || '',
+        instagramCollaborators: post.instagramCollaborators || [],
+        instagramPublishAsStory: !!post.instagramPublishAsStory,
+        instagramProductTags: post.instagramProductTags || [],
+        linkedinArticleUrl: post.linkedinArticleUrl || '',
+        youtubeTitle: post.youtubeTitle || '',
+        youtubePrivacy: post.youtubePrivacy || 'private',
+        youtubeMadeForKids: !!post.youtubeMadeForKids,
+        youtubeIsShort: !!post.youtubeIsShort,
+        // customThumbnail comes back as a media-id only; we'd need to
+        // fetch the row to show the thumbnail preview. Leaving null
+        // means the user has to re-pick if they want a new thumbnail,
+        // but the existing thumbnail stays on the saved post (we only
+        // overwrite when customThumbnail is non-null at save time).
+        customThumbnail: null,
+      });
     }
   }, [post]);
+
+  // Map selectedTargets (account IDs) -> selectedAccounts (full rows)
+  // so PostOptionPanels can render per-platform panels based on what's
+  // actually targeted.
+  const selectedAccounts = activeAccounts.filter(a => selectedTargets.includes(a.id));
 
   const updateMut = useMutation({
     mutationFn: (data) => updatePost(id, data),
@@ -109,6 +157,21 @@ export default function PostEditPage() {
       title: title || undefined,
       content,
       mediaIds: attachedMedia.map(m => m.id),
+      // Platform-specific — always send so a cleared field actually clears.
+      instagramFirstComment:   options.instagramFirstComment || null,
+      instagramCollaborators:  options.instagramCollaborators,
+      instagramPublishAsStory: options.instagramPublishAsStory,
+      instagramProductTags:    options.instagramProductTags,
+      facebookPhotoTags:       options.facebookPhotoTags,
+      linkedinArticleUrl:      options.linkedinArticleUrl || null,
+      youtubeTitle:            options.youtubeTitle || null,
+      youtubePrivacy:          options.youtubePrivacy,
+      youtubeMadeForKids:      options.youtubeMadeForKids,
+      youtubeIsShort:          options.youtubeIsShort,
+      geoLabel:                options.geoLabel || null,
+      geoFacebookPlaceId:      options.geoFacebookPlaceId || null,
+      geoTwitterPlaceId:       options.geoTwitterPlaceId || null,
+      ...(options.customThumbnail ? { customThumbnailMediaId: options.customThumbnail.id } : {}),
     });
   };
 
@@ -170,6 +233,16 @@ export default function PostEditPage() {
               </div>
             )}
           </div>
+
+          {/* Platform-specific option panels — same component the
+              Create page uses, so editing a scheduled post preserves
+              all the IG / FB / LI / YT / Geo fields. */}
+          <PostOptionPanels
+            selectedAccounts={selectedAccounts}
+            attachedMedia={attachedMedia}
+            value={options}
+            onChange={setOptions}
+          />
         </div>
 
         <div className="space-y-4">

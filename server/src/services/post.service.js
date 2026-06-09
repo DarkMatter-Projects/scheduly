@@ -263,7 +263,18 @@ async function listPosts({ page = 1, limit = 20, status, teamId, createdBy, sear
   };
 }
 
-async function updatePost(id, { title, content, postType, assignedTo, teamId, mediaIds, scheduledAt }, userId, userRole) {
+async function updatePost(id, body = {}, userId, userRole) {
+  const {
+    title, content, postType, assignedTo, teamId, mediaIds, scheduledAt,
+    // Platform-specific (all optional; only updated when present in body)
+    instagramFirstComment, instagramCollaborators, instagramPublishAsStory, instagramProductTags,
+    facebookPhotoTags,
+    youtubePrivacy, youtubeTitle, youtubeMadeForKids, youtubeIsShort,
+    tiktokPostMode, tiktokPrivacyLevel, tiktokDisableDuet, tiktokDisableStitch, tiktokDisableComment,
+    linkedinArticleUrl,
+    customThumbnailMediaId,
+    geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
+  } = body;
   const existing = await getPost(id);
 
   if (userRole !== 'admin' && userRole !== 'manager' && existing.createdBy !== userId) {
@@ -291,6 +302,33 @@ async function updatePost(id, { title, content, postType, assignedTo, teamId, me
     fields.push('scheduled_at = ?'); values.push(toMysqlDatetime(scheduledAt));
     fields.push('status = ?'); values.push('scheduled');
   }
+
+  // Platform-specific field updates. JSON columns are stringified (or
+  // cleared when an empty array comes through). bool / numeric fields
+  // coerce to 0/1 / null. The pattern keeps the SQL flat instead of
+  // requiring a separate query per field.
+  const jsonField = (k, v) => { fields.push(`${k} = ?`); values.push(Array.isArray(v) && v.length > 0 ? JSON.stringify(v) : null); };
+  if (instagramFirstComment !== undefined)   { fields.push('instagram_first_comment = ?');   values.push(instagramFirstComment || null); }
+  if (instagramCollaborators !== undefined)  jsonField('instagram_collaborators', instagramCollaborators);
+  if (instagramPublishAsStory !== undefined) { fields.push('instagram_publish_as_story = ?'); values.push(instagramPublishAsStory ? 1 : 0); }
+  if (instagramProductTags !== undefined)    jsonField('instagram_product_tags', instagramProductTags);
+  if (facebookPhotoTags !== undefined)       jsonField('facebook_photo_tags', facebookPhotoTags);
+  if (youtubePrivacy !== undefined)          { fields.push('youtube_privacy = ?');          values.push(youtubePrivacy || 'private'); }
+  if (youtubeTitle !== undefined)            { fields.push('youtube_title = ?');            values.push(youtubeTitle ? String(youtubeTitle).slice(0, 100) : null); }
+  if (youtubeMadeForKids !== undefined)      { fields.push('youtube_made_for_kids = ?');    values.push(youtubeMadeForKids ? 1 : 0); }
+  if (youtubeIsShort !== undefined)          { fields.push('youtube_is_short = ?');         values.push(youtubeIsShort ? 1 : 0); }
+  if (tiktokPostMode !== undefined)          { fields.push('tiktok_post_mode = ?');         values.push(tiktokPostMode || 'INBOX'); }
+  if (tiktokPrivacyLevel !== undefined)      { fields.push('tiktok_privacy_level = ?');     values.push(tiktokPrivacyLevel || 'SELF_ONLY'); }
+  if (tiktokDisableDuet !== undefined)       { fields.push('tiktok_disable_duet = ?');      values.push(tiktokDisableDuet ? 1 : 0); }
+  if (tiktokDisableStitch !== undefined)     { fields.push('tiktok_disable_stitch = ?');    values.push(tiktokDisableStitch ? 1 : 0); }
+  if (tiktokDisableComment !== undefined)    { fields.push('tiktok_disable_comment = ?');   values.push(tiktokDisableComment ? 1 : 0); }
+  if (linkedinArticleUrl !== undefined)      { fields.push('linkedin_article_url = ?');     values.push(linkedinArticleUrl || null); }
+  if (customThumbnailMediaId !== undefined)  { fields.push('custom_thumbnail_media_id = ?'); values.push(customThumbnailMediaId || null); }
+  if (geoLabel !== undefined)                { fields.push('geo_label = ?');                values.push(geoLabel || null); }
+  if (geoLat !== undefined)                  { fields.push('geo_lat = ?');                  values.push(geoLat != null ? Number(geoLat) : null); }
+  if (geoLng !== undefined)                  { fields.push('geo_lng = ?');                  values.push(geoLng != null ? Number(geoLng) : null); }
+  if (geoFacebookPlaceId !== undefined)      { fields.push('geo_facebook_place_id = ?');    values.push(geoFacebookPlaceId || null); }
+  if (geoTwitterPlaceId !== undefined)       { fields.push('geo_twitter_place_id = ?');     values.push(geoTwitterPlaceId || null); }
 
   if (fields.length > 0) {
     values.push(id);
@@ -487,7 +525,37 @@ function formatPost(row) {
     teamId: row.team_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    // Platform-specific options — exposed so the Edit + Detail pages
+    // can prefill / display them. JSON columns parse to arrays/objects
+    // automatically via mysql2; strings get JSON.parse'd defensively.
+    instagramFirstComment:   row.instagram_first_comment || null,
+    instagramCollaborators:  parseJsonField(row.instagram_collaborators) || [],
+    instagramPublishAsStory: !!row.instagram_publish_as_story,
+    instagramProductTags:    parseJsonField(row.instagram_product_tags) || [],
+    facebookPhotoTags:       parseJsonField(row.facebook_photo_tags) || [],
+    youtubePrivacy:          row.youtube_privacy || null,
+    youtubeTitle:            row.youtube_title || null,
+    youtubeMadeForKids:      !!row.youtube_made_for_kids,
+    youtubeIsShort:          !!row.youtube_is_short,
+    tiktokPostMode:          row.tiktok_post_mode || null,
+    tiktokPrivacyLevel:      row.tiktok_privacy_level || null,
+    tiktokDisableDuet:       !!row.tiktok_disable_duet,
+    tiktokDisableStitch:     !!row.tiktok_disable_stitch,
+    tiktokDisableComment:    !!row.tiktok_disable_comment,
+    linkedinArticleUrl:      row.linkedin_article_url || null,
+    customThumbnailMediaId:  row.custom_thumbnail_media_id || null,
+    geoLabel:                row.geo_label || null,
+    geoLat:                  row.geo_lat,
+    geoLng:                  row.geo_lng,
+    geoFacebookPlaceId:      row.geo_facebook_place_id || null,
+    geoTwitterPlaceId:       row.geo_twitter_place_id || null,
   };
+}
+
+function parseJsonField(v) {
+  if (v == null) return null;
+  if (typeof v === 'string') { try { return JSON.parse(v); } catch { return null; } }
+  return v;
 }
 
 // Pin or unpin a published post on its platform. Looks up the
