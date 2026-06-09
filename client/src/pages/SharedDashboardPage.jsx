@@ -39,6 +39,12 @@ export default function SharedDashboardPage() {
     keyParts: ['share', token],
   }), [token]);
 
+  // Brand color drives the page chrome. Compute it once + expose as a
+  // CSS variable so child components / inline styles can reach it
+  // without prop-drilling.
+  const brandColor = dashboard?.clientColor || '#2563eb';
+  const brandStyle = { '--brand-color': brandColor };
+
   if (isLoading) {
     return <CenteredMessage>Loading dashboard…</CenteredMessage>;
   }
@@ -60,15 +66,18 @@ export default function SharedDashboardPage() {
   // that has uploaded a logo / picked a color / written a tagline,
   // use those instead of the default Scheduly blue + "S" badge so
   // the share recipient sees their own brand on the page.
-  const brandColor = dashboard.clientColor || '#2563eb';
   const hasLogo = !!dashboard.clientLogoUrl;
+  const hasBrand = hasLogo || !!dashboard.clientColor;
+  // Translucent variants of the brand color for soft accents.
+  const brandTintWeak   = withAlpha(brandColor, 0.05);  // page bg wash
+  const brandTintMedium = withAlpha(brandColor, 0.10);  // section labels
+  const brandTintStrong = withAlpha(brandColor, 0.18);  // dividers
+
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen" style={{ ...brandStyle, backgroundColor: hasBrand ? brandTintWeak : '#f8fafc' }}>
       <header
         className="bg-white border-b border-slate-200 px-6 py-4"
-        style={hasLogo || dashboard.clientColor
-          ? { borderTop: `4px solid ${brandColor}` }
-          : undefined}
+        style={hasBrand ? { borderTop: `4px solid ${brandColor}` } : undefined}
       >
         <div className="max-w-[1400px] mx-auto flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
@@ -88,27 +97,65 @@ export default function SharedDashboardPage() {
                 </span>
               </div>
             )}
-            <div>
-              <h1 className="text-lg font-semibold text-slate-900">{dashboard.name}</h1>
+            <div className="min-w-0">
+              {/* Title carries a tiny brand-color block so the H1 picks
+                  up the accent regardless of header / footer overlap. */}
+              <h1
+                className="text-lg font-semibold text-slate-900 flex items-center gap-2"
+                style={hasBrand ? { borderLeft: `3px solid ${brandColor}`, paddingLeft: 8 } : undefined}
+              >
+                {dashboard.name}
+              </h1>
               {dashboard.description && (
-                <p className="text-xs text-slate-500">{dashboard.description}</p>
+                <p className="text-xs text-slate-500 mt-0.5" style={hasBrand ? { paddingLeft: 11 } : undefined}>
+                  {dashboard.description}
+                </p>
               )}
               {dashboard.clientTagline && (
-                <p className="text-[11px] text-slate-400 italic mt-0.5">{dashboard.clientTagline}</p>
+                <p
+                  className="text-[11px] italic mt-0.5"
+                  style={{
+                    color: hasBrand ? shadeColor(brandColor, -10) : '#94a3b8',
+                    paddingLeft: hasBrand ? 11 : 0,
+                  }}
+                >
+                  {dashboard.clientTagline}
+                </p>
               )}
             </div>
           </div>
           <div className="text-xs text-slate-400 text-right">
             <p>Shared by {dashboard.creatorName || 'a Scheduly user'}</p>
-            {dashboard.clientName && <p>Client: {dashboard.clientName}</p>}
+            {dashboard.clientName && (
+              <p className="font-medium" style={hasBrand ? { color: shadeColor(brandColor, -10) } : undefined}>
+                Client: {dashboard.clientName}
+              </p>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1400px] mx-auto px-6 py-6">
+      {/* Section label above the widget grid. Brand-tinted so the body
+          carries the accent past the header. */}
+      {hasBrand && dashboard.widgets.length > 0 && (
+        <div className="max-w-[1400px] mx-auto px-6 pt-6 pb-2">
+          <div
+            className="text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+            style={{ color: brandColor, backgroundColor: brandTintMedium, borderColor: brandTintStrong, borderWidth: 1 }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: brandColor }} />
+            Performance report
+          </div>
+        </div>
+      )}
+
+      <main className="max-w-[1400px] mx-auto px-6 pt-2 pb-6">
         {dashboard.widgets.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-xl py-20 text-center">
-            <LayoutGrid className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+          <div
+            className="bg-white border rounded-xl py-20 text-center"
+            style={hasBrand ? { borderColor: brandTintStrong } : { borderColor: '#e2e8f0' }}
+          >
+            <LayoutGrid className="w-10 h-10 mx-auto mb-3" style={{ color: hasBrand ? brandColor : '#cbd5e1' }} />
             <p className="text-sm font-medium text-slate-600">This dashboard is empty</p>
           </div>
         ) : (
@@ -129,12 +176,39 @@ export default function SharedDashboardPage() {
         )}
       </main>
 
-      <footer className="text-center text-xs text-slate-400 py-6">
-        Generated {format(new Date(), 'MMM d, yyyy')} · powered by{' '}
-        <a className="text-blue-600 hover:underline" href="/">Scheduly</a>
+      <footer
+        className="text-center text-xs py-6"
+        style={hasBrand
+          ? { borderTop: `1px solid ${brandTintStrong}`, color: shadeColor(brandColor, -10) }
+          : { color: '#94a3b8' }}
+      >
+        Generated {format(new Date(), 'MMM d, yyyy')}
+        {dashboard.clientName ? <> · for <span className="font-medium">{dashboard.clientName}</span></> : null}
+        {' · powered by '}
+        <a
+          className="font-medium hover:underline"
+          href="/"
+          style={{ color: hasBrand ? brandColor : '#2563eb' }}
+        >Scheduly</a>
       </footer>
     </div>
   );
+}
+
+// Convert a hex color into rgba() with the given alpha. Used to derive
+// soft tints from the brand color for the page background + dividers
+// without us having to pick a separate accent.
+function withAlpha(hex, alpha) {
+  try {
+    const c = hex.replace('#', '');
+    const num = parseInt(c, 16);
+    const r = (num >> 16) & 0xff;
+    const g = (num >> 8) & 0xff;
+    const b = num & 0xff;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  } catch {
+    return `rgba(37, 99, 235, ${alpha})`;
+  }
 }
 
 // Shift a hex color lighter / darker by `percent` (negative = darker).
