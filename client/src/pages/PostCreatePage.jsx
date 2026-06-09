@@ -280,6 +280,14 @@ export default function PostCreatePage() {
   // doesn't actually publish a geotag (the platforms need an ID).
   const [geoLabel, setGeoLabel] = useState('');
   const [geoFacebookPlaceId, setGeoFacebookPlaceId] = useState('');
+  // FB photo tags — array of { id, label, x, y } (x/y are 0-1).
+  // Adding a tag is manual (paste a FB user_id / page_id + a friendly
+  // label) because Graph Search for users is gated post-Cambridge
+  // Analytica. Positioning uses the same MediaTagPositioner as IG.
+  const [facebookPhotoTags, setFacebookPhotoTags] = useState([]);
+  const [showFbPhotoTagsPositioner, setShowFbPhotoTagsPositioner] = useState(false);
+  const [fbTagInputId, setFbTagInputId] = useState('');
+  const [fbTagInputLabel, setFbTagInputLabel] = useState('');
   const [geoTwitterPlaceId, setGeoTwitterPlaceId] = useState('');
   const [instagramFirstComment, setInstagramFirstComment] = useState('');
   // IG collaborators — comma-separated usernames at the form level,
@@ -291,6 +299,7 @@ export default function PostCreatePage() {
   // composer doesn't yet have a drag-to-position UI.
   const [instagramProductTags, setInstagramProductTags] = useState([]);
   const [showProductPicker, setShowProductPicker] = useState(false);
+  const [showProductPositioner, setShowProductPositioner] = useState(false);
   // LinkedIn-specific — article URL share. When set, the post body
   // becomes a link preview card instead of a text + media post.
   const [linkedinArticleUrl, setLinkedinArticleUrl] = useState('');
@@ -466,6 +475,7 @@ export default function PostCreatePage() {
         linkedinArticleUrl: linkedinArticleUrl || undefined,
         geoLabel: geoLabel || undefined,
         geoFacebookPlaceId: geoFacebookPlaceId || undefined,
+        facebookPhotoTags: facebookPhotoTags.length > 0 ? facebookPhotoTags : undefined,
         geoTwitterPlaceId: geoTwitterPlaceId || undefined,
         youtubeMadeForKids,
       });
@@ -515,6 +525,7 @@ export default function PostCreatePage() {
         linkedinArticleUrl: linkedinArticleUrl || undefined,
         geoLabel: geoLabel || undefined,
         geoFacebookPlaceId: geoFacebookPlaceId || undefined,
+        facebookPhotoTags: facebookPhotoTags.length > 0 ? facebookPhotoTags : undefined,
         geoTwitterPlaceId: geoTwitterPlaceId || undefined,
         youtubeMadeForKids,
       });
@@ -893,6 +904,84 @@ export default function PostCreatePage() {
               </div>
             )}
 
+            {/* Facebook-specific options — only when an FB Page is targeted */}
+            {facebookTargetCount > 0 && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+                <h4 className="text-xs font-semibold text-blue-900 uppercase tracking-wider">Facebook options</h4>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Photo tags <span className="text-slate-400">(optional)</span>
+                  </label>
+                  {facebookPhotoTags.length > 0 && (
+                    <ul className="space-y-1 mb-2">
+                      {facebookPhotoTags.map(t => (
+                        <li key={t.id} className="flex items-center gap-2 px-2 py-1.5 bg-white border border-blue-200 rounded-md">
+                          <span className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                            <Hash className="w-3 h-3 text-blue-700" />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-slate-900 truncate">{t.label || `User ${t.id}`}</p>
+                            <p className="text-[10px] text-slate-400 font-mono">{t.id}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFacebookPhotoTags(prev => prev.filter(x => x.id !== t.id))}
+                            className="text-rose-600 text-xs hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={fbTagInputId}
+                      onChange={(e) => setFbTagInputId(e.target.value)}
+                      placeholder="FB user_id or page_id"
+                      className="px-3 py-2 text-xs rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-400 outline-none font-mono"
+                    />
+                    <input
+                      type="text"
+                      value={fbTagInputLabel}
+                      onChange={(e) => setFbTagInputLabel(e.target.value)}
+                      placeholder="Friendly label (e.g. Jane Doe)"
+                      className="px-3 py-2 text-xs rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-400 outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = fbTagInputId.trim();
+                        if (!id) return;
+                        if (facebookPhotoTags.some(t => t.id === id)) return;
+                        setFacebookPhotoTags(prev => [...prev, { id, label: fbTagInputLabel.trim() || null, x: 0.5, y: 0.5 }]);
+                        setFbTagInputId(''); setFbTagInputLabel('');
+                      }}
+                      disabled={!fbTagInputId.trim()}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      + Add tag
+                    </button>
+                    {facebookPhotoTags.length > 0 && attachedMedia.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowFbPhotoTagsPositioner(true)}
+                        className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 hover:bg-blue-50 rounded-lg"
+                      >
+                        Position tags
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                    Meta doesn't expose user search via the Graph API, so paste the FB user_id or page_id manually. The label is just for your reference — Meta uses the real profile name on the post.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Instagram-specific options — only when an IG account is targeted */}
             {instagramTargetCount > 0 && (
               <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-4 space-y-3">
@@ -981,16 +1070,28 @@ export default function PostCreatePage() {
                         ))}
                       </ul>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setShowProductPicker(true)}
-                      disabled={instagramProductTags.length >= 5}
-                      className="w-full px-3 py-2 text-xs font-medium text-pink-700 bg-white border border-dashed border-pink-300 hover:border-pink-500 rounded-lg disabled:opacity-50"
-                    >
-                      {instagramProductTags.length >= 5 ? '5 products selected' : '+ Add product from IG Shop'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowProductPicker(true)}
+                        disabled={instagramProductTags.length >= 5}
+                        className="flex-1 px-3 py-2 text-xs font-medium text-pink-700 bg-white border border-dashed border-pink-300 hover:border-pink-500 rounded-lg disabled:opacity-50"
+                      >
+                        {instagramProductTags.length >= 5 ? '5 products selected' : '+ Add product from IG Shop'}
+                      </button>
+                      {instagramProductTags.length > 0 && attachedMedia.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowProductPositioner(true)}
+                          className="px-3 py-2 text-xs font-medium text-pink-700 bg-white border border-pink-300 hover:bg-pink-50 rounded-lg whitespace-nowrap"
+                          title="Drag each tag to the spot on the photo it should appear"
+                        >
+                          Position tags
+                        </button>
+                      )}
+                    </div>
                     <p className="text-[10px] text-slate-500 mt-1">
-                      Requires a connected Commerce catalog on the IG account. Products show as taggable hotspots on the published post.
+                      Requires a connected Commerce catalog on the IG account. Tap "Position tags" to drag each hotspot onto the right area of the photo.
                     </p>
                   </div>
                 )}
@@ -1280,6 +1381,30 @@ export default function PostCreatePage() {
           onClose={() => setShowProductPicker(false)}
         />
       )}
+      {showProductPositioner && attachedMedia[0] && (
+        <MediaTagPositioner
+          mediaUrl={attachedMedia[0].thumbnailUrl || attachedMedia[0].url}
+          isVideo={(attachedMedia[0].mimeType || '').startsWith('video/')}
+          tags={instagramProductTags}
+          accentColor="#ec4899"
+          accentRing="ring-pink-500"
+          tagLabelFor={(t) => t.name}
+          onChange={(next) => setInstagramProductTags(next)}
+          onClose={() => setShowProductPositioner(false)}
+        />
+      )}
+      {showFbPhotoTagsPositioner && attachedMedia[0] && (
+        <MediaTagPositioner
+          mediaUrl={attachedMedia[0].thumbnailUrl || attachedMedia[0].url}
+          isVideo={(attachedMedia[0].mimeType || '').startsWith('video/')}
+          tags={facebookPhotoTags}
+          accentColor="#2563eb"
+          accentRing="ring-blue-500"
+          tagLabelFor={(t) => t.label || `User ${t.id}`}
+          onChange={(next) => setFacebookPhotoTags(next)}
+          onClose={() => setShowFbPhotoTagsPositioner(false)}
+        />
+      )}
 
       <UploadProgressCard
         state={uploadProgress.state}
@@ -1427,6 +1552,117 @@ function SortableCarouselThumb({ media, onRemove }) {
       >
         <X className="w-3 h-3" />
       </button>
+    </div>
+  );
+}
+
+// Generic drag-to-position overlay used by IG product tags and FB
+// photo tags. Renders the first attached image (or video poster) at
+// fixed aspect, with one circular hotspot per tag. Pointer events
+// support both mouse and touch so it works on mobile.
+//
+// Tags carry { id, x, y, ... } where x/y are 0..1 normalized.
+// Whatever caller passes through `tagLabelFor` is shown as the
+// tag's hover label.
+function MediaTagPositioner({ mediaUrl, isVideo, tags, accentColor = '#2563eb', accentRing = 'ring-blue-500', tagLabelFor, onChange, onClose }) {
+  const containerRef = useRef(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const [local, setLocal] = useState(tags);
+
+  // Keep an internal copy so the drag math doesn't trigger React
+  // re-renders on every pointermove (we batch on pointerup).
+  useEffect(() => setLocal(tags), [tags]);
+
+  const setTagPos = (id, x, y) => {
+    setLocal(prev => prev.map(t => t.id === id ? { ...t, x, y } : t));
+  };
+
+  const handlePointerDown = (id) => (e) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDraggingId(id);
+  };
+  const handlePointerMove = (e) => {
+    if (!draggingId || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = Math.max(0.02, Math.min(0.98, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0.02, Math.min(0.98, (e.clientY - rect.top) / rect.height));
+    setTagPos(draggingId, x, y);
+  };
+  const handlePointerUp = () => setDraggingId(null);
+
+  const save = () => { onChange(local); onClose(); };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="border-b border-slate-200 px-5 py-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-900">Position tags</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-lg leading-none">×</button>
+        </div>
+        <div className="p-4 flex-1 overflow-auto">
+          <p className="text-[11px] text-slate-500 mb-2">
+            Drag each dot to the spot on the photo where the tag should appear when the post is published.
+          </p>
+          <div
+            ref={containerRef}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            className="relative w-full max-w-md mx-auto bg-slate-100 rounded-lg overflow-hidden select-none"
+            style={{ aspectRatio: '1 / 1', touchAction: 'none' }}
+          >
+            {isVideo ? (
+              <div className="absolute inset-0 bg-slate-200 flex items-center justify-center">
+                <Film className="w-10 h-10 text-slate-400" />
+              </div>
+            ) : (
+              <img src={mediaUrl} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+            )}
+            {local.map(t => (
+              <div
+                key={t.id}
+                onPointerDown={handlePointerDown(t.id)}
+                className={clsx(
+                  'absolute group',
+                  draggingId === t.id ? 'cursor-grabbing z-20' : 'cursor-grab z-10'
+                )}
+                style={{
+                  left: `${t.x * 100}%`,
+                  top: `${t.y * 100}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <div
+                  className={clsx(
+                    'w-7 h-7 rounded-full bg-white shadow-lg ring-2 flex items-center justify-center',
+                    accentRing
+                  )}
+                  style={{ borderColor: accentColor }}
+                >
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: accentColor }} />
+                </div>
+                <div
+                  className="absolute left-1/2 top-full -translate-x-1/2 mt-1.5 px-2 py-0.5 text-[10px] font-medium bg-slate-900 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none"
+                >
+                  {tagLabelFor(t)}
+                </div>
+              </div>
+            ))}
+          </div>
+          {isVideo && (
+            <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 mt-3">
+              Hotspots position against the video's published cover frame — IG / FB pick that frame on their end. Positions still apply.
+            </p>
+          )}
+        </div>
+        <div className="border-t border-slate-200 px-5 py-3 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md">Cancel</button>
+          <button onClick={save} className="px-4 py-1.5 text-xs font-semibold rounded-md text-white" style={{ backgroundColor: accentColor }}>
+            Save positions
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

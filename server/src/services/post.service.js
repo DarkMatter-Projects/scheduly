@@ -20,6 +20,7 @@ async function createPost({
   customThumbnailMediaId,
   linkedinArticleUrl,
   geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
+  facebookPhotoTags,
 }) {
   const s = sentiment.analyze(content);
   const [result] = await pool.execute(
@@ -32,8 +33,9 @@ async function createPost({
         tiktok_post_mode, tiktok_privacy_level,
         tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
         youtube_privacy, youtube_title, youtube_made_for_kids, youtube_is_short,
-        geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id,
+        facebook_photo_tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title || null, content, instagramFirstComment || null,
       Array.isArray(instagramCollaborators) && instagramCollaborators.length > 0
@@ -59,6 +61,8 @@ async function createPost({
       geoLng != null ? Number(geoLng) : null,
       geoFacebookPlaceId || null,
       geoTwitterPlaceId || null,
+      Array.isArray(facebookPhotoTags) && facebookPhotoTags.length > 0
+        ? JSON.stringify(facebookPhotoTags) : null,
     ]
   );
 

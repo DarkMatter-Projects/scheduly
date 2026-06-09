@@ -44,6 +44,7 @@ async function create(req, res, next) {
       customThumbnailMediaId,
       linkedinArticleUrl,
       geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
+      facebookPhotoTags,
     } = req.body;
     if (!content) {
       return res.status(400).json({ error: 'Content is required' });
@@ -72,6 +73,7 @@ async function create(req, res, next) {
       customThumbnailMediaId,
       linkedinArticleUrl,
       geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
+      facebookPhotoTags,
     });
     res.status(201).json(post);
   } catch (err) {

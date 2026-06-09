@@ -145,8 +145,18 @@ async function publishToPage(pageId, pageToken, content, mediaFiles, options = {
     // Single photo via URL upload — Meta fetches it from R2 / public host so
     // it works the same on Railway as locally, no fs access required.
     const imageUrl = publicMediaUrl(mediaFiles[0]);
+    // FB /photos accepts a `tags` JSON array of { tag_uid, x, y } where
+    // x/y are 0-100 percentage. We convert from the 0-1 normalized form
+    // the composer uses.
+    const photoTags = formatFbPhotoTags(options.photoTags);
     const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/photos`, null, {
-      params: { url: imageUrl, caption: content, access_token: token, ...(placeId ? { place: placeId } : {}) },
+      params: {
+        url: imageUrl,
+        caption: content,
+        access_token: token,
+        ...(placeId ? { place: placeId } : {}),
+        ...(photoTags ? { tags: photoTags } : {}),
+      },
     });
     return data.id || data.post_id;
   }
@@ -161,15 +171,20 @@ async function publishToPage(pageId, pageToken, content, mediaFiles, options = {
   }
 
   // Multi-photo — upload each one unpublished by URL, then create a feed
-  // post that attaches all of them.
+  // post that attaches all of them. Tags ride on the *first* photo
+  // (Meta only allows tagging on a single attached image per multi-photo
+  // post via this path).
   const photoIds = [];
+  const photoTagsForFirst = formatFbPhotoTags(options.photoTags);
+  let idx = 0;
   for (const media of mediaFiles) {
     if (!media.mimeType.startsWith('image/')) continue;
     const imageUrl = publicMediaUrl(media);
-    const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/photos`, null, {
-      params: { url: imageUrl, published: 'false', access_token: token },
-    });
+    const params = { url: imageUrl, published: 'false', access_token: token };
+    if (idx === 0 && photoTagsForFirst) params.tags = photoTagsForFirst;
+    const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/photos`, null, { params });
     photoIds.push(data.id);
+    idx++;
   }
 
   const postBody = { message: content, access_token: token, ...(placeId ? { place: placeId } : {}) };
@@ -196,6 +211,22 @@ async function refreshLongLivedToken(currentToken) {
     accessToken: encrypt(data.access_token),
     expiresIn: data.expires_in,
   };
+}
+
+// Convert the composer's normalized tag array into FB's expected JSON
+// shape. FB wants [{ tag_uid, x, y }] where x/y are integer percentages
+// 0-100. We round to whole numbers — fractional positions don't matter
+// past the first decimal anyway.
+function formatFbPhotoTags(tags) {
+  if (!Array.isArray(tags) || tags.length === 0) return null;
+  const formatted = tags
+    .map(t => ({
+      tag_uid: String(t.id || t.uid || '').trim(),
+      x: Math.round(Math.max(0, Math.min(100, (Number(t.x) || 0.5) * 100))),
+      y: Math.round(Math.max(0, Math.min(100, (Number(t.y) || 0.5) * 100))),
+    }))
+    .filter(t => t.tag_uid);
+  return formatted.length > 0 ? JSON.stringify(formatted) : null;
 }
 
 // Pin or unpin a feed post at the top of the Page. is_pinned=true /

@@ -32,7 +32,8 @@ async function publishPost(postId) {
             tiktok_post_mode, tiktok_privacy_level,
             tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
             youtube_privacy, youtube_title, youtube_made_for_kids, youtube_is_short,
-            geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id
+            geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id,
+            facebook_photo_tags
        FROM posts WHERE id = ?`,
     [postId]
   );
@@ -78,14 +79,24 @@ async function publishPost(postId) {
       let platformPostId;
 
       if (target.platform === 'facebook_page') {
+        // Per-photo tag list — JSON column on the post row.
+        let photoTags = [];
+        if (post.facebook_photo_tags) {
+          try {
+            photoTags = typeof post.facebook_photo_tags === 'string'
+              ? JSON.parse(post.facebook_photo_tags)
+              : post.facebook_photo_tags;
+          } catch { photoTags = []; }
+        }
         platformPostId = await publishToPage(
           target.platform_account_id,
           target.access_token,
           post.content,
           mediaFiles,
-          // FB Page /feed accepts place=<page-id>. We only pass it when
-          // the user picked a place via the geotag picker.
-          { placeId: post.geo_facebook_place_id || null }
+          {
+            placeId: post.geo_facebook_place_id || null,
+            photoTags: Array.isArray(photoTags) ? photoTags : [],
+          }
         );
       } else if (target.platform === 'instagram_business') {
         const publicBaseUrl = env.igPublicBaseUrl || null;
