@@ -43,21 +43,23 @@ async function getClient(id) {
   return client;
 }
 
-async function createClient({ name, color, notes, teamId, createdBy }) {
+async function createClient({ name, color, notes, teamId, createdBy, logoUrl, tagline }) {
   const [result] = await pool.execute(
-    'INSERT INTO clients (name, color, notes, team_id, created_by) VALUES (?, ?, ?, ?, ?)',
-    [name, color || null, notes || null, teamId || null, createdBy]
+    'INSERT INTO clients (name, color, logo_url, tagline, notes, team_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [name, color || null, logoUrl || null, tagline || null, notes || null, teamId || null, createdBy]
   );
   return getClient(result.insertId);
 }
 
-async function updateClient(id, { name, color, notes, teamId }) {
+async function updateClient(id, { name, color, notes, teamId, logoUrl, tagline }) {
   const fields = [];
   const values = [];
-  if (name !== undefined) { fields.push('name = ?'); values.push(name); }
-  if (color !== undefined) { fields.push('color = ?'); values.push(color || null); }
-  if (notes !== undefined) { fields.push('notes = ?'); values.push(notes || null); }
-  if (teamId !== undefined) { fields.push('team_id = ?'); values.push(teamId || null); }
+  if (name !== undefined)    { fields.push('name = ?');     values.push(name); }
+  if (color !== undefined)   { fields.push('color = ?');    values.push(color || null); }
+  if (logoUrl !== undefined) { fields.push('logo_url = ?'); values.push(logoUrl || null); }
+  if (tagline !== undefined) { fields.push('tagline = ?');  values.push(tagline || null); }
+  if (notes !== undefined)   { fields.push('notes = ?');    values.push(notes || null); }
+  if (teamId !== undefined)  { fields.push('team_id = ?');  values.push(teamId || null); }
 
   if (fields.length > 0) {
     values.push(id);
@@ -83,6 +85,8 @@ function formatClient(row) {
     id: row.id,
     name: row.name,
     color: row.color,
+    logoUrl: row.logo_url,
+    tagline: row.tagline,
     notes: row.notes,
     teamId: row.team_id,
     teamName: row.team_name,

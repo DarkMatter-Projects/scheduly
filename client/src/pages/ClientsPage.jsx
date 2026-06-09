@@ -17,11 +17,19 @@ function ClientForm({ initial, onSubmit, onCancel, submitLabel }) {
   const [name, setName] = useState(initial?.name || '');
   const [color, setColor] = useState(initial?.color || COLOR_SWATCHES[0]);
   const [notes, setNotes] = useState(initial?.notes || '');
+  const [logoUrl, setLogoUrl] = useState(initial?.logoUrl || '');
+  const [tagline, setTagline] = useState(initial?.tagline || '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return toast.error('Name is required');
-    onSubmit({ name: name.trim(), color, notes: notes.trim() || null });
+    onSubmit({
+      name: name.trim(),
+      color,
+      notes: notes.trim() || null,
+      logoUrl: logoUrl.trim() || null,
+      tagline: tagline.trim() || null,
+    });
   };
 
   return (
@@ -52,6 +60,31 @@ function ClientForm({ initial, onSubmit, onCancel, submitLabel }) {
               aria-label={`Color ${c}`}
             />
           ))}
+        </div>
+      </div>
+      <div className="border-t border-slate-100 pt-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Shared dashboard branding</p>
+        <div>
+          <label className="text-xs font-medium text-slate-600">Logo URL (optional)</label>
+          <input
+            type="url"
+            value={logoUrl}
+            onChange={e => setLogoUrl(e.target.value)}
+            placeholder="https://yourbrand.com/logo.svg"
+            className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+          <p className="text-[10px] text-slate-400 mt-1">Replaces the Scheduly badge on shared dashboard links. Use a transparent PNG / SVG.</p>
+        </div>
+        <div className="mt-2">
+          <label className="text-xs font-medium text-slate-600">Tagline (optional)</label>
+          <input
+            type="text"
+            value={tagline}
+            onChange={e => setTagline(e.target.value)}
+            placeholder="Performance report · prepared by DarkMatter"
+            maxLength={255}
+            className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
         </div>
       </div>
       <div>

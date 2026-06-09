@@ -56,18 +56,45 @@ export default function SharedDashboardPage() {
   }
   if (!dashboard) return null;
 
+  // White-label branding — if the dashboard is scoped to a client
+  // that has uploaded a logo / picked a color / written a tagline,
+  // use those instead of the default Scheduly blue + "S" badge so
+  // the share recipient sees their own brand on the page.
+  const brandColor = dashboard.clientColor || '#2563eb';
+  const hasLogo = !!dashboard.clientLogoUrl;
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 px-6 py-4">
+      <header
+        className="bg-white border-b border-slate-200 px-6 py-4"
+        style={hasLogo || dashboard.clientColor
+          ? { borderTop: `4px solid ${brandColor}` }
+          : undefined}
+      >
         <div className="max-w-[1400px] mx-auto flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">S</span>
-            </div>
+            {hasLogo ? (
+              <img
+                src={dashboard.clientLogoUrl}
+                alt={dashboard.clientName || 'Client logo'}
+                className="h-10 w-auto max-w-[140px] object-contain"
+              />
+            ) : (
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: `linear-gradient(135deg, ${brandColor}, ${shadeColor(brandColor, -20)})` }}
+              >
+                <span className="text-white text-sm font-bold">
+                  {(dashboard.clientName || 'S').charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
             <div>
               <h1 className="text-lg font-semibold text-slate-900">{dashboard.name}</h1>
               {dashboard.description && (
                 <p className="text-xs text-slate-500">{dashboard.description}</p>
+              )}
+              {dashboard.clientTagline && (
+                <p className="text-[11px] text-slate-400 italic mt-0.5">{dashboard.clientTagline}</p>
               )}
             </div>
           </div>
@@ -108,6 +135,25 @@ export default function SharedDashboardPage() {
       </footer>
     </div>
   );
+}
+
+// Shift a hex color lighter / darker by `percent` (negative = darker).
+// Used so the brand-color gradient on the placeholder logo badge has
+// some depth instead of a flat fill.
+function shadeColor(hex, percent) {
+  try {
+    const c = hex.replace('#', '');
+    const num = parseInt(c, 16);
+    let r = (num >> 16) + percent;
+    let g = ((num >> 8) & 0xff) + percent;
+    let b = (num & 0xff) + percent;
+    r = Math.max(0, Math.min(255, r));
+    g = Math.max(0, Math.min(255, g));
+    b = Math.max(0, Math.min(255, b));
+    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+  } catch {
+    return hex;
+  }
 }
 
 function CenteredMessage({ children }) {

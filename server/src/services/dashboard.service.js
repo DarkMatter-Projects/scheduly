@@ -28,7 +28,8 @@ async function listDashboards({ userId, clientId }) {
 async function getDashboard(id) {
   const [rows] = await pool.execute(
     `SELECT d.*, u.first_name, u.last_name,
-            c.name AS client_name, c.color AS client_color
+            c.name AS client_name, c.color AS client_color,
+            c.logo_url AS client_logo_url, c.tagline AS client_tagline
      FROM dashboards d
      JOIN users u ON d.created_by = u.id
      LEFT JOIN clients c ON d.client_id = c.id
@@ -273,6 +274,8 @@ function formatDashboard(row) {
     clientId: row.client_id,
     clientName: row.client_name,
     clientColor: row.client_color,
+    clientLogoUrl: row.client_logo_url,
+    clientTagline: row.client_tagline,
     channelIds: parseJsonField(row.channel_ids) || [],
     defaultRange: row.default_range,
     comparisonMode: row.comparison_mode || 'previous_period',

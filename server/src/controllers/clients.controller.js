@@ -16,10 +16,10 @@ async function get(req, res, next) {
 
 async function create(req, res, next) {
   try {
-    const { name, color, notes, teamId } = req.body;
+    const { name, color, notes, teamId, logoUrl, tagline } = req.body;
     if (!name) return res.status(400).json({ error: 'Client name is required' });
     const client = await clientService.createClient({
-      name, color, notes, teamId,
+      name, color, notes, teamId, logoUrl, tagline,
       createdBy: req.user.userId,
     });
     res.status(201).json(client);
