@@ -35,5 +35,7 @@ router.delete('/share/:tokenId', authenticate, requireRole('admin', 'manager'), 
 
 // Public viewer — NO auth. Token in URL is the authn.
 router.get('/share/:token', ctrl.viewShared);
+router.get('/share/:token/widgets/:widgetId/data', ctrl.viewSharedWidgetData);
+router.get('/share/:token/annotations', ctrl.viewSharedAnnotations);
 
 module.exports = router;

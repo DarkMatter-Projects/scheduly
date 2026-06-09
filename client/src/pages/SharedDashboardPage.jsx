@@ -1,12 +1,22 @@
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { LayoutGrid } from 'lucide-react';
-import clsx from 'clsx';
-import { fetchSharedDashboard } from '../api/dashboardsApi';
 import { format } from 'date-fns';
+import {
+  fetchSharedDashboard,
+  fetchSharedWidgetData,
+  fetchSharedAnnotations,
+} from '../api/dashboardsApi';
+import WidgetRenderer, {
+  AnnotationsContext,
+  WidgetDataFetcherContext,
+} from '../components/dashboard/WidgetRenderer';
 
-// Public, no-auth viewer for share-link recipients. Same widget layout as
-// the builder, but read-only and with a "shared by" footer.
+// Public, no-auth viewer for share-link recipients. Reuses the same
+// WidgetRenderer the builder uses; the only difference is the data
+// fetcher comes through context and hits the token-scoped public
+// endpoints instead of the authenticated ones.
 export default function SharedDashboardPage() {
   const { token } = useParams();
   const { data: dashboard, isLoading, isError, error } = useQuery({
@@ -14,6 +24,20 @@ export default function SharedDashboardPage() {
     queryFn: () => fetchSharedDashboard(token),
     retry: false,
   });
+
+  const { data: annotations = [] } = useQuery({
+    queryKey: ['shared-annotations', token],
+    queryFn: () => fetchSharedAnnotations(token),
+    enabled: !!token && !!dashboard,
+    retry: false,
+  });
+
+  // Stable context value so React Query doesn't see a new fetcher
+  // identity on every render (it would re-run all the widget queries).
+  const fetcherValue = useMemo(() => ({
+    fetch: (widget) => fetchSharedWidgetData(token, widget.id),
+    keyParts: ['share', token],
+  }), [token]);
 
   if (isLoading) {
     return <CenteredMessage>Loading dashboard…</CenteredMessage>;
@@ -61,27 +85,20 @@ export default function SharedDashboardPage() {
             <p className="text-sm font-medium text-slate-600">This dashboard is empty</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
-            {dashboard.widgets.map(w => (
-              <div
-                key={w.id}
-                className={clsx('bg-white border border-slate-200 rounded-xl p-4 flex flex-col gap-2', `lg:col-span-${Math.max(1, Math.min(12, w.width || 4))}`)}
-                style={{ minHeight: `${Math.max(120, (w.height || 2) * 80)}px` }}
-              >
-                <div>
-                  <p className="text-[10px] uppercase tracking-wide font-semibold text-slate-400">
-                    {w.category}
-                  </p>
-                  <h4 className="text-sm font-semibold text-slate-900">
-                    {w.title || w.widgetType.replace(/_/g, ' ')}
-                  </h4>
-                </div>
-                <div className="flex-1 flex items-center justify-center text-center text-xs text-slate-400">
-                  Live widget rendering ships in the next pass.
-                </div>
+          <WidgetDataFetcherContext.Provider value={fetcherValue}>
+            <AnnotationsContext.Provider value={annotations}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+                {dashboard.widgets.map(w => (
+                  <WidgetRenderer
+                    key={w.id}
+                    widget={w}
+                    canEdit={false}
+                    onRemove={() => {}}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </AnnotationsContext.Provider>
+          </WidgetDataFetcherContext.Provider>
         )}
       </main>
 

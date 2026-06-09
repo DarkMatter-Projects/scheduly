@@ -127,45 +127,73 @@ async function listMetrics(req, res, next) {
 async function getWidgetData(req, res, next) {
   try {
     const widgetId = parseInt(req.params.widgetId, 10);
-    const [wrows] = await pool.execute(
-      'SELECT * FROM dashboard_widgets WHERE id = ?',
-      [widgetId]
-    );
-    if (wrows.length === 0) return res.status(404).json({ error: 'Widget not found' });
-    const widget = wrows[0];
-    // mysql2 already auto-parses JSON columns, so the raw value is either
-    // an array/object or a string. parseJsonish handles both, plus null.
-    widget.channelIds = parseJsonish(widget.channel_ids) || [];
-    widget.metricKeys = parseJsonish(widget.metric_keys) || [];
-    widget.config     = parseJsonish(widget.config) || {};
+    const result = await buildWidgetDataById(widgetId);
+    res.status(result.status).json(result.body);
+  } catch (err) { next(err); }
+}
 
-    const [drows] = await pool.execute('SELECT * FROM dashboards WHERE id = ?', [widget.dashboard_id]);
-    if (drows.length === 0) return res.status(404).json({ error: 'Dashboard not found' });
+// Shared helper used by both the auth + share-token widget data
+// endpoints. Looks up the widget + dashboard, computes the same
+// effectiveChannelIds fallback chain, and calls the resolver.
+async function buildWidgetDataById(widgetId) {
+  const [wrows] = await pool.execute(
+    'SELECT * FROM dashboard_widgets WHERE id = ?',
+    [widgetId]
+  );
+  if (wrows.length === 0) return { status: 404, body: { error: 'Widget not found' } };
+  const widget = wrows[0];
+  widget.channelIds = parseJsonish(widget.channel_ids) || [];
+  widget.metricKeys = parseJsonish(widget.metric_keys) || [];
+  widget.config     = parseJsonish(widget.config) || {};
 
-    // Dashboard-level scope priority:
-    //   1. Union of every widget's channelIds (existing behaviour)
-    //   2. The dashboard's own dashboards.channel_ids JSON (lets the user
-    //      seed an empty Custom dashboard with the accounts they picked
-    //      in the template wizard — widgets added later inherit it)
-    //   3. null → "all accessible accounts" fallback inside the data
-    //      resolver
-    const [allWidgets] = await pool.execute(
-      'SELECT channel_ids FROM dashboard_widgets WHERE dashboard_id = ?',
-      [widget.dashboard_id]
-    );
-    const scopeSet = new Set();
-    for (const w of allWidgets) {
-      const ids = parseJsonish(w.channel_ids) || [];
-      for (const id of ids) scopeSet.add(Number(id));
+  const [drows] = await pool.execute('SELECT * FROM dashboards WHERE id = ?', [widget.dashboard_id]);
+  if (drows.length === 0) return { status: 404, body: { error: 'Dashboard not found' } };
+
+  const [allWidgets] = await pool.execute(
+    'SELECT channel_ids FROM dashboard_widgets WHERE dashboard_id = ?',
+    [widget.dashboard_id]
+  );
+  const scopeSet = new Set();
+  for (const w of allWidgets) {
+    const ids = parseJsonish(w.channel_ids) || [];
+    for (const id of ids) scopeSet.add(Number(id));
+  }
+  if (scopeSet.size === 0) {
+    const dashboardChannelIds = parseJsonish(drows[0].channel_ids) || [];
+    for (const id of dashboardChannelIds) scopeSet.add(Number(id));
+  }
+  const dashboard = { ...drows[0], effectiveChannelIds: [...scopeSet] };
+  const data = await buildWidgetData(dashboard, widget);
+  return { status: 200, body: data, widget, dashboardId: widget.dashboard_id };
+}
+
+// Public, share-token-scoped widget data fetch. Validates that the
+// widget belongs to the dashboard the token resolves to so a token
+// holder can't pivot to other widgets/dashboards by IDing them.
+async function viewSharedWidgetData(req, res, next) {
+  try {
+    const resolved = await dashboardService.resolveShareToken(req.params.token);
+    if (!resolved) return res.status(404).json({ error: 'Share link not found or expired' });
+    const widgetId = parseInt(req.params.widgetId, 10);
+    const result = await buildWidgetDataById(widgetId);
+    if (result.status !== 200) return res.status(result.status).json(result.body);
+    if (result.dashboardId !== resolved.dashboardId) {
+      // Token holder asking for a widget that lives on a different
+      // dashboard. 404 to avoid leaking that the widget exists.
+      return res.status(404).json({ error: 'Widget not found' });
     }
-    if (scopeSet.size === 0) {
-      const dashboardChannelIds = parseJsonish(drows[0].channel_ids) || [];
-      for (const id of dashboardChannelIds) scopeSet.add(Number(id));
-    }
-    const dashboard = { ...drows[0], effectiveChannelIds: [...scopeSet] };
+    res.json(result.body);
+  } catch (err) { next(err); }
+}
 
-    const data = await buildWidgetData(dashboard, widget);
-    res.json(data);
+// Public, share-token-scoped annotations fetch. Same shape as the
+// authenticated /annotations endpoint but token-gated.
+async function viewSharedAnnotations(req, res, next) {
+  try {
+    const resolved = await dashboardService.resolveShareToken(req.params.token);
+    if (!resolved) return res.status(404).json({ error: 'Share link not found or expired' });
+    const rows = await annotationsService.listForDashboard(resolved.dashboardId);
+    res.json(rows);
   } catch (err) { next(err); }
 }
 
@@ -232,7 +260,7 @@ async function deleteAnnotation(req, res, next) {
 module.exports = {
   list, get, create, update, remove,
   addWidget, updateWidget, deleteWidget, reorderWidgets,
-  createShare, revokeShare, viewShared,
+  createShare, revokeShare, viewShared, viewSharedWidgetData, viewSharedAnnotations,
   listMetrics, getWidgetData,
   listAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
 };

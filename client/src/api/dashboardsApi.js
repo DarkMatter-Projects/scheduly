@@ -37,6 +37,12 @@ export const revokeShareLink = (tokenId) =>
 export const fetchSharedDashboard = (token) =>
   api.get(`/dashboards/share/${token}`).then(r => r.data);
 
+export const fetchSharedWidgetData = (token, widgetId) =>
+  api.get(`/dashboards/share/${token}/widgets/${widgetId}/data`).then(r => r.data);
+
+export const fetchSharedAnnotations = (token) =>
+  api.get(`/dashboards/share/${token}/annotations`).then(r => r.data);
+
 export const listAvailableMetrics = () =>
   api.get('/dashboards/metrics').then(r => r.data);
 

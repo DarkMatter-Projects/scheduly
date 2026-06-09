@@ -12,6 +12,14 @@ import { getWidgetData, updateWidget } from '../../api/dashboardsApi';
 // so they render vertical lines on the timeline without each widget
 // having to fetch annotations itself.
 export const AnnotationsContext = createContext([]);
+
+// Widget data fetcher context. Defaults to the authenticated endpoint.
+// SharedDashboardPage overrides it with a token-scoped fetcher so the
+// public viewer can reuse this whole renderer file without forking.
+export const WidgetDataFetcherContext = createContext({
+  fetch: (widget) => getWidgetData(widget.id),
+  keyParts: [],
+});
 import { uploadMedia } from '../../api/mediaApi';
 import toast from 'react-hot-toast';
 import KpiCard from '../common/KpiCard';
@@ -49,9 +57,12 @@ export default function WidgetRenderer({ widget, canEdit, onRemove }) {
   const spanClass = COL_SPAN[w];
   const heightStyle = { minHeight: `${Math.max(160, (widget.height || 2) * 80)}px` };
   // Cached widget data so the export button can re-use what the body
-  // already fetched instead of hitting the API again.
+  // already fetched instead of hitting the API again. We need the same
+  // queryKey the WidgetBody uses, which means honouring the fetcher
+  // context's keyParts (token suffix for shared-dashboard view).
   const queryClient = useQueryClient();
-  const cachedData = queryClient.getQueryData(['widget-data', widget.id, widget.updatedAt]);
+  const fetcher = useContext(WidgetDataFetcherContext);
+  const cachedData = queryClient.getQueryData(['widget-data', widget.id, widget.updatedAt, ...(fetcher.keyParts || [])]);
 
   return (
     <div className={clsx('bg-white border border-slate-200 rounded-xl flex flex-col col-span-1 sm:col-span-2', spanClass)} style={heightStyle}>
@@ -151,9 +162,13 @@ function triggerDownload(filename, content) {
 }
 
 function WidgetBody({ widget }) {
+  // Either the default getWidgetData(widget.id) or, when rendered
+  // inside SharedDashboardPage, a token-scoped fetcher that hits the
+  // public /api/dashboards/share/:token/widgets/:widgetId/data route.
+  const fetcher = useContext(WidgetDataFetcherContext);
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['widget-data', widget.id, widget.updatedAt],
-    queryFn: () => getWidgetData(widget.id),
+    queryKey: ['widget-data', widget.id, widget.updatedAt, ...(fetcher.keyParts || [])],
+    queryFn: () => fetcher.fetch(widget),
   });
 
   if (isLoading) return <div className="h-full flex items-center justify-center text-xs text-slate-400">Loading…</div>;
