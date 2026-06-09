@@ -59,3 +59,8 @@ export const fetchApprovalLink = (token) =>
 
 export const submitApprovalDecision = (token, payload) =>
   api.post(`/approve/${token}/decide`, payload).then(r => r.data);
+
+// Place autocomplete for the composer geotag picker (FB Pages search +
+// X geo/search). Returns { results, notice? }.
+export const searchPlaces = (platform, query) =>
+  api.get('/posts/geo-search', { params: { platform, q: query } }).then(r => r.data);

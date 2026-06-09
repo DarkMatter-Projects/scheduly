@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createPost, schedulePost, generateCaption } from '../api/postsApi';
+import { createPost, schedulePost, generateCaption, searchPlaces } from '../api/postsApi';
 import { listMedia, uploadMedia } from '../api/mediaApi';
 import { listAccounts, getYoutubeQuota } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
@@ -858,38 +858,30 @@ export default function PostCreatePage() {
                   />
                 </div>
                 {facebookTargetCount > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                      Facebook Place ID <span className="text-slate-400">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={geoFacebookPlaceId}
-                      onChange={(e) => setGeoFacebookPlaceId(e.target.value)}
-                      placeholder="e.g. 110506962309835"
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-400 outline-none font-mono"
-                    />
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Find on Facebook: the Page's numeric ID becomes the place tag. Without an ID the location label is just visual — not posted as a geotag.
-                    </p>
-                  </div>
+                  <PlaceAutocomplete
+                    platform="facebook_page"
+                    label="Facebook place"
+                    value={geoFacebookPlaceId}
+                    onPick={(place) => {
+                      setGeoFacebookPlaceId(place?.id || '');
+                      if (place?.label && !geoLabel) setGeoLabel(place.label);
+                    }}
+                    onClear={() => setGeoFacebookPlaceId('')}
+                    initialLabel={geoLabel}
+                  />
                 )}
                 {twitterTargetCount > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                      X Place ID <span className="text-slate-400">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={geoTwitterPlaceId}
-                      onChange={(e) => setGeoTwitterPlaceId(e.target.value)}
-                      placeholder="e.g. 01a9a39529b27f36"
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-400 outline-none font-mono"
-                    />
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Look up via X's geo/search/reverse_geocode endpoint. Without an ID nothing geo lands on the tweet.
-                    </p>
-                  </div>
+                  <PlaceAutocomplete
+                    platform="twitter"
+                    label="X place"
+                    value={geoTwitterPlaceId}
+                    onPick={(place) => {
+                      setGeoTwitterPlaceId(place?.id || '');
+                      if (place?.label && !geoLabel) setGeoLabel(place.label);
+                    }}
+                    onClear={() => setGeoTwitterPlaceId('')}
+                    initialLabel={geoLabel}
+                  />
                 )}
               </div>
             )}
@@ -1381,6 +1373,87 @@ function SortableCarouselThumb({ media, onRemove }) {
       >
         <X className="w-3 h-3" />
       </button>
+    </div>
+  );
+}
+
+// Autocomplete picker for FB Page places + X Geo places. Debounces
+// queries to avoid hammering Graph Search / X Geo as the user types.
+// Falls back to a manual-ID input when the API returns a notice
+// (e.g. X tier doesn't allow geo search).
+function PlaceAutocomplete({ platform, label, value, onPick, onClear, initialLabel }) {
+  const [query, setQuery] = useState(initialLabel || '');
+  const [results, setResults] = useState([]);
+  const [notice, setNotice] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!query || query.trim().length < 2) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const out = await searchPlaces(platform, query.trim());
+        setResults(out.results || []);
+        setNotice(out.notice || null);
+      } catch (err) {
+        setNotice(err.response?.data?.error || err.message);
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [query, platform]);
+
+  if (value) {
+    return (
+      <div>
+        <label className="block text-xs font-medium text-slate-600 mb-1.5">{label}</label>
+        <div className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-emerald-300 bg-emerald-50">
+          <span className="flex-1 truncate text-emerald-900">{query || `Place ID: ${value}`}</span>
+          <code className="text-[10px] text-emerald-700">{String(value).slice(0, 18)}…</code>
+          <button type="button" onClick={() => { onClear(); setQuery(''); setResults([]); }} className="text-emerald-700 hover:text-rose-700 text-xs">
+            Change
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <label className="block text-xs font-medium text-slate-600 mb-1.5">
+        {label} <span className="text-slate-400">(type to search)</span>
+      </label>
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder="Cape Town…"
+        className="w-full px-3 py-2 text-sm rounded-lg border border-emerald-200 focus:ring-2 focus:ring-emerald-400 outline-none"
+      />
+      {loading && (
+        <p className="text-[10px] text-slate-400 mt-1">Searching…</p>
+      )}
+      {notice && (
+        <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 mt-1">{notice}</p>
+      )}
+      {open && results.length > 0 && (
+        <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-auto">
+          {results.map(r => (
+            <li
+              key={r.id}
+              onClick={() => { onPick(r); setOpen(false); setQuery(r.label); }}
+              className="px-3 py-2 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 last:border-b-0"
+            >
+              <p className="text-sm text-slate-900">{r.label}</p>
+              {r.sublabel && <p className="text-[10px] text-slate-500">{r.sublabel}{r.category ? ` · ${r.category}` : ''}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const postService = require('../services/post.service');
 const aiCaptionService = require('../services/ai_caption.service');
 const approvalTokens = require('../services/post_approval_tokens.service');
+const geoSearchService = require('../services/geo_search.service');
 const tiktokPosting = require('../services/tiktok_posting.service');
 
 async function list(req, res, next) {
@@ -308,6 +309,22 @@ async function setTargetPinned(req, res, next) {
   }
 }
 
+async function geoSearch(req, res, next) {
+  try {
+    const { platform, q } = req.query;
+    if (!platform || (platform !== 'facebook_page' && platform !== 'twitter')) {
+      return res.status(400).json({ error: 'platform must be facebook_page or twitter' });
+    }
+    const out = await geoSearchService.searchPlaces({
+      userId: req.user.userId,
+      platform,
+      query: q || '',
+    });
+    if (out && out.error) return res.status(200).json({ results: [], notice: out.error });
+    res.json({ results: out });
+  } catch (err) { next(err); }
+}
+
 async function aiCaption(req, res, next) {
   try {
     const { prompt, platforms, tone } = req.body || {};
@@ -323,4 +340,4 @@ async function aiCaption(req, res, next) {
   }
 }
 
-module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption, bulkCreate, setTargetPinned, createApprovalToken, listApprovalTokens, revokeApprovalToken };
+module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption, bulkCreate, setTargetPinned, createApprovalToken, listApprovalTokens, revokeApprovalToken, geoSearch };
