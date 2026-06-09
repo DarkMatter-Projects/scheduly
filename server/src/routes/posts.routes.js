@@ -10,6 +10,7 @@ router.get('/', authenticate, postsController.list);
 router.post('/', authenticate, requireRole('admin', 'manager', 'editor'), postsController.create);
 router.post('/bulk', authenticate, requireRole('admin', 'manager', 'editor'), postsController.bulkCreate);
 router.post('/ai-caption', authenticate, requireRole('admin', 'manager', 'editor'), postsController.aiCaption);
+router.post('/ai-hashtags', authenticate, requireRole('admin', 'manager', 'editor'), postsController.aiHashtags);
 router.get('/geo-search', authenticate, postsController.geoSearch);
 router.get('/:id', authenticate, postsController.get);
 router.put('/:id', authenticate, requireRole('admin', 'manager', 'editor'), postsController.update);

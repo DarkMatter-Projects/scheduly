@@ -59,4 +59,48 @@ async function generateCaption({ prompt, platforms = [], tone = 'engaging', maxT
   return { caption: text, model: env.anthropic.model };
 }
 
-module.exports = { generateCaption };
+// Ask Claude to suggest hashtags relevant to the supplied caption.
+// We tell the model to emit *only* hashtags so we can parse with a
+// simple regex regardless of whether it picks lines or commas as
+// separators. Per-platform hints kick in for IG (allow many) vs
+// LinkedIn (one or none).
+async function suggestHashtags({ caption, platforms = [], count = 5 }) {
+  if (!caption || !caption.trim()) {
+    throw Object.assign(new Error('A caption is required'), { status: 400 });
+  }
+  const c = getClient();
+  const guidance = platforms.length > 0
+    ? `Tailor for these platforms: ${platforms.join(', ')}.`
+    : 'Tailor for general social media.';
+  const message = await c.messages.create({
+    model: env.anthropic.model,
+    max_tokens: 200,
+    system: [
+      'You suggest relevant social media hashtags for marketing posts.',
+      guidance,
+      `Return exactly ${count} hashtags, each starting with "#", separated by spaces or commas.`,
+      'Prefer specific, mid-volume tags over generic mega-tags (#brand instead of #love).',
+      'Output ONLY the hashtags. No commentary, no numbering, no explanation.',
+    ].join('\n'),
+    messages: [{ role: 'user', content: caption.trim() }],
+  });
+  const text = (message.content || []).find(b => b.type === 'text')?.text || '';
+  // Extract unique hashtags from the response. Cap at `count` so a
+  // chatty response can't blow up the chip list.
+  const seen = new Set();
+  const hashtags = [];
+  for (const m of text.matchAll(/#[\wÀ-￿]+/g)) {
+    const tag = m[0];
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    hashtags.push(tag);
+    if (hashtags.length >= count) break;
+  }
+  if (hashtags.length === 0) {
+    throw Object.assign(new Error('Model returned no hashtags'), { status: 502 });
+  }
+  return { hashtags, model: env.anthropic.model };
+}
+
+module.exports = { generateCaption, suggestHashtags };

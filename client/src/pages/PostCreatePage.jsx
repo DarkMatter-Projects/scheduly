@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createPost, schedulePost, generateCaption, searchPlaces } from '../api/postsApi';
+import { createPost, schedulePost, generateCaption, suggestHashtags, searchPlaces } from '../api/postsApi';
 import { listMedia, uploadMedia } from '../api/mediaApi';
 import { listAccounts, getYoutubeQuota, searchInstagramProducts } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
@@ -311,6 +311,24 @@ export default function PostCreatePage() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiTone, setAiTone] = useState('engaging');
+  // Hashtag suggestions — popover anchored under the toolbar button.
+  const [hashtagPopoverOpen, setHashtagPopoverOpen] = useState(false);
+  const [hashtagChips, setHashtagChips] = useState([]);
+  const hashtagMut = useMutation({
+    mutationFn: () => suggestHashtags({
+      caption: content,
+      platforms: [...new Set(selectedAccounts.map(a => a.platform))],
+    }),
+    onSuccess: (data) => {
+      setHashtagChips(data.hashtags || []);
+      setHashtagPopoverOpen(true);
+    },
+    onError: (err) => {
+      const detail = err.response?.data?.error || err.message;
+      toast.error(`Hashtag suggestions failed: ${detail}`);
+    },
+  });
+
   const aiMut = useMutation({
     mutationFn: () => generateCaption({
       prompt: aiPrompt,
@@ -738,14 +756,77 @@ export default function PostCreatePage() {
                     <FileText className="w-3.5 h-3.5" />
                     Saved Captions
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => insertAtCursor('#')}
-                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition"
-                  >
-                    <Hash className="w-3.5 h-3.5" />
-                    Hashtag Suggestions
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!content.trim()) {
+                          toast('Write a caption first — suggestions need context.', { icon: '✍️' });
+                          return;
+                        }
+                        hashtagMut.mutate();
+                      }}
+                      disabled={hashtagMut.isPending}
+                      className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition disabled:opacity-50"
+                    >
+                      <Hash className="w-3.5 h-3.5" />
+                      {hashtagMut.isPending ? 'Suggesting…' : 'Hashtag Suggestions'}
+                    </button>
+                    {hashtagPopoverOpen && hashtagChips.length > 0 && (
+                      <div
+                        className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-slate-200 rounded-lg shadow-lg p-3 w-72"
+                        onMouseLeave={() => setHashtagPopoverOpen(false)}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Suggested hashtags</p>
+                          <button
+                            onClick={() => setHashtagPopoverOpen(false)}
+                            className="text-slate-400 hover:text-slate-700 text-sm leading-none"
+                          >×</button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {hashtagChips.map(tag => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => {
+                                // Insert with a leading space so the chip doesn't
+                                // collide with the previous word.
+                                insertAtCursor((content.endsWith(' ') || content === '' ? '' : ' ') + tag);
+                                setHashtagChips(prev => prev.filter(t => t !== tag));
+                              }}
+                              className="px-2 py-1 text-xs font-medium rounded-full border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Bulk-insert all remaining chips on one line.
+                              const sep = content.endsWith('\n') ? '' : (content.trim() ? '\n\n' : '');
+                              insertAtCursor(sep + hashtagChips.join(' '));
+                              setHashtagChips([]);
+                              setHashtagPopoverOpen(false);
+                            }}
+                            className="text-[10px] font-semibold text-violet-700 hover:underline uppercase tracking-wide"
+                          >
+                            Insert all
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => hashtagMut.mutate()}
+                            disabled={hashtagMut.isPending}
+                            className="text-[10px] font-semibold text-slate-500 hover:underline uppercase tracking-wide disabled:opacity-50"
+                          >
+                            Regenerate
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {showEmoji && (
                     <div ref={emojiRef} className="absolute top-full left-0 mt-1 z-50 shadow-2xl rounded-lg overflow-hidden border border-slate-200">

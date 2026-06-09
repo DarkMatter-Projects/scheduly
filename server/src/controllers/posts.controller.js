@@ -328,6 +328,20 @@ async function geoSearch(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function aiHashtags(req, res, next) {
+  try {
+    const { caption, platforms } = req.body || {};
+    const out = await aiCaptionService.suggestHashtags({
+      caption,
+      platforms: Array.isArray(platforms) ? platforms : [],
+    });
+    res.json(out);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
 async function aiCaption(req, res, next) {
   try {
     const { prompt, platforms, tone } = req.body || {};
@@ -343,4 +357,4 @@ async function aiCaption(req, res, next) {
   }
 }
 
-module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption, bulkCreate, setTargetPinned, createApprovalToken, listApprovalTokens, revokeApprovalToken, geoSearch };
+module.exports = { list, get, create, update, remove, submitForApproval, approve, reject, schedule, publishNow, stats, refreshTiktokTargetStatus, aiCaption, aiHashtags, bulkCreate, setTargetPinned, createApprovalToken, listApprovalTokens, revokeApprovalToken, geoSearch };
