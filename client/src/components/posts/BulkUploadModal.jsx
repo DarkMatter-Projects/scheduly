@@ -12,15 +12,15 @@ import { bulkCreatePosts } from '../../api/postsApi';
 //
 // Expected CSV columns (case-insensitive headers):
 //   caption       (required)        — the post body
-//   accounts      (required)        — comma-separated account names or IDs
+//   accounts      (required)        — comma-separated account names, IDs, or @handles
 //   scheduled_at  (optional)        — ISO datetime, schedules + publishes
 //   title         (optional)        — internal title
 //   first_comment (optional)        — Instagram first comment text
 
 const TEMPLATE_CSV = [
   'caption,accounts,scheduled_at,title,first_comment',
-  '"Hello world from our brand!","DarkMatter,Glow Bright","2026-06-10T09:00:00","Welcome post","#welcome #darkmatter"',
-  '"Don\'t miss our launch this Friday","DarkMatter","2026-06-12T16:00:00","Launch teaser",',
+  '"Hello world from our brand!","@dmmtiu, Glow Bright","2026-06-10T09:00:00","Welcome post","#welcome #darkmatter"',
+  '"Don\'t miss our launch this Friday","@dmmtiu","2026-06-12T16:00:00","Launch teaser",',
 ].join('\n');
 
 export default function BulkUploadModal({ accounts, onClose, onDone }) {
@@ -28,15 +28,25 @@ export default function BulkUploadModal({ accounts, onClose, onDone }) {
   const [errors, setErrors] = useState([]);
   const [results, setResults] = useState(null);
 
-  // Lookup index for account-name → id and account-id → id.
+  // Resolve a comma-separated cell into actual account IDs. We try
+  // three formats in order:
+  //   1. Numeric ID — "42"
+  //   2. Exact friendly name — "DarkMatter Marketing"
+  //   3. @handle — "@dmmtiu" matches X's @dmmtiu, IG's dmmtiu, TikTok's
+  //      dmmtiu. We strip the leading @ from both the token and the
+  //      stored name before comparing so the CSV can be written
+  //      naturally regardless of platform convention.
   function resolveAccountIds(value) {
     if (!value) return [];
     const tokens = String(value).split(',').map(t => t.trim()).filter(Boolean);
+    const strip = (s) => String(s || '').replace(/^@/, '').toLowerCase();
     return tokens.map(t => {
       const byId   = accounts.find(a => String(a.id) === t);
       if (byId) return byId.id;
       const byName = accounts.find(a => a.accountName?.toLowerCase() === t.toLowerCase());
       if (byName) return byName.id;
+      const byHandle = accounts.find(a => strip(a.accountName) === strip(t));
+      if (byHandle) return byHandle.id;
       return null;
     }).filter(Boolean);
   }
@@ -123,7 +133,7 @@ export default function BulkUploadModal({ accounts, onClose, onDone }) {
             <>
               <p className="text-xs text-slate-600 leading-relaxed">
                 Upload a CSV where each row is a post. Required columns: <code className="bg-slate-100 px-1 rounded">caption</code>{' '}
-                and <code className="bg-slate-100 px-1 rounded">accounts</code> (comma-separated account names or IDs).
+                and <code className="bg-slate-100 px-1 rounded">accounts</code> (comma-separated account names, numeric IDs, or @handles).
                 Optional: <code className="bg-slate-100 px-1 rounded">scheduled_at</code> (ISO datetime),
                 <code className="bg-slate-100 px-1 rounded ml-1">title</code>,
                 <code className="bg-slate-100 px-1 rounded ml-1">first_comment</code>.
