@@ -64,6 +64,7 @@ const EngagePage            = lazyWithRetry(() => import('./pages/EngagePage'));
 const AccountsPage          = lazyWithRetry(() => import('./pages/AccountsPage'));
 const ClientsPage           = lazyWithRetry(() => import('./pages/ClientsPage'));
 const SettingsPage          = lazyWithRetry(() => import('./pages/SettingsPage'));
+const AuditLogPage          = lazyWithRetry(() => import('./pages/AuditLogPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -125,6 +126,9 @@ function App() {
                   <Route path="/engage" element={<EngagePage />} />
                   <Route path="/accounts" element={<AccountsPage />} />
                   <Route path="/clients" element={<ClientsPage />} />
+                  <Route element={<RoleGate allowed={['admin','manager']} />}>
+                    <Route path="/audit-log" element={<AuditLogPage />} />
+                  </Route>
                   <Route element={<RoleGate allowed={['admin']} />}>
                     <Route path="/settings" element={<SettingsPage />} />
                   </Route>

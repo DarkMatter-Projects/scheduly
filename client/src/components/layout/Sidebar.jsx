@@ -10,6 +10,7 @@ import {
   BarChart3,
   Share2,
   Settings,
+  ScrollText,
   FileText,
   FolderClosed,
   Megaphone,
@@ -36,7 +37,8 @@ const secondaryItems = [
 ];
 
 const adminItems = [
-  { to: '/settings', icon: Settings, label: 'Settings', roles: ['admin'] },
+  { to: '/audit-log', icon: ScrollText, label: 'Audit log', roles: ['admin','manager'] },
+  { to: '/settings',  icon: Settings,   label: 'Settings',  roles: ['admin'] },
 ];
 
 export default function Sidebar({ open, onClose }) {
