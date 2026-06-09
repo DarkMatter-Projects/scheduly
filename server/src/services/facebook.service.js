@@ -163,9 +163,18 @@ async function publishToPage(pageId, pageToken, content, mediaFiles, options = {
 
   if (mediaFiles.length === 1 && mediaFiles[0].mimeType.startsWith('video/')) {
     // Single video via URL upload — Meta accepts file_url for /videos.
+    // Custom thumbnail: /videos accepts a `thumb` parameter that's a
+    // publicly-fetchable image URL. We only set it when the caller
+    // explicitly provides one — otherwise Meta auto-generates a frame.
     const videoUrl = publicMediaUrl(mediaFiles[0]);
+    const thumbUrl = options.customThumbnail ? publicMediaUrl(options.customThumbnail) : null;
     const { data } = await axios.post(`${fb.FB_GRAPH_URL}/${pageId}/videos`, null, {
-      params: { file_url: videoUrl, description: content, access_token: token },
+      params: {
+        file_url: videoUrl,
+        description: content,
+        access_token: token,
+        ...(thumbUrl ? { thumb: thumbUrl } : {}),
+      },
     });
     return data.id;
   }

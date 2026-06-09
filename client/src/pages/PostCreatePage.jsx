@@ -1297,7 +1297,7 @@ export default function PostCreatePage() {
                     </button>
                   )}
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Channel must be verified for custom thumbnails. Unverified channels keep YouTube's auto-generated one.
+                    Applied to YouTube uploads (channel must be verified) and to FB Page video posts targeting this same caption.
                   </p>
                 </div>
 

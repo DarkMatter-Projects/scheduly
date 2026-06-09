@@ -142,6 +142,21 @@ export default function PostOptionPanels({
               Meta doesn't expose user search via the Graph API, so paste the FB user_id / page_id manually.
             </p>
           </div>
+          {/* Video thumbnail — only meaningful when the post has a video.
+              Shares the same field with the YouTube branch, so a post
+              targeting both FB and YT uses one thumb image. */}
+          {attachedMedia.some(m => (m.mimeType || '').startsWith('video/')) && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                Video thumbnail <span className="text-slate-400">(optional)</span>
+              </label>
+              <ThumbnailField
+                value={value.customThumbnail}
+                onChange={(media) => set('customThumbnail', media)}
+              />
+              <p className="text-[10px] text-slate-500 mt-1">Applied via the FB /videos `thumb` param. Leaving this blank lets Meta auto-pick a frame.</p>
+            </div>
+          )}
         </div>
       )}
 

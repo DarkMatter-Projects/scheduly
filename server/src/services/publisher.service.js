@@ -88,6 +88,24 @@ async function publishPost(postId) {
               : post.facebook_photo_tags;
           } catch { photoTags = []; }
         }
+        // Custom video thumbnail — same column the YT branch uses, so
+        // a post targeting both FB and YT shares the same thumb image.
+        let fbCustomThumbnail = null;
+        if (post.custom_thumbnail_media_id) {
+          const [thumbRows] = await pool.execute(
+            'SELECT * FROM media WHERE id = ?',
+            [post.custom_thumbnail_media_id]
+          );
+          if (thumbRows.length > 0) {
+            const t = thumbRows[0];
+            fbCustomThumbnail = {
+              id: t.id,
+              filePath: t.file_path,
+              mimeType: t.mime_type,
+              originalName: t.original_name,
+            };
+          }
+        }
         platformPostId = await publishToPage(
           target.platform_account_id,
           target.access_token,
@@ -96,6 +114,7 @@ async function publishPost(postId) {
           {
             placeId: post.geo_facebook_place_id || null,
             photoTags: Array.isArray(photoTags) ? photoTags : [],
+            customThumbnail: fbCustomThumbnail,
           }
         );
       } else if (target.platform === 'instagram_business') {
