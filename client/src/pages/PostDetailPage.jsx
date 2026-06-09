@@ -314,6 +314,12 @@ export default function PostDetailPage() {
             </div>
           )}
 
+          {/* Platform-specific options — read-only view of every per-platform
+              setting on the post (IG collaborators / product tags, FB photo
+              tags, Geo, LinkedIn article, YouTube title / visibility, etc).
+              Renders nothing if every field is empty. */}
+          <PostOptionsSummary post={post} />
+
           {/* Client sign-off tokens — surface only when the post can still receive a decision */}
           {(post.status === 'draft' || post.status === 'pending_approval' || post.status === 'approved') && (
             <ApprovalTokensPanel postId={parseInt(id, 10)} />
@@ -609,6 +615,122 @@ function ApprovalTokensPanel({ postId }) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Read-only summary of the post's platform-specific settings. Each
+// block only renders when there's actually something to show, so a
+// pure text-only feed post doesn't get a wall of empty headers.
+function PostOptionsSummary({ post }) {
+  const igCollab    = (post.instagramCollaborators || []).length > 0;
+  const igProducts  = (post.instagramProductTags || []).length > 0;
+  const igStory     = !!post.instagramPublishAsStory;
+  const igComment   = !!post.instagramFirstComment;
+  const fbTags      = (post.facebookPhotoTags || []).length > 0;
+  const hasGeo      = !!(post.geoLabel || post.geoFacebookPlaceId || post.geoTwitterPlaceId);
+  const hasLi       = !!post.linkedinArticleUrl;
+  const hasYt       = !!post.youtubeTitle || !!post.youtubeIsShort || !!post.youtubeMadeForKids;
+  const anything    = igCollab || igProducts || igStory || igComment || fbTags || hasGeo || hasLi || hasYt;
+  if (!anything) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+      <h3 className="text-sm font-medium text-gray-700">Platform options</h3>
+
+      {(igStory || igComment || igCollab || igProducts) && (
+        <OptSection title="Instagram" accent="text-pink-700">
+          {igStory && <OptRow label="Post type"><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-200">Story (24h)</span></OptRow>}
+          {igComment && (
+            <OptRow label="First comment">
+              <p className="text-xs text-slate-700 whitespace-pre-wrap">{post.instagramFirstComment}</p>
+            </OptRow>
+          )}
+          {igCollab && (
+            <OptRow label="Collaborators">
+              <div className="flex flex-wrap gap-1">
+                {post.instagramCollaborators.map(u => (
+                  <span key={u} className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200">@{u}</span>
+                ))}
+              </div>
+            </OptRow>
+          )}
+          {igProducts && (
+            <OptRow label="Product tags">
+              <ul className="space-y-1">
+                {post.instagramProductTags.map(p => (
+                  <li key={p.id} className="flex items-center gap-2">
+                    {p.imageUrl && <img src={p.imageUrl} alt="" className="w-7 h-7 rounded object-cover" />}
+                    <span className="text-xs text-slate-800 flex-1 truncate">{p.name || p.id}</span>
+                    <span className="text-[10px] text-slate-400 tabular-nums">{Math.round((p.x ?? 0.5) * 100)}, {Math.round((p.y ?? 0.5) * 100)}</span>
+                  </li>
+                ))}
+              </ul>
+            </OptRow>
+          )}
+        </OptSection>
+      )}
+
+      {fbTags && (
+        <OptSection title="Facebook" accent="text-blue-700">
+          <OptRow label="Photo tags">
+            <ul className="space-y-1">
+              {post.facebookPhotoTags.map(t => (
+                <li key={t.id} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-800 flex-1 truncate">{t.label || `User ${t.id}`}</span>
+                  <code className="text-[10px] text-slate-400 font-mono">{t.id}</code>
+                  <span className="text-[10px] text-slate-400 tabular-nums">{Math.round((t.x ?? 0.5) * 100)}, {Math.round((t.y ?? 0.5) * 100)}</span>
+                </li>
+              ))}
+            </ul>
+          </OptRow>
+        </OptSection>
+      )}
+
+      {hasGeo && (
+        <OptSection title="Location" accent="text-emerald-700">
+          {post.geoLabel && <OptRow label="Label">{post.geoLabel}</OptRow>}
+          {post.geoFacebookPlaceId && <OptRow label="FB place ID"><code className="text-[10px] font-mono">{post.geoFacebookPlaceId}</code></OptRow>}
+          {post.geoTwitterPlaceId && <OptRow label="X place ID"><code className="text-[10px] font-mono">{post.geoTwitterPlaceId}</code></OptRow>}
+        </OptSection>
+      )}
+
+      {hasLi && (
+        <OptSection title="LinkedIn" accent="text-sky-700">
+          <OptRow label="Article URL">
+            <a href={post.linkedinArticleUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline break-all">
+              {post.linkedinArticleUrl}
+            </a>
+          </OptRow>
+        </OptSection>
+      )}
+
+      {hasYt && (
+        <OptSection title="YouTube" accent="text-red-700">
+          {post.youtubeTitle && <OptRow label="Video title">{post.youtubeTitle}</OptRow>}
+          {post.youtubePrivacy && <OptRow label="Visibility"><span className="capitalize">{post.youtubePrivacy}</span></OptRow>}
+          {post.youtubeIsShort && <OptRow label="Format"><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">Short</span></OptRow>}
+          {post.youtubeMadeForKids && <OptRow label="Audience">Made for kids (COPPA)</OptRow>}
+        </OptSection>
+      )}
+    </div>
+  );
+}
+
+function OptSection({ title, accent, children }) {
+  return (
+    <div className="border-t border-slate-100 pt-3 first:border-t-0 first:pt-0">
+      <p className={clsx('text-[10px] font-semibold uppercase tracking-wider mb-2', accent)}>{title}</p>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function OptRow({ label, children }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <p className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</p>
+      <div className="col-span-2 text-xs text-slate-800">{children}</div>
     </div>
   );
 }
