@@ -224,7 +224,13 @@ function WidgetBody({ widget }) {
     case 'demographics':
     case 'geographics':
     case 'views_from_source':
+      return <NoDataPlaceholder
+        title="Not available via TikTok API"
+        hint="TikTok exposes traffic source only in the Creator Portal — there's no Display API endpoint for it. Visit your TikTok Studio to view this breakdown manually." />;
     case 'fans_online_hourly':
+      return <NoDataPlaceholder
+        title="Not available via TikTok API"
+        hint="TikTok exposes follower activity hours only in the Creator Portal. Use TikTok Studio's Audience tab to see when your followers are online." />;
     case 'engage_sentiment_by_label':
     case 'engage_sentiment_kpi_group':
     case 'net_new_subscribers_by_country':
@@ -249,11 +255,12 @@ function WidgetBody({ widget }) {
 
 // Friendly empty state for widget types that don't have data ingestion yet
 // (label_performance, paid_performance, followers_by_country, etc.).
-function NoDataPlaceholder() {
+function NoDataPlaceholder({ title, hint }) {
   return (
-    <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-10">
+    <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-10 px-4">
       <Inbox className="w-12 h-12 mb-3" strokeWidth={1} />
-      <p className="text-sm">No data available for the specified period and channels selected</p>
+      <p className="text-sm font-medium">{title || 'No data available for the specified period and channels selected'}</p>
+      {hint && <p className="text-xs mt-2 max-w-sm text-slate-500 leading-snug">{hint}</p>}
     </div>
   );
 }
