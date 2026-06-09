@@ -44,10 +44,10 @@ async function getTeam(id) {
   return team;
 }
 
-async function createTeam({ name, description, createdBy }) {
+async function createTeam({ name, description, createdBy, slackWebhookUrl }) {
   const [result] = await pool.execute(
-    'INSERT INTO teams (name, description, created_by) VALUES (?, ?, ?)',
-    [name, description || null, createdBy]
+    'INSERT INTO teams (name, description, slack_webhook_url, created_by) VALUES (?, ?, ?, ?)',
+    [name, description || null, slackWebhookUrl || null, createdBy]
   );
 
   // Add creator as a member
@@ -56,11 +56,12 @@ async function createTeam({ name, description, createdBy }) {
   return getTeam(result.insertId);
 }
 
-async function updateTeam(id, { name, description }) {
+async function updateTeam(id, { name, description, slackWebhookUrl }) {
   const fields = [];
   const values = [];
-  if (name !== undefined) { fields.push('name = ?'); values.push(name); }
-  if (description !== undefined) { fields.push('description = ?'); values.push(description); }
+  if (name !== undefined)             { fields.push('name = ?');              values.push(name); }
+  if (description !== undefined)      { fields.push('description = ?');       values.push(description); }
+  if (slackWebhookUrl !== undefined)  { fields.push('slack_webhook_url = ?'); values.push(slackWebhookUrl || null); }
 
   if (fields.length > 0) {
     values.push(id);
@@ -96,6 +97,7 @@ function formatTeam(row) {
     id: row.id,
     name: row.name,
     description: row.description,
+    slackWebhookUrl: row.slack_webhook_url,
     createdBy: row.created_by,
     creatorName: row.first_name ? `${row.first_name} ${row.last_name}` : undefined,
     memberCount: row.member_count || 0,

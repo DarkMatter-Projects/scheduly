@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const email = require('./email.service');
+const webhook = require('./webhook.service');
 const logger = require('../utils/logger');
 
 // Insert a notification row. team_id null + target_user_id set =
@@ -42,6 +43,16 @@ async function notify({ type, title, body, link, severity, teamId, targetUserId,
     }
   } catch (err) {
     logger.warn(`notifications.notify email dispatch failed: ${err.message}`);
+  }
+  // Slack / Teams webhook — best-effort. Only fires for team-scoped
+  // notifications because the webhook URL lives on the team row;
+  // single-user notifications go through email + bell only.
+  if (teamId) {
+    try {
+      await webhook.postTeamWebhook({ teamId, title, body, link, severity });
+    } catch (err) {
+      logger.warn(`notifications.notify webhook dispatch failed: ${err.message}`);
+    }
   }
 }
 

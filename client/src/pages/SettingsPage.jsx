@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listUsers, createUser, updateUser, deactivateUser } from '../api/usersApi';
 import { getYoutubeQuota } from '../api/socialApi';
+import { listTeams, updateTeam } from '../api/teamsApi';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Trash2, X, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, ExternalLink, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 
 const ROLES = ['admin', 'manager', 'editor', 'viewer'];
@@ -312,6 +313,9 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Team notifications — Slack / Teams webhook URLs */}
+      <TeamNotificationsPanel />
+
       {showModal && (
         <UserModal
           user={modalUser}
@@ -319,6 +323,89 @@ export default function SettingsPage() {
           onSave={handleSave}
         />
       )}
+    </div>
+  );
+}
+
+// Per-team webhook URL for team-scoped notifications (sentiment spikes,
+// approval pings). Accepts a Slack incoming webhook URL OR a Microsoft
+// Teams webhook URL — they both accept the same Block Kit message
+// shape we send.
+function TeamNotificationsPanel() {
+  const queryClient = useQueryClient();
+  const { data: teams = [] } = useQuery({ queryKey: ['teams'], queryFn: listTeams });
+  const updateMut = useMutation({
+    mutationFn: ({ id, slackWebhookUrl }) => updateTeam(id, { slackWebhookUrl }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast.success('Webhook saved');
+    },
+    onError: (err) => toast.error(err.response?.data?.error || err.message),
+  });
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 mt-6">
+      <div className="p-5 border-b border-gray-200 flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-slate-500" />
+            Team notifications
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Pipe team-scoped alerts (sentiment spikes, approval pings) into Slack or Microsoft Teams.
+            Bell + email still fire too — this is additive.
+          </p>
+        </div>
+      </div>
+      <div className="p-5 space-y-4">
+        {teams.length === 0 ? (
+          <p className="text-xs text-slate-500 italic">No teams yet — create a team first.</p>
+        ) : teams.map(t => (
+          <TeamWebhookRow key={t.id} team={t} onSave={(url) => updateMut.mutate({ id: t.id, slackWebhookUrl: url })} pending={updateMut.isPending} />
+        ))}
+        <div className="bg-blue-50/40 border border-blue-100 rounded-lg p-3 text-[11px] text-blue-900 leading-relaxed">
+          <p><strong>Slack:</strong> Apps → Incoming Webhooks → Add to Slack → pick a channel → copy the URL.</p>
+          <p className="mt-1"><strong>Teams:</strong> Channel → Connectors → Incoming Webhook → Configure → copy the URL.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeamWebhookRow({ team, onSave, pending }) {
+  const [value, setValue] = useState(team.slackWebhookUrl || '');
+  useEffect(() => { setValue(team.slackWebhookUrl || ''); }, [team.slackWebhookUrl]);
+  const dirty = value !== (team.slackWebhookUrl || '');
+  return (
+    <div className="border border-slate-200 rounded-lg p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm font-medium text-slate-800">{team.name}</div>
+        <span className="text-[10px] text-slate-400">{team.memberCount} member{team.memberCount === 1 ? '' : 's'}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="url"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="https://hooks.slack.com/services/T00/B00/XXX  (or Teams equivalent)"
+          className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+        />
+        <button
+          onClick={() => onSave(value.trim() || null)}
+          disabled={!dirty || pending}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? 'Saving…' : 'Save'}
+        </button>
+        {value && (
+          <button
+            onClick={() => { setValue(''); onSave(null); }}
+            className="px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg"
+          >
+            Clear
+          </button>
+        )}
+      </div>
     </div>
   );
 }
