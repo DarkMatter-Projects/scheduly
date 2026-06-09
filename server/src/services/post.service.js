@@ -16,7 +16,7 @@ async function createPost({
   tiktokPostMode, tiktokPrivacyLevel,
   tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
   youtubePrivacy, youtubeTitle, youtubeMadeForKids, youtubeIsShort,
-  instagramFirstComment, instagramCollaborators, instagramPublishAsStory,
+  instagramFirstComment, instagramCollaborators, instagramPublishAsStory, instagramProductTags,
   customThumbnailMediaId,
   linkedinArticleUrl,
   geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
@@ -25,6 +25,7 @@ async function createPost({
   const [result] = await pool.execute(
     `INSERT INTO posts
        (title, content, instagram_first_comment, instagram_collaborators, instagram_publish_as_story,
+        instagram_product_tags,
         linkedin_article_url, custom_thumbnail_media_id,
         caption_sentiment_score, caption_sentiment_label,
         post_type, status, created_by, team_id,
@@ -32,12 +33,14 @@ async function createPost({
         tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
         youtube_privacy, youtube_title, youtube_made_for_kids, youtube_is_short,
         geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title || null, content, instagramFirstComment || null,
       Array.isArray(instagramCollaborators) && instagramCollaborators.length > 0
         ? JSON.stringify(instagramCollaborators) : null,
       instagramPublishAsStory ? 1 : 0,
+      Array.isArray(instagramProductTags) && instagramProductTags.length > 0
+        ? JSON.stringify(instagramProductTags) : null,
       linkedinArticleUrl || null,
       customThumbnailMediaId || null,
       s.comparative, s.label,

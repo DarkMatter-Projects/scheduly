@@ -26,6 +26,7 @@ async function publishPost(postId) {
   // Get post with media + TikTok-specific options
   const [postRows] = await pool.execute(
     `SELECT id, content, instagram_first_comment, instagram_collaborators, instagram_publish_as_story,
+            instagram_product_tags,
             custom_thumbnail_media_id,
             linkedin_article_url,
             tiktok_post_mode, tiktok_privacy_level,
@@ -98,6 +99,15 @@ async function publishPost(postId) {
               : post.instagram_collaborators;
           } catch { collaborators = []; }
         }
+        // Product tags — same JSON-column shape as collaborators.
+        let productTags = [];
+        if (post.instagram_product_tags) {
+          try {
+            productTags = typeof post.instagram_product_tags === 'string'
+              ? JSON.parse(post.instagram_product_tags)
+              : post.instagram_product_tags;
+          } catch { productTags = []; }
+        }
         platformPostId = await publishToInstagram(
           target.platform_account_id,
           target.access_token,
@@ -107,6 +117,7 @@ async function publishPost(postId) {
           {
             collaborators: Array.isArray(collaborators) ? collaborators : [],
             publishAsStory: !!post.instagram_publish_as_story,
+            productTags: Array.isArray(productTags) ? productTags : [],
           }
         );
         // IG treats any single-video post as a Reel (see instagram.service:

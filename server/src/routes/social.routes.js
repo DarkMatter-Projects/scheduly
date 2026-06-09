@@ -30,5 +30,6 @@ router.get('/youtube/quota', authenticate, socialController.getYoutubeQuota);
 router.delete('/accounts/:id', authenticate, requireRole('admin'), socialController.disconnectAccount);
 router.post('/accounts/:id/reconnect', authenticate, requireRole('admin'), socialController.reconnectAccount);
 router.post('/accounts/:id/import-history', authenticate, requireRole('admin', 'manager'), socialController.importHistory);
+router.get('/accounts/:id/instagram-products', authenticate, socialController.searchInstagramProducts);
 
 module.exports = router;

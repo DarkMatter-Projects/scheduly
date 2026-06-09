@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPost, schedulePost, generateCaption, searchPlaces } from '../api/postsApi';
 import { listMedia, uploadMedia } from '../api/mediaApi';
-import { listAccounts, getYoutubeQuota } from '../api/socialApi';
+import { listAccounts, getYoutubeQuota, searchInstagramProducts } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
 import { useAuth } from '../context/AuthContext';
 import { useClientScope } from '../context/ClientContext';
@@ -286,6 +286,11 @@ export default function PostCreatePage() {
   // split into an array before submission.
   const [instagramCollaboratorsInput, setInstagramCollaboratorsInput] = useState('');
   const [instagramPublishAsStory, setInstagramPublishAsStory] = useState(false);
+  // Product tags — array of { id, name, imageUrl, x, y } picked from
+  // the IG catalog. We always store x/y as centered 0.5 since the
+  // composer doesn't yet have a drag-to-position UI.
+  const [instagramProductTags, setInstagramProductTags] = useState([]);
+  const [showProductPicker, setShowProductPicker] = useState(false);
   // LinkedIn-specific — article URL share. When set, the post body
   // becomes a link preview card instead of a text + media post.
   const [linkedinArticleUrl, setLinkedinArticleUrl] = useState('');
@@ -449,6 +454,7 @@ export default function PostCreatePage() {
         youtubeIsShort,
         instagramFirstComment: instagramFirstComment || undefined,
         instagramPublishAsStory,
+        instagramProductTags: instagramProductTags.length > 0 ? instagramProductTags : undefined,
         instagramCollaborators: instagramCollaboratorsInput
           ? instagramCollaboratorsInput
               .split(',')
@@ -497,6 +503,7 @@ export default function PostCreatePage() {
         youtubeIsShort,
         instagramFirstComment: instagramFirstComment || undefined,
         instagramPublishAsStory,
+        instagramProductTags: instagramProductTags.length > 0 ? instagramProductTags : undefined,
         instagramCollaborators: instagramCollaboratorsInput
           ? instagramCollaboratorsInput
               .split(',')
@@ -952,6 +959,41 @@ export default function PostCreatePage() {
                     Comma-separated. Each invitee gets a notification and the post lands on their profile once they accept.
                   </p>
                 </div>
+                {!instagramPublishAsStory && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Product tags <span className="text-slate-400">(optional, up to 5 products)</span>
+                    </label>
+                    {instagramProductTags.length > 0 && (
+                      <ul className="space-y-1 mb-2">
+                        {instagramProductTags.map(p => (
+                          <li key={p.id} className="flex items-center gap-2 px-2 py-1.5 bg-white border border-pink-200 rounded-md">
+                            {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover" />}
+                            <span className="text-xs flex-1 truncate text-slate-800">{p.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setInstagramProductTags(prev => prev.filter(x => x.id !== p.id))}
+                              className="text-rose-600 text-xs hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowProductPicker(true)}
+                      disabled={instagramProductTags.length >= 5}
+                      className="w-full px-3 py-2 text-xs font-medium text-pink-700 bg-white border border-dashed border-pink-300 hover:border-pink-500 rounded-lg disabled:opacity-50"
+                    >
+                      {instagramProductTags.length >= 5 ? '5 products selected' : '+ Add product from IG Shop'}
+                    </button>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Requires a connected Commerce catalog on the IG account. Products show as taggable hotspots on the published post.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1226,6 +1268,18 @@ export default function PostCreatePage() {
           onClose={() => setShowThumbPicker(false)}
         />
       )}
+      {showProductPicker && (
+        <InstagramProductPicker
+          igAccounts={selectedAccounts.filter(a => a.platform === 'instagram_business')}
+          existingIds={instagramProductTags.map(p => p.id)}
+          onPick={(product) => {
+            setInstagramProductTags(prev => prev.find(x => x.id === product.id)
+              ? prev
+              : [...prev, { id: product.id, name: product.name, imageUrl: product.imageUrl, x: 0.5, y: 0.5 }]);
+          }}
+          onClose={() => setShowProductPicker(false)}
+        />
+      )}
 
       <UploadProgressCard
         state={uploadProgress.state}
@@ -1373,6 +1427,108 @@ function SortableCarouselThumb({ media, onRemove }) {
       >
         <X className="w-3 h-3" />
       </button>
+    </div>
+  );
+}
+
+// Modal that searches the connected IG account's product catalog and
+// lets the user tag products on the post. We query the first IG
+// account in selectedAccounts — multi-IG posts share the same product
+// list, which matches IG's own composer UX.
+function InstagramProductPicker({ igAccounts, existingIds, onPick, onClose }) {
+  const [accountId, setAccountId] = useState(igAccounts[0]?.id || null);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [notice, setNotice] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Initial fetch + debounced search-as-you-type.
+  useEffect(() => {
+    if (!accountId) return;
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const out = await searchInstagramProducts(accountId, query.trim());
+        setResults(out.products || []);
+        setNotice(out.notice || null);
+      } catch (err) {
+        setNotice(err.response?.data?.error || err.message);
+        setResults([]);
+      } finally { setLoading(false); }
+    }, query ? 350 : 0);
+    return () => clearTimeout(t);
+  }, [accountId, query]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="border-b border-slate-200 px-5 py-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-900">Tag products from IG Shop</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-lg leading-none">×</button>
+        </div>
+        <div className="p-4 space-y-3 border-b border-slate-100">
+          {igAccounts.length > 1 && (
+            <select
+              value={accountId || ''}
+              onChange={(e) => setAccountId(Number(e.target.value))}
+              className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-pink-400"
+            >
+              {igAccounts.map(a => (
+                <option key={a.id} value={a.id}>{a.accountName || a.handle || `IG #${a.id}`}</option>
+              ))}
+            </select>
+          )}
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name…"
+            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-pink-400 outline-none"
+          />
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          {notice && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 mb-3">{notice}</p>
+          )}
+          {loading ? (
+            <p className="text-xs text-slate-400">Loading products…</p>
+          ) : results.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">
+              {notice ? '' : query ? 'No matching products.' : 'No products to show. Catalog may be empty or not connected to this IG account.'}
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {results.map(p => {
+                const already = existingIds.includes(p.id);
+                return (
+                  <li key={p.id} className="flex items-center gap-3 py-2">
+                    {p.imageUrl ? (
+                      <img src={p.imageUrl} alt={p.name} className="w-10 h-10 rounded object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-slate-100" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-slate-900 truncate">{p.name}</p>
+                      {p.retailerId && <p className="text-[10px] text-slate-400">{p.retailerId}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={already}
+                      onClick={() => onPick(p)}
+                      className="px-3 py-1 text-xs font-medium rounded-md text-white bg-pink-600 hover:bg-pink-700 disabled:opacity-50"
+                    >
+                      {already ? 'Added' : 'Add'}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        <div className="border-t border-slate-200 px-5 py-3 flex justify-end">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md">Done</button>
+        </div>
+      </div>
     </div>
   );
 }

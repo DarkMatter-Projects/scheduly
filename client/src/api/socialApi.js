@@ -38,3 +38,8 @@ export const reconnectAccount = (id) =>
 
 export const importHistory = (id) =>
   api.post(`/social/accounts/${id}/import-history`, undefined, { timeout: 600000 }).then(r => r.data);
+
+// IG Catalog product search for the composer's product-tag picker.
+// Returns { products, notice? }.
+export const searchInstagramProducts = (accountId, query) =>
+  api.get(`/social/accounts/${accountId}/instagram-products`, { params: { q: query } }).then(r => r.data);

@@ -639,6 +639,32 @@ async function importHistory(req, res, next) {
   }
 }
 
+// IG product catalog search for the composer's product-tag picker.
+// Looks up the social_accounts row, validates it's an IG account,
+// then delegates to instagram.service.fetchInstagramProducts.
+async function searchInstagramProducts(req, res, next) {
+  try {
+    const accountId = parseInt(req.params.id, 10);
+    const { q } = req.query;
+    const [rows] = await pool.execute(
+      'SELECT * FROM social_accounts WHERE id = ? AND is_active = 1',
+      [accountId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Instagram account not found' });
+    const account = rows[0];
+    if (account.platform !== 'instagram_business') {
+      return res.status(400).json({ error: 'Account is not an Instagram Business account' });
+    }
+    const out = await instagramService.fetchInstagramProducts({
+      igAccountId: account.platform_account_id,
+      encryptedToken: account.access_token,
+      query: q || '',
+    });
+    if (out.error) return res.status(200).json({ products: [], notice: out.error });
+    res.json(out);
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listAccounts,
   startOAuth,
@@ -662,4 +688,5 @@ module.exports = {
   reconnectAccount,
   getAccountAvatar,
   importHistory,
+  searchInstagramProducts,
 };

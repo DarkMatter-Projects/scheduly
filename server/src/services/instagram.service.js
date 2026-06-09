@@ -204,6 +204,15 @@ async function publishSingleMedia(igAccountId, token, content, media, publicBase
   if (Array.isArray(options.collaborators) && options.collaborators.length > 0) {
     params.collaborators = JSON.stringify(options.collaborators);
   }
+  // Product tags — IG accepts an array of { product_id, x, y } where
+  // x/y are 0-1 normalized coordinates over the media.
+  if (Array.isArray(options.productTags) && options.productTags.length > 0) {
+    params.product_tags = JSON.stringify(options.productTags.map(t => ({
+      product_id: String(t.id || t.product_id),
+      x: Number.isFinite(t.x) ? t.x : 0.5,
+      y: Number.isFinite(t.y) ? t.y : 0.5,
+    })));
+  }
 
   logger.info(`IG publish: creating media container at ${ig.IG_GRAPH_URL}/${igAccountId}/media`, {
     image_url: params.image_url,
@@ -294,6 +303,43 @@ async function waitForMediaProcessing(containerId, token, maxAttempts = 30) {
   throw new Error('Instagram media processing timed out');
 }
 
+// Fetch the IG account's available shop catalog products. Used by the
+// composer's product-tag picker. IG Graph API exposes this via the
+// /me/catalog_product_search endpoint — returns up to 30 results per
+// query, with id + name + image_url + retailer_id. The IG account must
+// be tagging-eligible (has a connected catalog + onboarded shopping).
+async function fetchInstagramProducts({ igAccountId, encryptedToken, query }) {
+  const token = decrypt(encryptedToken);
+  try {
+    const { data } = await axios.get(
+      `${ig.IG_GRAPH_URL}/${igAccountId}/catalog_product_search`,
+      {
+        params: {
+          q: (query || '').trim(),
+          fields: 'product_id,product_name,image_url,retailer_id,review_status',
+          limit: 30,
+          access_token: token,
+        },
+        timeout: 12000,
+      }
+    );
+    const items = data?.data || [];
+    return {
+      products: items.map(p => ({
+        id: String(p.product_id),
+        name: p.product_name,
+        imageUrl: p.image_url,
+        retailerId: p.retailer_id,
+        reviewStatus: p.review_status,
+      })),
+    };
+  } catch (err) {
+    const detail = err.response?.data?.error?.message || err.message;
+    logger.warn(`IG product search failed for ${igAccountId}: ${detail}`);
+    return { error: detail, products: [] };
+  }
+}
+
 // Post a comment on a freshly-published IG media. Used by the "first
 // comment" feature so users can dump the hashtag list under the post
 // instead of cluttering the caption.
@@ -316,4 +362,5 @@ module.exports = {
   fetchInstagramAccount,
   publishToInstagram,
   postInstagramComment,
+  fetchInstagramProducts,
 };
