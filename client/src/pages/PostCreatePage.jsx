@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPost, schedulePost, generateCaption, suggestHashtags, searchPlaces } from '../api/postsApi';
+import {
+  listCaptionSnippets, createCaptionSnippet, deleteCaptionSnippet,
+} from '../api/captionSnippetsApi';
 import { listMedia, uploadMedia } from '../api/mediaApi';
 import { listAccounts, getYoutubeQuota, searchInstagramProducts } from '../api/socialApi';
 import { listClients } from '../api/clientsApi';
@@ -311,6 +314,30 @@ export default function PostCreatePage() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiTone, setAiTone] = useState('engaging');
+  // Saved captions — composer dropdown anchored on the toolbar.
+  const [snippetPopoverOpen, setSnippetPopoverOpen] = useState(false);
+  const { data: snippets = [] } = useQuery({
+    queryKey: ['caption-snippets'],
+    queryFn: () => listCaptionSnippets(),
+    enabled: snippetPopoverOpen,
+    staleTime: 30000,
+  });
+  const saveSnippetMut = useMutation({
+    mutationFn: ({ title, body }) => createCaptionSnippet({ title, body }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-snippets'] });
+      toast.success('Saved');
+    },
+    onError: (err) => toast.error(err.response?.data?.error || err.message),
+  });
+  const deleteSnippetMut = useMutation({
+    mutationFn: (id) => deleteCaptionSnippet(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caption-snippets'] });
+      toast.success('Snippet removed');
+    },
+  });
+
   // Hashtag suggestions — popover anchored under the toolbar button.
   const [hashtagPopoverOpen, setHashtagPopoverOpen] = useState(false);
   const [hashtagChips, setHashtagChips] = useState([]);
@@ -748,14 +775,31 @@ export default function PostCreatePage() {
                   >
                     <Smile className="w-4 h-4" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => toast('Saved captions coming soon', { icon: '📌' })}
-                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    Saved Captions
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setSnippetPopoverOpen(o => !o)}
+                      className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Saved Captions
+                    </button>
+                    {snippetPopoverOpen && (
+                      <SavedCaptionsPopover
+                        snippets={snippets}
+                        currentCaption={content}
+                        onInsert={(body) => {
+                          const sep = content.endsWith('\n') || !content.trim() ? '' : '\n\n';
+                          insertAtCursor(sep + body);
+                          setSnippetPopoverOpen(false);
+                        }}
+                        onSave={(title) => saveSnippetMut.mutate({ title, body: content })}
+                        onDelete={(id) => deleteSnippetMut.mutate(id)}
+                        onClose={() => setSnippetPopoverOpen(false)}
+                        saving={saveSnippetMut.isPending}
+                      />
+                    )}
+                  </div>
                   <div className="relative">
                     <button
                       type="button"
@@ -1633,6 +1677,119 @@ function SortableCarouselThumb({ media, onRemove }) {
       >
         <X className="w-3 h-3" />
       </button>
+    </div>
+  );
+}
+
+// Popover anchored under the composer's "Saved Captions" button.
+// Lists every snippet the user can see, lets them filter, save the
+// current caption as a new snippet, and click to insert one into
+// the caption.
+function SavedCaptionsPopover({ snippets, currentCaption, onInsert, onSave, onDelete, onClose, saving }) {
+  const [filter, setFilter] = useState('');
+  const [titleInput, setTitleInput] = useState('');
+  const [savingForm, setSavingForm] = useState(false);
+  const filtered = filter.trim()
+    ? snippets.filter(s =>
+        (s.title || '').toLowerCase().includes(filter.toLowerCase())
+        || (s.body || '').toLowerCase().includes(filter.toLowerCase()))
+    : snippets;
+  return (
+    <div
+      className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-slate-200 rounded-lg shadow-lg w-80 max-h-[420px] flex flex-col"
+      onMouseLeave={onClose}
+    >
+      <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Saved captions</p>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-sm leading-none">×</button>
+      </div>
+      <div className="p-2 border-b border-slate-100">
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter snippets…"
+          className="w-full px-2 py-1 text-xs rounded-md border border-slate-300 focus:ring-2 focus:ring-violet-300 outline-none"
+        />
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <p className="text-xs text-slate-400 italic px-3 py-4 text-center">
+            {snippets.length === 0 ? 'No snippets yet. Save the current caption below.' : 'No matches for that filter.'}
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {filtered.map(s => (
+              <li key={s.id} className="px-3 py-2 hover:bg-slate-50">
+                <div className="flex items-start gap-2">
+                  <button
+                    onClick={() => onInsert(s.body)}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <p className="text-xs font-semibold text-slate-800 truncate">{s.title}</p>
+                    <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{s.body}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {s.creatorName}{s.teamId ? ' · shared' : ''}
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Delete "${s.title}"?`)) onDelete(s.id); }}
+                    className="text-rose-400 hover:text-rose-700 text-[11px]"
+                    title="Delete snippet"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="border-t border-slate-100 p-2 space-y-1.5 bg-slate-50/50">
+        <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 px-1">Save current caption</p>
+        {!savingForm ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (!currentCaption?.trim()) {
+                toast('Write a caption first.');
+                return;
+              }
+              setSavingForm(true);
+            }}
+            className="w-full px-2 py-1.5 text-[11px] font-semibold text-violet-700 bg-white border border-dashed border-violet-300 hover:border-violet-500 rounded-md"
+          >
+            + Save the caption as a snippet
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              value={titleInput}
+              onChange={(e) => setTitleInput(e.target.value)}
+              placeholder="Snippet title"
+              className="flex-1 px-2 py-1 text-xs rounded-md border border-slate-300 focus:ring-2 focus:ring-violet-300 outline-none"
+            />
+            <button
+              onClick={() => {
+                if (!titleInput.trim()) return;
+                onSave(titleInput.trim());
+                setTitleInput('');
+                setSavingForm(false);
+              }}
+              disabled={!titleInput.trim() || saving}
+              className="px-2 py-1 text-[11px] font-semibold rounded-md text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => { setSavingForm(false); setTitleInput(''); }}
+              className="text-[11px] text-slate-500 hover:text-slate-700 px-1"
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
