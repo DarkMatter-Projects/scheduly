@@ -68,7 +68,7 @@ async function resolveRecipientEmails({ teamId, targetUserId }) {
     const [rows] = await pool.execute(
       `SELECT DISTINCT u.email
          FROM users u
-         JOIN user_teams ut ON ut.user_id = u.id
+         JOIN team_members ut ON ut.user_id = u.id
         WHERE ut.team_id = ?
           AND u.email IS NOT NULL AND u.email <> ''`,
       [teamId]
@@ -101,7 +101,7 @@ function escapeHtml(s) {
 // at 50 newest so the bell dropdown stays snappy.
 async function listForUser(userId, { unreadOnly = false } = {}) {
   const where = `(n.target_user_id = ? OR (n.team_id IS NOT NULL AND n.team_id IN (
-                    SELECT ut.team_id FROM user_teams ut WHERE ut.user_id = ?
+                    SELECT ut.team_id FROM team_members ut WHERE ut.user_id = ?
                   )))`;
   const readFilter = unreadOnly ? 'AND n.is_read = 0' : '';
   const [rows] = await pool.execute(
@@ -118,7 +118,7 @@ async function unreadCountForUser(userId) {
   const [r] = await pool.execute(
     `SELECT COUNT(*) AS v FROM notifications n
      WHERE (n.target_user_id = ? OR (n.team_id IS NOT NULL AND n.team_id IN (
-              SELECT ut.team_id FROM user_teams ut WHERE ut.user_id = ?
+              SELECT ut.team_id FROM team_members ut WHERE ut.user_id = ?
             )))
        AND n.is_read = 0`,
     [userId, userId]
@@ -139,7 +139,7 @@ async function markAllRead(userId) {
         SET is_read = 1, read_at = NOW()
       WHERE is_read = 0
         AND (n.target_user_id = ? OR (n.team_id IS NOT NULL AND n.team_id IN (
-              SELECT ut.team_id FROM user_teams ut WHERE ut.user_id = ?
+              SELECT ut.team_id FROM team_members ut WHERE ut.user_id = ?
             )))`,
     [userId, userId]
   );

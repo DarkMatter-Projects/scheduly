@@ -16,7 +16,7 @@ async function listForUser(userId, { search } = {}) {
        LEFT JOIN users u ON s.created_by = u.id
       WHERE (s.created_by = ?
              OR (s.team_id IS NOT NULL AND s.team_id IN (
-                   SELECT ut.team_id FROM user_teams ut WHERE ut.user_id = ?
+                   SELECT ut.team_id FROM team_members ut WHERE ut.user_id = ?
                  )))
         ${extra}
       ORDER BY s.updated_at DESC
