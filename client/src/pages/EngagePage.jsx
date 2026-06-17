@@ -114,6 +114,16 @@ export default function EngagePage() {
     onSuccess: invalidateEngage,
   });
 
+  // Mark the open thread read once it loads with unread items. Keying off the
+  // *loaded* thread (not the click handler) covers every way a thread can become
+  // visible — auto-open of the first thread, keyboard nav, deep-links — not just
+  // a manual click. Previously auto-open set selectedId directly and skipped
+  // markRead, so the first unread thread stayed badged "new" even after reading.
+  useEffect(() => {
+    if (thread?.id && thread.unreadCount > 0) markReadMut.mutate(thread.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread?.id, thread?.unreadCount]);
+
   const refreshMut = useMutation({
     mutationFn: refreshEngageInbox,
     onSuccess: () => {
@@ -146,10 +156,10 @@ export default function EngagePage() {
     });
   };
 
-  // Marking-read fires automatically when a thread is selected and it has unread items.
+  // Just navigate — marking-read is handled by the effect above once the
+  // selected thread loads, so auto-opened threads get cleared too.
   const selectThread = (t) => {
     setSelectedId(t.id);
-    if (t.unreadCount > 0) markReadMut.mutate(t.id);
   };
 
   // Keyboard shortcuts. We attach a single listener at the page level so the
