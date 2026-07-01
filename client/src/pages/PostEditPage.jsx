@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { FacebookIcon as Facebook, InstagramIcon as Instagram } from '../components/common/SocialIcons';
 import PostComposer from '../components/posts/PostComposer';
-import PostOptionPanels from '../components/posts/PostOptionPanels';
+import PostOptionPanels, { tiktokCompliance } from '../components/posts/PostOptionPanels';
 import clsx from 'clsx';
 
 // All platform-specific option fields the Edit page mirrors from Create.
@@ -32,6 +32,15 @@ const EMPTY_OPTIONS = {
   youtubeTitle: '', youtubePrivacy: 'private',
   youtubeMadeForKids: false, youtubeIsShort: false,
   customThumbnail: null,
+  // TikTok — compliance-relevant (Content Sharing Guidelines § 1-4)
+  tiktokPostMode: 'INBOX',
+  tiktokPrivacyLevel: '',
+  tiktokDisableComment: true,
+  tiktokDisableDuet: true,
+  tiktokDisableStitch: true,
+  tiktokCommercialDisclosure: false,
+  tiktokYourBrand: false,
+  tiktokBrandedContent: false,
 };
 
 function MediaPickerModal({ onSelect, onClose }) {
@@ -116,6 +125,14 @@ export default function PostEditPage() {
         youtubePrivacy: post.youtubePrivacy || 'private',
         youtubeMadeForKids: !!post.youtubeMadeForKids,
         youtubeIsShort: !!post.youtubeIsShort,
+        tiktokPostMode:             post.tiktokPostMode || 'INBOX',
+        tiktokPrivacyLevel:         post.tiktokPrivacyLevel || '',
+        tiktokDisableComment:       post.tiktokDisableComment !== undefined ? !!post.tiktokDisableComment : true,
+        tiktokDisableDuet:          post.tiktokDisableDuet !== undefined ? !!post.tiktokDisableDuet : true,
+        tiktokDisableStitch:        post.tiktokDisableStitch !== undefined ? !!post.tiktokDisableStitch : true,
+        tiktokCommercialDisclosure: !!post.tiktokCommercialDisclosure,
+        tiktokYourBrand:            !!post.tiktokYourBrand,
+        tiktokBrandedContent:       !!post.tiktokBrandedContent,
         // customThumbnail comes back as a media-id only; we'd need to
         // fetch the row to show the thumbnail preview. Leaving null
         // means the user has to re-pick if they want a new thumbnail,
@@ -171,6 +188,14 @@ export default function PostEditPage() {
       geoLabel:                options.geoLabel || null,
       geoFacebookPlaceId:      options.geoFacebookPlaceId || null,
       geoTwitterPlaceId:       options.geoTwitterPlaceId || null,
+      tiktokPostMode:              options.tiktokPostMode,
+      tiktokPrivacyLevel:          options.tiktokPrivacyLevel || null,
+      tiktokDisableComment:        options.tiktokDisableComment,
+      tiktokDisableDuet:           options.tiktokDisableDuet,
+      tiktokDisableStitch:         options.tiktokDisableStitch,
+      tiktokCommercialDisclosure:  options.tiktokCommercialDisclosure,
+      tiktokYourBrand:             options.tiktokYourBrand,
+      tiktokBrandedContent:        options.tiktokBrandedContent,
       ...(options.customThumbnail ? { customThumbnailMediaId: options.customThumbnail.id } : {}),
     });
   };
@@ -248,10 +273,20 @@ export default function PostEditPage() {
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-medium text-gray-700 mb-4">Actions</h3>
-            <button onClick={handleSave} disabled={updateMut.isPending || !content.trim()}
-              className="w-full py-2.5 px-4 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              {updateMut.isPending ? 'Saving...' : 'Save Changes'}
-            </button>
+            {(() => {
+              const hasTt = selectedAccounts.some(a => a.platform === 'tiktok');
+              const ttIssue = hasTt ? tiktokCompliance(options) : null;
+              return (
+                <button
+                  onClick={handleSave}
+                  disabled={updateMut.isPending || !content.trim() || !!ttIssue}
+                  title={ttIssue || undefined}
+                  className="w-full py-2.5 px-4 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {updateMut.isPending ? 'Saving...' : 'Save Changes'}
+                </button>
+              );
+            })()}
           </div>
 
           {activeAccounts.length > 0 && (

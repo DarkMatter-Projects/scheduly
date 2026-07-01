@@ -639,6 +639,48 @@ async function importHistory(req, res, next) {
   }
 }
 
+// TikTok creator info query — powers the composer's TikTok panel so
+// the UX matches TikTok's Content Sharing Guidelines § 1-2 (creator
+// nickname display, per-account privacy_level_options, greyed-out
+// interaction checkboxes when the account has them disabled, and the
+// max_video_post_duration_sec / can_post_more gates).
+async function tiktokCreatorInfo(req, res, next) {
+  try {
+    const accountId = parseInt(req.params.id, 10);
+    const [rows] = await pool.execute(
+      'SELECT * FROM social_accounts WHERE id = ? AND is_active = 1',
+      [accountId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'TikTok account not found' });
+    const account = rows[0];
+    if (account.platform !== 'tiktok') {
+      return res.status(400).json({ error: 'Account is not a TikTok account' });
+    }
+    const accessToken = await tiktokPostingService.ensureFreshAccessToken(account.id);
+    try {
+      const info = await tiktokPostingService.queryCreatorInfo(accessToken);
+      // Pass through only the fields the composer needs. Keeps the client
+      // payload small + insulates the UX from TikTok schema drift.
+      res.json({
+        creatorNickname:            info.creator_nickname,
+        creatorUsername:            info.creator_username,
+        creatorAvatarUrl:           info.creator_avatar_url,
+        privacyLevelOptions:        info.privacy_level_options || [],
+        commentDisabled:            !!info.comment_disabled,
+        duetDisabled:               !!info.duet_disabled,
+        stitchDisabled:             !!info.stitch_disabled,
+        maxVideoPostDurationSec:    Number(info.max_video_post_duration_sec) || 0,
+        canPostMore:                info.can_post_more !== false, // default true
+      });
+    } catch (err) {
+      // Bubble TikTok's error text so the user knows why the panel
+      // came up empty. Common: user needs to re-OAuth to grant the
+      // extra scopes; or account is under posting cap right now.
+      return res.status(200).json({ error: err.message });
+    }
+  } catch (err) { next(err); }
+}
+
 // IG product catalog search for the composer's product-tag picker.
 // Looks up the social_accounts row, validates it's an IG account,
 // then delegates to instagram.service.fetchInstagramProducts.
@@ -689,4 +731,5 @@ module.exports = {
   getAccountAvatar,
   importHistory,
   searchInstagramProducts,
+  tiktokCreatorInfo,
 };

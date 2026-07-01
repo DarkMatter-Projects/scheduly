@@ -234,6 +234,9 @@ async function publishVideo(accessToken, caption, media, publicBaseUrl, opts) {
           disable_duet: !!opts.disableDuet,
           disable_stitch: !!opts.disableStitch,
           video_cover_timestamp_ms: 1000,
+          // TikTok Content Sharing Guidelines § 3 — commercial disclosure.
+          brand_content_toggle: !!opts.brandContentToggle,
+          brand_organic_toggle: !!opts.brandOrganicToggle,
         },
         source_info: { source: 'PULL_FROM_URL', video_url: videoUrl },
       };

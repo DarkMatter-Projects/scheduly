@@ -15,6 +15,7 @@ async function createPost({
   title, content, postType, createdBy, teamId, mediaIds, targetAccountIds,
   tiktokPostMode, tiktokPrivacyLevel,
   tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch,
+  tiktokCommercialDisclosure, tiktokYourBrand, tiktokBrandedContent,
   youtubePrivacy, youtubeTitle, youtubeMadeForKids, youtubeIsShort,
   instagramFirstComment, instagramCollaborators, instagramPublishAsStory, instagramProductTags,
   customThumbnailMediaId,
@@ -32,10 +33,11 @@ async function createPost({
         post_type, status, created_by, team_id,
         tiktok_post_mode, tiktok_privacy_level,
         tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
+        tiktok_commercial_disclosure, tiktok_your_brand, tiktok_branded_content,
         youtube_privacy, youtube_title, youtube_made_for_kids, youtube_is_short,
         geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id,
         facebook_photo_tags)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title || null, content, instagramFirstComment || null,
       Array.isArray(instagramCollaborators) && instagramCollaborators.length > 0
@@ -52,6 +54,9 @@ async function createPost({
       tiktokDisableDuet ? 1 : 0,
       tiktokDisableStitch ? 1 : 0,
       tiktokDisableComment ? 1 : 0,
+      tiktokCommercialDisclosure ? 1 : 0,
+      tiktokYourBrand ? 1 : 0,
+      tiktokBrandedContent ? 1 : 0,
       youtubePrivacy || 'private',
       youtubeTitle ? String(youtubeTitle).slice(0, 100) : null,
       youtubeMadeForKids ? 1 : 0,
@@ -271,6 +276,7 @@ async function updatePost(id, body = {}, userId, userRole) {
     facebookPhotoTags,
     youtubePrivacy, youtubeTitle, youtubeMadeForKids, youtubeIsShort,
     tiktokPostMode, tiktokPrivacyLevel, tiktokDisableDuet, tiktokDisableStitch, tiktokDisableComment,
+    tiktokCommercialDisclosure, tiktokYourBrand, tiktokBrandedContent,
     linkedinArticleUrl,
     customThumbnailMediaId,
     geoLabel, geoLat, geoLng, geoFacebookPlaceId, geoTwitterPlaceId,
@@ -322,6 +328,9 @@ async function updatePost(id, body = {}, userId, userRole) {
   if (tiktokDisableDuet !== undefined)       { fields.push('tiktok_disable_duet = ?');      values.push(tiktokDisableDuet ? 1 : 0); }
   if (tiktokDisableStitch !== undefined)     { fields.push('tiktok_disable_stitch = ?');    values.push(tiktokDisableStitch ? 1 : 0); }
   if (tiktokDisableComment !== undefined)    { fields.push('tiktok_disable_comment = ?');   values.push(tiktokDisableComment ? 1 : 0); }
+  if (tiktokCommercialDisclosure !== undefined) { fields.push('tiktok_commercial_disclosure = ?'); values.push(tiktokCommercialDisclosure ? 1 : 0); }
+  if (tiktokYourBrand !== undefined)         { fields.push('tiktok_your_brand = ?');        values.push(tiktokYourBrand ? 1 : 0); }
+  if (tiktokBrandedContent !== undefined)    { fields.push('tiktok_branded_content = ?');   values.push(tiktokBrandedContent ? 1 : 0); }
   if (linkedinArticleUrl !== undefined)      { fields.push('linkedin_article_url = ?');     values.push(linkedinArticleUrl || null); }
   if (customThumbnailMediaId !== undefined)  { fields.push('custom_thumbnail_media_id = ?'); values.push(customThumbnailMediaId || null); }
   if (geoLabel !== undefined)                { fields.push('geo_label = ?');                values.push(geoLabel || null); }
@@ -542,6 +551,9 @@ function formatPost(row) {
     tiktokDisableDuet:       !!row.tiktok_disable_duet,
     tiktokDisableStitch:     !!row.tiktok_disable_stitch,
     tiktokDisableComment:    !!row.tiktok_disable_comment,
+    tiktokCommercialDisclosure: !!row.tiktok_commercial_disclosure,
+    tiktokYourBrand:         !!row.tiktok_your_brand,
+    tiktokBrandedContent:    !!row.tiktok_branded_content,
     linkedinArticleUrl:      row.linkedin_article_url || null,
     customThumbnailMediaId:  row.custom_thumbnail_media_id || null,
     geoLabel:                row.geo_label || null,

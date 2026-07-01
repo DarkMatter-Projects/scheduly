@@ -31,6 +31,7 @@ async function publishPost(postId) {
             linkedin_article_url,
             tiktok_post_mode, tiktok_privacy_level,
             tiktok_disable_duet, tiktok_disable_stitch, tiktok_disable_comment,
+            tiktok_commercial_disclosure, tiktok_your_brand, tiktok_branded_content,
             youtube_privacy, youtube_title, youtube_made_for_kids, youtube_is_short,
             geo_label, geo_lat, geo_lng, geo_facebook_place_id, geo_twitter_place_id,
             facebook_photo_tags
@@ -270,10 +271,37 @@ async function publishPost(postId) {
           mediaIds,
         });
       } else if (target.platform === 'tiktok') {
-        // TikTok returns a publish_id, not a platform post id — the post
-        // finishes processing async on TikTok's side. We store the publish_id
-        // in platform_post_id and a status checker can resolve the final
-        // post URL later.
+        // TikTok Content Sharing Guidelines § 1c + § 3b: enforce
+        // per-account caps + branded-content privacy rule *before*
+        // the API call so we surface a clear error instead of a
+        // TikTok API rejection.
+        try {
+          const tt = require('./tiktok_posting.service');
+          const accessToken = await tt.ensureFreshAccessToken(target.social_account_row_id);
+          const creatorInfo = await tt.queryCreatorInfo(accessToken);
+          if (creatorInfo.can_post_more === false) {
+            throw new Error('TikTok posting cap reached for this account — try again in 24 hours.');
+          }
+          if (!Array.isArray(creatorInfo.privacy_level_options)
+              || !creatorInfo.privacy_level_options.includes(post.tiktok_privacy_level)) {
+            throw new Error(`TikTok privacy level "${post.tiktok_privacy_level}" is not available for this account.`);
+          }
+          if (post.tiktok_branded_content && post.tiktok_privacy_level === 'SELF_ONLY') {
+            throw new Error('TikTok Branded Content cannot be posted with SELF_ONLY visibility.');
+          }
+          // § 1c — duration check for videos
+          const maxSec = Number(creatorInfo.max_video_post_duration_sec) || 0;
+          if (maxSec > 0) {
+            const videoMedia = mediaFiles.find(m => (m.mimeType || '').startsWith('video/'));
+            if (videoMedia && videoMedia.durationSeconds && videoMedia.durationSeconds > maxSec) {
+              throw new Error(`Video is longer than TikTok's cap of ${maxSec}s for this account.`);
+            }
+          }
+        } catch (err) {
+          // Bubble up as a clean publish error — post_targets.status
+          // flips to 'failed' with this text.
+          throw err;
+        }
         platformPostId = await publishToTikTok(
           target.social_account_row_id,
           post.content,
@@ -284,6 +312,11 @@ async function publishPost(postId) {
             disableDuet: !!post.tiktok_disable_duet,
             disableStitch: !!post.tiktok_disable_stitch,
             disableComment: !!post.tiktok_disable_comment,
+            // § 3 — commercial content disclosure. TikTok's publish/init
+            // endpoint accepts brand_organic_toggle (Your Brand) and
+            // brand_content_toggle (Branded Content).
+            brandOrganicToggle:  !!post.tiktok_commercial_disclosure && !!post.tiktok_your_brand,
+            brandContentToggle:  !!post.tiktok_commercial_disclosure && !!post.tiktok_branded_content,
           }
         );
       } else {

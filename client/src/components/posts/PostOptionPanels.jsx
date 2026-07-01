@@ -11,7 +11,7 @@ import clsx from 'clsx';
 import { Hash, Film, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { searchPlaces } from '../../api/postsApi';
-import { searchInstagramProducts } from '../../api/socialApi';
+import { searchInstagramProducts, getTiktokCreatorInfo } from '../../api/socialApi';
 import { listMedia } from '../../api/mediaApi';
 
 export default function PostOptionPanels({
@@ -317,6 +317,18 @@ export default function PostOptionPanels({
         </div>
       )}
 
+      {/* TikTok compliance — one panel per TT account (their creator_info
+          may differ, e.g. one has comments disabled and another doesn't). */}
+      {selectedAccounts.filter(a => a.platform === 'tiktok').map(account => (
+        <TiktokCompliancePanel
+          key={account.id}
+          account={account}
+          attachedMedia={attachedMedia}
+          value={value}
+          onChange={(patch) => onChange({ ...value, ...patch })}
+        />
+      ))}
+
       {productPickerOpen && (
         <InstagramProductPicker
           igAccounts={selectedAccounts.filter(a => a.platform === 'instagram_business')}
@@ -608,4 +620,298 @@ function ThumbnailPickerModal({ onSelect, onClose }) {
       </div>
     </div>
   );
+}
+
+// ── TikTok compliance panel ──────────────────────────────────────────────────
+//
+// Renders the "Post to TikTok" UI the way TikTok's Content Sharing
+// Guidelines require (§ 1-4). Live-fetches creator_info from
+// /api/social/accounts/:id/tiktok-creator-info before letting the
+// user configure anything. One instance per TT account — multi-TT
+// posts stack panels.
+export function TiktokCompliancePanel({ account, attachedMedia, value, onChange }) {
+  const { data: info, isLoading, isError, error } = useQuery({
+    queryKey: ['tiktok-creator-info', account.id],
+    queryFn: () => getTiktokCreatorInfo(account.id),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const isPhotoPost = attachedMedia.length > 0 && attachedMedia.every(m => (m.mimeType || '').startsWith('image/'));
+
+  const videoMedia = attachedMedia.find(m => (m.mimeType || '').startsWith('video/'));
+  const durationOk = !videoMedia
+    || !videoMedia.durationSeconds
+    || !info?.maxVideoPostDurationSec
+    || videoMedia.durationSeconds <= info.maxVideoPostDurationSec;
+
+  useEffect(() => {
+    if (value.tiktokBrandedContent && value.tiktokPrivacyLevel === 'SELF_ONLY' && info?.privacyLevelOptions?.length) {
+      const next = info.privacyLevelOptions.find(o => o !== 'SELF_ONLY');
+      if (next) onChange({ tiktokPrivacyLevel: next });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.tiktokBrandedContent, info]);
+
+  const declaration = value.tiktokCommercialDisclosure && value.tiktokBrandedContent
+    ? { text: 'By posting, you agree to TikTok\'s ', links: [
+        { label: 'Branded Content Policy', href: 'https://www.tiktok.com/legal/page/global/bc-policy/en' },
+        { label: 'Music Usage Confirmation', href: 'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en' },
+      ], joiner: ' and ' }
+    : { text: 'By posting, you agree to TikTok\'s ', links: [
+        { label: 'Music Usage Confirmation', href: 'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en' },
+      ], joiner: '' };
+
+  const disclosureIncomplete = value.tiktokCommercialDisclosure
+    && !value.tiktokYourBrand
+    && !value.tiktokBrandedContent;
+
+  const contentLabelPrompt = value.tiktokCommercialDisclosure
+    ? (value.tiktokBrandedContent
+        ? 'Your photo/video will be labeled as "Paid partnership".'
+        : (value.tiktokYourBrand ? 'Your photo/video will be labeled as "Promotional content".' : null))
+    : null;
+
+  const PRIVACY_LABEL = {
+    PUBLIC_TO_EVERYONE:       'Public — Everyone',
+    MUTUAL_FOLLOW_FRIENDS:    'Friends — Mutual followers',
+    FOLLOWER_OF_CREATOR:      'Followers',
+    SELF_ONLY:                'Only me',
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">TikTok — {account.accountName || `#${account.id}`}</h4>
+      </div>
+
+      {isLoading && <p className="text-[11px] text-slate-500 italic">Loading TikTok account info…</p>}
+
+      {isError && (
+        <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-md p-2">
+          Couldn't fetch creator info: {error?.response?.data?.error || error?.message}. Try reconnecting the account.
+        </p>
+      )}
+
+      {info && info.error && (
+        <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
+          {info.error}
+        </p>
+      )}
+
+      {info && !info.error && (
+        <>
+          <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
+            {info.creatorAvatarUrl
+              ? <img src={info.creatorAvatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
+              : <div className="w-10 h-10 rounded-full bg-slate-200" />}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-slate-900 truncate">Posting as {info.creatorNickname || info.creatorUsername || 'TikTok user'}</p>
+              {info.creatorUsername && info.creatorUsername !== info.creatorNickname && (
+                <p className="text-[10px] text-slate-500 truncate">@{info.creatorUsername}</p>
+              )}
+            </div>
+          </div>
+
+          {info.canPostMore === false && (
+            <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-md p-2">
+              This TikTok account has hit its posting limit for now. Try again later.
+            </p>
+          )}
+
+          {videoMedia && info.maxVideoPostDurationSec > 0 && !durationOk && (
+            <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-md p-2">
+              The attached video is {Math.round(videoMedia.durationSeconds)}s but TikTok caps this account at {info.maxVideoPostDurationSec}s. Trim it before publishing.
+            </p>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Post mode</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onChange({ tiktokPostMode: 'INBOX' })}
+                className={clsx('px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                  value.tiktokPostMode === 'INBOX' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-700')}
+              >
+                <div className="font-semibold">Send to inbox</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">User finishes posting in the TikTok app</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange({ tiktokPostMode: 'DIRECT_POST' })}
+                className={clsx('px-3 py-2 text-xs font-medium rounded-lg border text-left',
+                  value.tiktokPostMode === 'DIRECT_POST' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-700')}
+              >
+                <div className="font-semibold">Publish directly</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Scheduly posts it for you (needs app review)</div>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Who can see this <span className="text-rose-600">*</span></label>
+            <select
+              value={value.tiktokPrivacyLevel || ''}
+              onChange={e => onChange({ tiktokPrivacyLevel: e.target.value })}
+              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white"
+            >
+              <option value="">— Select who can view your post —</option>
+              {(info.privacyLevelOptions || []).map(opt => (
+                <option
+                  key={opt}
+                  value={opt}
+                  disabled={value.tiktokBrandedContent && opt === 'SELF_ONLY'}
+                  title={value.tiktokBrandedContent && opt === 'SELF_ONLY' ? 'Branded content visibility cannot be set to private.' : undefined}
+                >
+                  {PRIVACY_LABEL[opt] || opt}
+                </option>
+              ))}
+            </select>
+            {value.tiktokBrandedContent && (
+              <p className="text-[10px] text-slate-500 mt-1">Branded content visibility cannot be set to private.</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Interactions</label>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <TiktokInteractionToggle
+                label="Allow comments"
+                apiDisabled={!!info.commentDisabled}
+                checked={!value.tiktokDisableComment}
+                onChange={(allow) => onChange({ tiktokDisableComment: !allow })}
+              />
+              {!isPhotoPost && (
+                <>
+                  <TiktokInteractionToggle
+                    label="Allow Duet"
+                    apiDisabled={!!info.duetDisabled}
+                    checked={!value.tiktokDisableDuet}
+                    onChange={(allow) => onChange({ tiktokDisableDuet: !allow })}
+                  />
+                  <TiktokInteractionToggle
+                    label="Allow Stitch"
+                    apiDisabled={!!info.stitchDisabled}
+                    checked={!value.tiktokDisableStitch}
+                    onChange={(allow) => onChange({ tiktokDisableStitch: !allow })}
+                  />
+                </>
+              )}
+            </div>
+            {isPhotoPost && (
+              <p className="text-[10px] text-slate-400 mt-1">Duet and Stitch don't apply to photo posts.</p>
+            )}
+          </div>
+
+          <div className="border-t border-slate-200 pt-3">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={value.tiktokCommercialDisclosure}
+                onChange={e => onChange({
+                  tiktokCommercialDisclosure: e.target.checked,
+                  ...(e.target.checked ? {} : { tiktokYourBrand: false, tiktokBrandedContent: false }),
+                })}
+                className="mt-0.5 rounded border-slate-300"
+              />
+              <span className="text-xs text-slate-700">
+                <span className="font-medium">Disclose commercial content</span>
+                <span className="block text-[10px] text-slate-500 mt-0.5">This post promotes yourself, a brand, product, or service.</span>
+              </span>
+            </label>
+            {value.tiktokCommercialDisclosure && (
+              <div className="mt-2 space-y-2 pl-6">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={value.tiktokYourBrand}
+                    onChange={e => onChange({ tiktokYourBrand: e.target.checked })}
+                    className="mt-0.5 rounded border-slate-300"
+                  />
+                  <span className="text-xs text-slate-700">
+                    <span className="font-medium">Your brand</span>
+                    <span className="block text-[10px] text-slate-500">You are promoting yourself or your own business.</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={value.tiktokBrandedContent}
+                    onChange={e => onChange({ tiktokBrandedContent: e.target.checked })}
+                    className="mt-0.5 rounded border-slate-300"
+                  />
+                  <span className="text-xs text-slate-700">
+                    <span className="font-medium">Branded content</span>
+                    <span className="block text-[10px] text-slate-500">You are promoting another brand or a third party.</span>
+                  </span>
+                </label>
+                {disclosureIncomplete && (
+                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
+                    You need to indicate if your content promotes yourself, a third party, or both.
+                  </p>
+                )}
+                {contentLabelPrompt && (
+                  <p className="text-[11px] text-slate-700 bg-slate-100 border border-slate-200 rounded-md p-2">
+                    {contentLabelPrompt}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-200 pt-3 space-y-2">
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              {declaration.text}
+              {declaration.links.map((l, i) => (
+                <span key={l.href}>
+                  {i > 0 && declaration.joiner}
+                  <a href={l.href} target="_blank" rel="noopener noreferrer" className="underline text-blue-600 hover:text-blue-800">{l.label}</a>
+                </span>
+              ))}
+              .
+            </p>
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              After you publish, TikTok may take a few minutes to process the upload before it appears on the profile.
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TiktokInteractionToggle({ label, apiDisabled, checked, onChange }) {
+  return (
+    <label
+      className={clsx(
+        'flex items-center gap-1.5',
+        apiDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+      )}
+      title={apiDisabled ? 'This account has this interaction disabled in TikTok settings.' : undefined}
+    >
+      <input
+        type="checkbox"
+        checked={checked && !apiDisabled}
+        disabled={apiDisabled}
+        onChange={e => onChange(e.target.checked)}
+        className="rounded border-slate-300"
+      />
+      {label}
+    </label>
+  );
+}
+
+// Predicate used by the composer's publish button. Returns null when
+// the config is compliant; a string reason otherwise. Kept exported so
+// the same rule set applies on both Create and Edit pages.
+export function tiktokCompliance(value) {
+  if (!value.tiktokPrivacyLevel) return 'Pick who can see this TikTok post.';
+  if (value.tiktokCommercialDisclosure && !value.tiktokYourBrand && !value.tiktokBrandedContent) {
+    return 'Indicate whether this promotes yourself, a third party, or both.';
+  }
+  if (value.tiktokBrandedContent && value.tiktokPrivacyLevel === 'SELF_ONLY') {
+    return 'Branded content cannot be posted as private.';
+  }
+  return null;
 }

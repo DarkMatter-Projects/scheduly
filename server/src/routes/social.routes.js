@@ -31,5 +31,6 @@ router.delete('/accounts/:id', authenticate, requireRole('admin'), socialControl
 router.post('/accounts/:id/reconnect', authenticate, requireRole('admin'), socialController.reconnectAccount);
 router.post('/accounts/:id/import-history', authenticate, requireRole('admin', 'manager'), socialController.importHistory);
 router.get('/accounts/:id/instagram-products', authenticate, socialController.searchInstagramProducts);
+router.get('/accounts/:id/tiktok-creator-info', authenticate, socialController.tiktokCreatorInfo);
 
 module.exports = router;

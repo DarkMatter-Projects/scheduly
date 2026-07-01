@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPost, deletePost, submitForApproval, approvePost, rejectPost, schedulePost, refreshTiktokTargetStatus, setTargetPinned, createApprovalToken, listApprovalTokens, revokeApprovalToken } from '../api/postsApi';
@@ -44,6 +44,13 @@ function TargetRow({ target }) {
   const isTiktok = target.platform === 'tiktok';
   const canPin = (target.platform === 'facebook_page' || target.platform === 'twitter')
     && target.status === 'published';
+  // TikTok Content Sharing Guidelines § 5e: while a TT publish is in
+  // flight, poll the status endpoint so the user sees when it lands.
+  // Cap at 10 minutes so a stuck target doesn't hammer forever.
+  const ttProcessing = isTiktok
+    && target.platformPostId
+    && ttStatus?.tiktokStatus !== 'PUBLISH_COMPLETE'
+    && ttStatus?.tiktokStatus !== 'FAILED';
 
   const refreshMut = useMutation({
     mutationFn: () => refreshTiktokTargetStatus(target.id),
@@ -70,6 +77,28 @@ function TargetRow({ target }) {
     },
     onError: (err) => toast.error(err.response?.data?.error || err.message),
   });
+
+  // Auto-poll TikTok status while processing. Runs every 15 s for up
+  // to 10 minutes then gives up so users understand something's off.
+  useEffect(() => {
+    if (!ttProcessing) return;
+    let attempts = 0;
+    const maxAttempts = 40; // 40 × 15s = 10 minutes
+    const tick = () => {
+      if (attempts >= maxAttempts) return;
+      attempts++;
+      refreshTiktokTargetStatus(target.id)
+        .then(setTtStatus)
+        .catch(() => {})
+        .finally(() => {
+          if (ttStatus?.tiktokStatus === 'PUBLISH_COMPLETE' || ttStatus?.tiktokStatus === 'FAILED') return;
+          setTimeout(tick, 15000);
+        });
+    };
+    const t = setTimeout(tick, 3000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target.id, ttProcessing]);
 
   return (
     <div className="text-sm">
@@ -124,6 +153,12 @@ function TargetRow({ target }) {
           })()}
         </div>
       </div>
+      {ttProcessing && (
+        <div className="mt-2 flex items-center gap-2 px-2 py-1.5 text-[11px] rounded-md bg-blue-50 border border-blue-100 text-blue-800">
+          <RefreshCw className="w-3 h-3 animate-spin" />
+          TikTok is processing this upload. It may take a few minutes to appear on the profile.
+        </div>
+      )}
       {ttStatus && (
         <p className="text-[11px] text-slate-500 mt-1">
           {TIKTOK_STATUS_LABEL[ttStatus.tiktokStatus] || `TikTok: ${ttStatus.tiktokStatus || 'unknown'}`}

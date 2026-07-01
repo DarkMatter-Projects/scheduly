@@ -43,3 +43,9 @@ export const importHistory = (id) =>
 // Returns { products, notice? }.
 export const searchInstagramProducts = (accountId, query) =>
   api.get(`/social/accounts/${accountId}/instagram-products`, { params: { q: query } }).then(r => r.data);
+
+// TikTok creator info — required by TikTok's Content Sharing Guidelines
+// (§1) before rendering the Post-to-TikTok page. Returns privacy
+// options, per-account interaction disables, and posting caps.
+export const getTiktokCreatorInfo = (accountId) =>
+  api.get(`/social/accounts/${accountId}/tiktok-creator-info`).then(r => r.data);
