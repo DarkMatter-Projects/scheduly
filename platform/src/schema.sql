@@ -1,0 +1,24 @@
+CREATE SCHEMA IF NOT EXISTS scheduly;
+CREATE TABLE IF NOT EXISTS scheduly.clients(id text PRIMARY KEY,name text NOT NULL,colour text NOT NULL);
+CREATE TABLE IF NOT EXISTS scheduly.memberships(user_id text NOT NULL,client_id text REFERENCES scheduly.clients(id),role text NOT NULL CHECK(role IN ('editor','manager')),PRIMARY KEY(user_id,client_id));
+CREATE TABLE IF NOT EXISTS scheduly.accounts(id text PRIMARY KEY,client_id text NOT NULL REFERENCES scheduly.clients(id),name text NOT NULL,network text NOT NULL CHECK(network IN ('instagram','facebook','linkedin','youtube','tiktok')),connection text NOT NULL DEFAULT 'not_connected',external_id text);
+CREATE TABLE IF NOT EXISTS scheduly.posts(id uuid PRIMARY KEY,client_id text NOT NULL REFERENCES scheduly.clients(id),revision integer NOT NULL DEFAULT 1,status text NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','in_review','approved','scheduled','published','needs_attention','cancelled')),title text NOT NULL,caption text NOT NULL DEFAULT '',variants jsonb NOT NULL DEFAULT '{}',account_ids jsonb NOT NULL DEFAULT '[]',media jsonb NOT NULL DEFAULT '[]',scheduled_at timestamptz,timezone text NOT NULL DEFAULT 'Africa/Johannesburg',approved_revision integer,created_by text NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS scheduly.revisions(post_id uuid REFERENCES scheduly.posts(id),revision integer NOT NULL,payload jsonb NOT NULL,created_by text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(post_id,revision));
+CREATE TABLE IF NOT EXISTS scheduly.events(id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,post_id uuid REFERENCES scheduly.posts(id),actor text NOT NULL,action text NOT NULL,revision integer NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS scheduly.deliveries(id uuid PRIMARY KEY,post_id uuid NOT NULL REFERENCES scheduly.posts(id),revision integer NOT NULL,account_id text NOT NULL REFERENCES scheduly.accounts(id),due_at timestamptz NOT NULL,state text NOT NULL DEFAULT 'queued' CHECK(state IN ('queued','claimed','processing','published','needs_attention','unknown_outcome','cancelled')),lease_until timestamptz,attempt integer NOT NULL DEFAULT 0,operation_id text,published_id text,last_error text,UNIQUE(post_id,revision,account_id));
+CREATE INDEX IF NOT EXISTS due_deliveries ON scheduly.deliveries(due_at) WHERE state='queued';
+CREATE INDEX IF NOT EXISTS calendar_posts ON scheduly.posts(client_id,scheduled_at);
+CREATE TABLE IF NOT EXISTS scheduly.media(id uuid PRIMARY KEY,client_id text NOT NULL REFERENCES scheduly.clients(id),name text NOT NULL,mime text NOT NULL,size bigint NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS scheduly.save_receipts(user_id text NOT NULL,request_id uuid NOT NULL,input_hash text NOT NULL,response jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,request_id));
+ALTER TABLE scheduly.save_receipts ENABLE ROW LEVEL SECURITY;
+-- API is the sole privileged gateway. No anonymous/direct authenticated table access.
+ALTER TABLE scheduly.clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduly.memberships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduly.accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduly.posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduly.revisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduly.events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduly.deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduly.media ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON SCHEMA scheduly FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA scheduly FROM PUBLIC;

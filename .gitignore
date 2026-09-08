@@ -37,3 +37,8 @@ Thumbs.db
 # Misc
 coverage/
 .cache/
+
+# Local rebuild rehearsal assets
+platform/.data/
+
+client/dist-workspace/
