@@ -63,3 +63,11 @@ The `workspace` Edge Function verifies bearer tokens using Supabase `getUser`, r
 The real frontend uses explicit `VITE_WORKSPACE_*` configuration and a PKCE email-link login gate. The default preview remains local. Hosted preview runs on port 5176; Supabase's temporary site URL points to `http://127.0.0.1:5176/workspace.html`. Replace this with the reviewed hosted HTTPS callback before team rollout. Only a publishable key is used in the browser. No private credentials are committed. A first login email was requested for jason@darkm.co.za; confirmation is pending. The DarkMatter client container and Jason's manager membership were provisioned, with no posts or social credentials imported.
 
 Sixteen automated tests, lint, hosted/local client builds and Deno checking pass. Native review of the gateway and login changes found no actionable defects. Hosted uploads and live scheduling are deliberately unavailable; native provider connections, analytics ingestion, hosted frontend deployment, team invitations and full login verification remain unfinished. The gateway rejects hosted schedule requests and keeps the approved content intact.
+
+### Private media gateway
+
+The private `scheduly-media` bucket is provisioned with a 20 MB limit and JPEG, PNG, WebP and MP4 allowlist. Workspace Edge Function version 3 adds verified-user uploads, client membership checks, server-generated object paths and five-minute preview links. Failed metadata writes remove the uploaded object. Routine snapshot polling preserves valid preview URLs and active video playback.
+
+Validation: 20 platform behavioural tests pass; rebuilt workspace ESLint passes; hosted Vite build and Deno check pass. The legacy-wide lint command remains failing in old application files and generated output. Hosted upload success still needs a real confirmed user session; do not treat deployment as proof of an end-to-end upload. Native media review identified rotating video sources; the cache and playback fix addresses it.
+
+Vercel import can find the repository, but currently selects `main`. The rebuilt branch must be selected before deployment; no legacy deployment was replaced.

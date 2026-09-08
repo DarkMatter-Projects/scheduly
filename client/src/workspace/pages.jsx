@@ -1,3 +1,4 @@
+import VideoPreview from "./video-preview";
 import { useState, useEffect, useRef } from "react";
 import {
   Download,
@@ -72,7 +73,6 @@ export function Media({ data, clientId, onRefresh }) {
   const [chosen, setChosen] = useState(clientId || data.clients[0]?.id),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const hosted = data.mode !== "local-rehearsal";
   const assets = data.media.filter(
     (a) => !clientId || a.client_id === clientId,
   );
@@ -104,14 +104,10 @@ export function Media({ data, clientId, onRefresh }) {
         </label>
         <label className={`button primary ${busy ? "disabled" : ""}`}>
           <Upload size={16} />
-          {hosted
-            ? "Hosted uploads coming next"
-            : busy
-              ? "Uploading…"
-              : "Upload original"}
+          {busy ? "Uploading…" : "Upload original"}
           <input
             hidden
-            disabled={busy || hosted}
+            disabled={busy}
             type="file"
             accept="image/jpeg,image/png,image/webp,video/mp4"
             onChange={(e) => {
@@ -133,7 +129,7 @@ export function Media({ data, clientId, onRefresh }) {
               {a.mime.startsWith("image") ? (
                 <img src={mediaUrl(a.id)} alt={a.name} />
               ) : (
-                <video src={mediaUrl(a.id)} controls />
+                <VideoPreview src={mediaUrl(a.id)} controls />
               )}
               <b>{a.name}</b>
               <small>
@@ -395,7 +391,7 @@ export function Detail({ post, data, onClose, onEdit, onRefresh }) {
             return (
               <figure key={id} className="review-asset">
                 {asset?.mime?.startsWith("video/") ? (
-                  <video
+                  <VideoPreview
                     className="detail-image"
                     src={mediaUrl(id)}
                     controls

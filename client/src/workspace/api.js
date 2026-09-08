@@ -1,5 +1,7 @@
+import { rememberMedia } from "./media-cache.mjs";
 import { supabase } from "./auth-client";
 const apiBase = import.meta.env.VITE_WORKSPACE_API_URL || "/workspace-api";
+const mediaUrls = new Map();
 export async function request(path, body) {
   const authHeaders = {};
   if (supabase) {
@@ -27,6 +29,11 @@ export async function request(path, body) {
   );
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Request failed.");
+  if (supabase && path === "snapshot") {
+    rememberMedia(mediaUrls, data.media || []);
+  }
+  if (supabase && path === "media" && data.url)
+    mediaUrls.set(data.id, { url: data.url, expiresAt: data.expiresAt });
   return data;
 }
 export async function upload(file, clientId) {
@@ -39,7 +46,8 @@ export async function upload(file, clientId) {
   });
   return request("media", { name: file.name, mime: file.type, data, clientId });
 }
-export const mediaUrl = (id) => `/workspace-api/media/${id}`;
+export const mediaUrl = (id) =>
+  supabase ? mediaUrls.get(id)?.url : `/workspace-api/media/${id}`;
 export const labels = {
   draft: "Draft",
   in_review: "Needs approval",

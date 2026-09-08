@@ -1,3 +1,4 @@
+import VideoPreview from "./video-preview";
 import { persistComposer } from "./save-composer.mjs";
 import { useEffect, useState } from "react";
 import {
@@ -103,10 +104,6 @@ export default function Composer({
   }
   async function addFile(file) {
     if (!file) return;
-    if (data.mode !== "local-rehearsal") {
-      setError("Hosted media uploads are not enabled yet.");
-      return;
-    }
     setBusy(true);
     setError("");
     try {
@@ -268,7 +265,7 @@ export default function Composer({
             {media.map((id) => (
               <div className="media-choice" key={id}>
                 {assets.find((a) => a.id === id)?.mime.startsWith("video") ? (
-                  <video src={mediaUrl(id)} controls />
+                  <VideoPreview src={mediaUrl(id)} controls />
                 ) : (
                   <img
                     src={mediaUrl(id)}
@@ -412,7 +409,7 @@ export default function Composer({
           </header>
           {media[0] ? (
             assets.find((a) => a.id === media[0])?.mime.startsWith("video") ? (
-              <video controls src={mediaUrl(media[0])} />
+              <VideoPreview controls src={mediaUrl(media[0])} />
             ) : (
               <img src={mediaUrl(media[0])} alt="Post preview" />
             )
