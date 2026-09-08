@@ -31,7 +31,7 @@ const fetcher = async (url, options) => {
     return Response.json({
       data: {
         publish_id: "upload-one",
-        upload_url: "https://open-upload.tiktokapis.com/video/?upload_id=1",
+        upload_url: "https://upload.us.tiktokapis.com/video/?upload_id=1",
       },
       error: { code: "ok" },
     });
@@ -40,7 +40,7 @@ const fetcher = async (url, options) => {
       data: { status: "SEND_TO_USER_INBOX" },
       error: { code: "ok" },
     });
-  if (url.startsWith("https://open-upload.tiktokapis.com/"))
+  if (url.startsWith("https://upload.us.tiktokapis.com/"))
     return new Response(null, { status: 201 });
   throw new Error("Unexpected endpoint");
 };

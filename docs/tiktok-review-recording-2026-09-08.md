@@ -1,6 +1,6 @@
 # TikTok review recording
 
-Status: not recorded or submitted. No successful TikTok authorisation or draft transfer has been observed.
+Status: real hosted sandbox authorisation and draft upload verified on 2026-09-08. TikTok returned SEND_TO_USER_INBOX. Two Chrome evidence clips attached and the application submitted. The portal confirms In review. See platform-submission-checklist-2026-09-08.md for the current status.
 
 - Production app: DarkMatter Scheduly, 7683147026833475605.
 - Review sandbox: Scheduly review sandbox, 7683114165468284949.
@@ -18,13 +18,16 @@ Status: not recorded or submitted. No successful TikTok authorisation or draft t
 6. Explicitly confirm the draft transfer. Show actual processing/status results, without access tokens or client secrets.
 7. Show the corresponding TikTok inbox/draft result. Do not publish publicly for the recording.
 
-## Remaining gates
+## Submitted evidence
 
-- Target account authorisation: @rossi6239 observed in the sandbox target users on 2026-09-08. This is not yet a Scheduly OAuth connection.
-- Hosted TikTok OAuth and draft-upload integration: not implemented.
-- URL ownership: portal supplied tiktokVYW9HHSeQFFnebPNAkuwwg2LQVsoIuLa.txt. File contents have not been retrieved; browser security policy blocked opening its blob URL. User file handoff required. Do not fabricate the signature.
-- Public terms page: prepared in client/public/terms.html.
-- Reviewer video: must demonstrate the real sandbox flow, not simulated success or a slideshow.
+Chrome authorisation succeeded as Rossi after the user signed in. Two clips were captured from the application tab, converted to MP4, visually inspected and uploaded:
+
+- `../review-assets/scheduly-tiktok-consent-2026-09-08.mp4`: actual TikTok consent and return to the connected account.
+- `../review-assets/scheduly-tiktok-review-2026-09-08.mp4`: original-video selection, explicit consent and the actual SEND_TO_USER_INBOX status check of a previously transferred draft. It does not show a fresh transfer or the mobile inbox; the submission explicitly explains this limitation.
+
+The actual files are in the project knowledge directory's `review-assets/`, outside this source repository. The original sandbox test MP4 was not submitted as an application demo.
+
+Production configuration saved and final submission sent on 2026-09-08. TikTok displayed In review and confirmed receipt. Approval remains pending; the hosted integration still uses sandbox credentials. Further recording may be required by the reviewer.
 
 ## Sources
 

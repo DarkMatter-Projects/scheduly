@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
   createHash,
   randomBytes,
@@ -201,10 +202,15 @@ export function createTikTokService({
           prepared.token,
           { publish_id: prepared.previous.publish_id },
         );
+        if (typeof result.status !== "string" || result.status.length>80) throw new Fault(502,"TikTok returned an invalid status.");
+        await transaction(c=>c.query("UPDATE scheduly.tiktok_draft_uploads SET status=$2 WHERE id=$1",[prepared.previous.id,result.status]));
         return {
           status: result.status,
-          message:
-            "Open your TikTok inbox to review and finish posting. This is a draft upload.",
+          message: result.status === "SEND_TO_USER_INBOX"
+            ? "Open your TikTok inbox to review and finish posting. This is a draft upload."
+            : result.status === "FAILED"
+              ? "TikTok could not process this video. The upload needs attention."
+              : "TikTok is processing or updating this upload. Check again for its final status.",
         };
       }
       let initStarted = false;
@@ -236,7 +242,7 @@ export function createTikTokService({
         const target = new URL(init.upload_url);
         if (
           target.protocol !== "https:" ||
-          target.hostname !== "open-upload.tiktokapis.com" ||
+          !target.hostname.endsWith(".tiktokapis.com") ||
           target.port ||
           target.username ||
           target.password ||
@@ -317,6 +323,7 @@ export function createTikTokService({
           client_key: config.clientKey,
           scope: requiredScopes.join(","),
           response_type: "code",
+          disable_auto_auth: "1",
           redirect_uri: config.redirectUri,
           state,
         }).toString();
