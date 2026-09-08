@@ -44,6 +44,8 @@ export function createMediaService({ transaction, membership, storage }) {
           requireRole(await membership(c, user, input.clientId), [
             "editor",
             "manager",
+            "reviewer",
+            "creator",
           ]);
           const { error } = await bucket.upload(path, bytes, {
             contentType: input.mime,

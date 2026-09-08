@@ -1819,3 +1819,5 @@ textarea {
   max-height: none;
   color: var(--ink);
 }
+
+.team-row{display:flex;justify-content:space-between;align-items:center;padding:18px 0;border-bottom:1px solid #ddd;gap:20px}.team-row small{display:block;margin-top:6px}.settings fieldset{margin-top:24px;padding:20px;border:1px solid #ccc;display:grid;gap:16px}.settings fieldset label{display:block}.settings fieldset input[type=email],.settings fieldset select{display:block;padding:10px;width:100%;margin-top:8px}.settings fieldset input[type=checkbox]{margin-right:8px}

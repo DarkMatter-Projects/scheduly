@@ -1,3 +1,4 @@
+import Team from "./team";
 import { supabase } from "./auth-client";
 import { createElement, useEffect, useState } from "react";
 import {
@@ -19,7 +20,7 @@ import { request, labels, networks } from "./api";
 import { AddButton, Avatar, Empty } from "./primitives";
 import Calendar, { AttentionRail, PostList } from "./calendar";
 import Composer from "./composer";
-import { Accounts, Media, Analytics, Detail, Settings } from "./pages";
+import { Accounts, Media, Analytics, Detail } from "./pages";
 const nav = [
   ["Calendar", CalendarDays],
   ["Content", Layers],
@@ -96,6 +97,10 @@ export default function App() {
     return () => window.removeEventListener("keydown", listener);
   }, []);
   const newPost = (date) => {
+    if (data.team?.role === "viewer") {
+      setToast("Your Viewer role is read-only.");
+      return;
+    }
     if (!data.clients.length) {
       setToast(
         "Your account has no assigned clients yet. Ask your workspace administrator for access.",
@@ -411,7 +416,7 @@ export default function App() {
                   accountIds={accountIds}
                 />
               )}{" "}
-              {page === "Settings" && <Settings />}
+              {page === "Settings" && <Team data={data} onRefresh={refresh} />}
             </main>
             {page === "Calendar" && (
               <AttentionRail

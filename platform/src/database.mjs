@@ -26,6 +26,7 @@ export async function initialise() {
   await pool.query(
     await readFile(new URL("./schema.sql", import.meta.url), "utf8"),
   );
+  await pool.query(await readFile(new URL("./team-schema.sql", import.meta.url), "utf8"));
 }
 export async function seed() {
   await transaction(async (c) => {

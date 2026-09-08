@@ -1,8 +1,26 @@
+import { teamIdentity } from "./team.mjs";
 import { randomUUID, createHash } from "node:crypto";
 import { transaction } from "./database.mjs";
 import { Fault, requireRole, validatePost, checkAction } from "./domain.mjs";
 const json = JSON.stringify;
 export async function membership(c, user, clientId) {
+  const member = await teamIdentity(c, user);
+  if (member) {
+    if (!member.active)
+      throw new Fault(403, "Your workspace access is disabled.");
+    const access = await c.query(
+      "SELECT 1 FROM scheduly.clients WHERE id=$1 AND ($2='admin' OR EXISTS(SELECT 1 FROM scheduly.team_client_access WHERE email=$3 AND client_id=$1))",
+      [clientId, member.role, member.email],
+    );
+    if (!access.rowCount)
+      throw new Fault(403, "This client is outside your workspace access.");
+    return {
+      admin: "manager",
+      editor: "reviewer",
+      content_creator: "creator",
+      viewer: "viewer",
+    }[member.role];
+  }
   const { rows } = await c.query(
     "SELECT role FROM scheduly.memberships WHERE user_id=$1 AND client_id=$2",
     [user, clientId],
@@ -13,12 +31,22 @@ export async function membership(c, user, clientId) {
 }
 export async function snapshot(user) {
   return transaction(async (c) => {
-    const clients = (
-      await c.query(
-        "SELECT c.*,m.role FROM scheduly.clients c JOIN scheduly.memberships m ON m.client_id=c.id WHERE m.user_id=$1 ORDER BY c.name",
-        [user],
-      )
-    ).rows;
+    const team = await teamIdentity(c, user);
+    if (team && !team.active)
+      throw new Fault(403, "Your workspace access is disabled.");
+    const clients = team
+      ? (
+          await c.query(
+            "SELECT c.*,$2::text AS role FROM scheduly.clients c WHERE $2='admin' OR EXISTS(SELECT 1 FROM scheduly.team_client_access a WHERE a.email=$1 AND a.client_id=c.id) ORDER BY c.name",
+            [team.email, team.role],
+          )
+        ).rows
+      : (
+          await c.query(
+            "SELECT c.*,m.role FROM scheduly.clients c JOIN scheduly.memberships m ON m.client_id=c.id WHERE m.user_id=$1 ORDER BY c.name",
+            [user],
+          )
+        ).rows;
     const ids = clients.map((c) => c.id),
       rows = async (table) =>
         (
@@ -27,7 +55,13 @@ export async function snapshot(user) {
             [ids],
           )
         ).rows;
-    const posts = await rows("posts");
+    const posts = (await rows("posts")).filter(
+      (p) =>
+        team?.role !== "viewer" ||
+        ["approved", "scheduled", "published"].includes(p.status),
+    );
+    const visiblePosts = new Set(posts.map((p) => p.id));
+    const visibleMedia = new Set(posts.flatMap((p) => p.media));
     const deliveries = (
       await c.query(
         "SELECT d.* FROM scheduly.deliveries d JOIN scheduly.posts p ON p.id=d.post_id WHERE p.client_id=ANY($1::text[])",
@@ -42,11 +76,14 @@ export async function snapshot(user) {
     ).rows;
     return {
       clients,
+      team: team ? { role: team.role, email: team.email } : null,
       accounts: await rows("accounts"),
       posts,
-      media: await rows("media"),
-      deliveries,
-      events,
+      media: (await rows("media")).filter(
+        (a) => team?.role !== "viewer" || visibleMedia.has(a.id),
+      ),
+      deliveries: deliveries.filter((d) => visiblePosts.has(d.post_id)),
+      events: events.filter((e) => visiblePosts.has(e.post_id)),
       mode: "local-rehearsal",
       user: {
         id: user,
@@ -60,16 +97,33 @@ export async function snapshot(user) {
 export async function savePost(user, input, id) {
   return transaction(async (c) => {
     const role = await membership(c, user, input.clientId);
-    requireRole(role, ["editor", "manager"]);
+    requireRole(role, ["editor", "manager", "reviewer", "creator"]);
     const requestId = input.requestId;
-    const inputHash = createHash("sha256").update(json({ id: id || null, input })).digest("hex");
+    const inputHash = createHash("sha256")
+      .update(json({ id: id || null, input }))
+      .digest("hex");
     if (requestId) {
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId))
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          requestId,
+        )
+      )
         throw new Fault(422, "Invalid save request identifier.");
-      await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${user}:${requestId}`]);
-      const receipt = (await c.query("SELECT * FROM scheduly.save_receipts WHERE user_id=$1 AND request_id=$2", [user,requestId])).rows[0];
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+        `${user}:${requestId}`,
+      ]);
+      const receipt = (
+        await c.query(
+          "SELECT * FROM scheduly.save_receipts WHERE user_id=$1 AND request_id=$2",
+          [user, requestId],
+        )
+      ).rows[0];
       if (receipt) {
-        if (receipt.input_hash !== inputHash) throw new Fault(409,"A save identifier cannot be reused for different content.");
+        if (receipt.input_hash !== inputHash)
+          throw new Fault(
+            409,
+            "A save identifier cannot be reused for different content.",
+          );
         return receipt.response;
       }
     }
@@ -99,6 +153,14 @@ export async function savePost(user, input, id) {
       await membership(c, user, old.client_id);
       if (old.client_id !== input.clientId)
         throw new Fault(422, "Create a new post to change the client.");
+      if (
+        role === "creator" &&
+        (old.created_by !== user || old.status !== "draft")
+      )
+        throw new Fault(
+          403,
+          "Content Creators can edit only their own drafts.",
+        );
       if (old.revision !== input.revision)
         throw new Fault(
           409,
@@ -165,8 +227,14 @@ export async function savePost(user, input, id) {
         revision,
       ],
     );
-    const saved = (await c.query("SELECT * FROM scheduly.posts WHERE id=$1", [id])).rows[0];
-    if (requestId) await c.query("INSERT INTO scheduly.save_receipts(user_id,request_id,input_hash,response) VALUES($1,$2,$3,$4)", [user,requestId,inputHash,json(saved)]);
+    const saved = (
+      await c.query("SELECT * FROM scheduly.posts WHERE id=$1", [id])
+    ).rows[0];
+    if (requestId)
+      await c.query(
+        "INSERT INTO scheduly.save_receipts(user_id,request_id,input_hash,response) VALUES($1,$2,$3,$4)",
+        [user, requestId, inputHash, json(saved)],
+      );
     return saved;
   });
 }
@@ -181,6 +249,16 @@ export async function act(user, id, action, revision) {
       throw new Fault(
         409,
         "This revision has changed. Review the latest version.",
+      );
+    if (
+      role === "creator" &&
+      (post.created_by !== user ||
+        post.status !== "draft" ||
+        action !== "submit")
+    )
+      throw new Fault(
+        403,
+        "Content Creators can submit only their own drafts.",
       );
     const status = checkAction(post, action, role);
     if (action === "cancel") {
@@ -241,10 +319,11 @@ export async function reconcileRehearsal() {
         [post.id],
       );
       count += updated.rowCount;
-      if (updated.rowCount) await c.query(
-        "UPDATE scheduly.posts SET status='needs_attention' WHERE id=$1",
-        [post.id],
-      );
+      if (updated.rowCount)
+        await c.query(
+          "UPDATE scheduly.posts SET status='needs_attention' WHERE id=$1",
+          [post.id],
+        );
     }
     return count;
   });

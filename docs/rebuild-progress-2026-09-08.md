@@ -71,3 +71,9 @@ The private `scheduly-media` bucket is provisioned with a 20 MB limit and JPEG, 
 Validation: 20 platform behavioural tests pass; rebuilt workspace ESLint passes; hosted Vite build and Deno check pass. The legacy-wide lint command remains failing in old application files and generated output. Hosted upload success still needs a real confirmed user session; do not treat deployment as proof of an end-to-end upload. Native media review identified rotating video sources; the cache and playback fix addresses it.
 
 Vercel import can find the repository, but currently selects `main`. The rebuilt branch must be selected before deployment; no legacy deployment was replaced.
+
+### Hosted Team access, 2026-09-08
+
+Added Admin, Editor, Content Creator and Viewer roles with independent client assignments, audited access changes, stale-update protection and last-Admin protection. Jason's verified hosted user is the initial Admin. The additive migration was rehearsed in a local transaction, including rollback and denied direct anonymous access, then applied to Scheduly. Edge Function version 5 enforces the verified-email team allowlist, role and ownership checks. Admins can grant access and request a sign-in email separately. The invitation action has not been used to email other team members.
+
+22 behavioural tests, workspace lint, hosted build and Deno check pass. Native review identified initial Admin bootstrapping and role upload permissions; both were corrected. Public privacy and deletion instruction pages are included for developer app setup. Applications remain incomplete until actual connection/publishing flows and reviewer evidence exist.

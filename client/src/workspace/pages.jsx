@@ -91,7 +91,7 @@ export function Media({ data, clientId, onRefresh }) {
   }
   return (
     <>
-      <div className="media-toolbar">
+      <div className="media-toolbar" hidden={data.team?.role === "viewer"}>
         <label>
           Upload to
           <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
@@ -358,6 +358,12 @@ export function Detail({ post, data, onClose, onEdit, onRefresh }) {
     }
   }
   const client = data.clients.find((c) => c.id === post.client_id);
+  const role = data.team?.role;
+  const canReview = !role || ["admin", "editor"].includes(role);
+  const canEdit =
+    role !== "viewer" &&
+    (role !== "content_creator" ||
+      (post.created_by === data.user.id && post.status === "draft"));
   return (
     <dialog
       ref={dialog}
@@ -477,12 +483,16 @@ export function Detail({ post, data, onClose, onEdit, onRefresh }) {
         </div>
         <footer className="detail-actions">
           <button
-            disabled={busy || ["published", "cancelled"].includes(post.status)}
+            disabled={
+              busy ||
+              !canEdit ||
+              ["published", "cancelled"].includes(post.status)
+            }
             onClick={() => onEdit(post)}
           >
             Edit content
           </button>
-          {post.status === "draft" && (
+          {post.status === "draft" && canEdit && (
             <button
               className="primary"
               disabled={busy}
@@ -491,7 +501,7 @@ export function Detail({ post, data, onClose, onEdit, onRefresh }) {
               Request approval
             </button>
           )}
-          {post.status === "in_review" && (
+          {post.status === "in_review" && canReview && (
             <>
               <button disabled={busy} onClick={() => action("reject")}>
                 Request changes
@@ -505,7 +515,7 @@ export function Detail({ post, data, onClose, onEdit, onRefresh }) {
               </button>
             </>
           )}
-          {post.status === "approved" && (
+          {post.status === "approved" && canReview && (
             <button
               className="primary"
               disabled={busy}
@@ -517,7 +527,7 @@ export function Detail({ post, data, onClose, onEdit, onRefresh }) {
               <ArrowRight size={15} />
             </button>
           )}
-          {post.status === "scheduled" && (
+          {post.status === "scheduled" && canReview && (
             <button disabled={busy} onClick={() => action("cancel")}>
               Cancel schedule
             </button>

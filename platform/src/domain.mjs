@@ -65,6 +65,7 @@ export function checkAction(post, action, role, now = new Date()) {
   if (["published", "cancelled"].includes(post.status))
     throw new Fault(409, "This post is read-only.");
   if (action === "submit") {
+    requireRole(role, ["manager", "reviewer", "creator", "editor"]);
     if (!["draft", "approved"].includes(post.status))
       throw new Fault(409, "Only a draft can be sent for review.");
     if (!post.account_ids.length || !post.caption.trim())
@@ -74,7 +75,7 @@ export function checkAction(post, action, role, now = new Date()) {
       );
     return "in_review";
   }
-  requireRole(role, ["manager"]);
+  requireRole(role, ["manager", "reviewer"]);
   if (action === "approve" || action === "reject") {
     if (post.status !== "in_review")
       throw new Fault(409, "This revision is no longer awaiting review.");

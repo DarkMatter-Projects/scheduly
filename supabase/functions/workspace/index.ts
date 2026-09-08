@@ -1,3 +1,8 @@
+import {
+  bindTeamUser,
+  listTeam,
+  saveTeamMember,
+} from "../../../platform/src/team.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { createMediaService } from "../../../platform/src/media.mjs";
 import { createHostedHandler } from "../../../platform/src/hosted-handler.mjs";
@@ -30,6 +35,28 @@ const handler = createHostedHandler({
   savePost,
   act,
   media,
+  team: {
+    bind: bindTeamUser,
+    list: listTeam,
+    save: saveTeamMember,
+    invite: async (user: string, input: { email: string }) => {
+      const { members } = await listTeam(user);
+      const member = members.find(
+        (m: { email: string; active: boolean }) =>
+          m.email === input.email && m.active,
+      );
+      if (!member) throw new Error("Active team member required.");
+      const { error } = await authClient.auth.signInWithOtp({
+        email: member.email,
+        options: {
+          emailRedirectTo:
+            "https://scheduly-workspace.vercel.app/workspace.html",
+        },
+      });
+      if (error) throw error;
+      return { sent: true };
+    },
+  },
   allowedOrigins: (
     Deno.env.get("SCHEDULY_ALLOWED_ORIGINS") ||
     "https://scheduly-workspace.vercel.app,http://127.0.0.1:5175,http://localhost:5175,http://127.0.0.1:5176,http://localhost:5176"

@@ -5,6 +5,7 @@ export function createHostedHandler({
   savePost,
   act,
   media,
+  team,
   allowedOrigins,
 }) {
   return async (req) => {
@@ -33,6 +34,7 @@ export function createHostedHandler({
       const user = await authenticate(auth.slice(7));
       if (!user?.id || user.is_anonymous || !user.email_confirmed_at)
         return reply(401, { error: "A verified team account is required." });
+      if (team) await team.bind(user);
       const path = new URL(req.url).pathname
         .replace(/^\/functions\/v1\/workspace/, "")
         .replace(/^\/workspace/, "");
@@ -46,6 +48,8 @@ export function createHostedHandler({
           publishing: false,
         });
       }
+      if (path === "/team" && req.method === "GET" && team)
+        return reply(200, await team.list(user.id));
       if (req.method !== "POST") return reply(404, { error: "Not found." });
       const stream = req.body?.getReader();
       let size = 0;
@@ -80,6 +84,10 @@ export function createHostedHandler({
       }
       if (!body || typeof body !== "object" || Array.isArray(body))
         return reply(400, { error: "Invalid request." });
+      if (path === "/team/invite" && team?.invite)
+        return reply(200, await team.invite(user.id, body));
+      if (path === "/team" && team)
+        return reply(200, await team.save(user.id, body));
       if (path === "/media" && media)
         return reply(201, await media.upload(user.id, body));
       if (path === "/posts") return reply(201, await savePost(user.id, body));
