@@ -48,7 +48,7 @@ export default function AuthGate({ children }) {
   if (!ready)
     return (
       <main className="loading">
-        <h1>scheduly</h1>
+        <h1 className="brand-heading"><img src="/brand/scheduly-mark.png" alt="" width="44" height="44" />scheduly</h1>
         <p>Checking your session…</p>
       </main>
     );
@@ -131,7 +131,7 @@ export default function AuthGate({ children }) {
   return (
     <main className="loading">
       <form className="auth-form" onSubmit={submit}>
-        <h1>scheduly</h1>
+        <h1 className="brand-heading"><img src="/brand/scheduly-mark.png" alt="" width="44" height="44" />scheduly</h1>
         <h2>
           {setting
             ? "Choose your password"

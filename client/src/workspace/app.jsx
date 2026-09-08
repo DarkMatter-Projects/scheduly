@@ -118,7 +118,7 @@ export default function App() {
   if (!data)
     return (
       <div className="loading">
-        <h1>scheduly</h1>
+        <h1 className="brand-heading"><img src="/brand/scheduly-mark.png" alt="" width="44" height="44" />scheduly</h1>
         <p>{error || "Opening your workspace…"}</p>
         {error && (
           <>
@@ -175,7 +175,7 @@ export default function App() {
         className={`sidebar ${mobileNav ? "open" : ""}`}
         aria-label="Main navigation"
       >
-        <div className="wordmark">scheduly</div>
+        <div className="wordmark brand-heading"><img src="/brand/scheduly-mark.png" alt="" width="36" height="36" />scheduly</div>
         <div className="workspace-label">Workspace</div>
         <div className="workspace-name">
           <span className="workspace-avatar">D</span>DarkMatter
