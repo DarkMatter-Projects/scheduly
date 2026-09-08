@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "pg": "npm:pg@8.16.3",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.115.0"
+  },
+  "compilerOptions": { "checkJs": false }
+}

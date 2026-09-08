@@ -1,13 +1,26 @@
+import { supabase } from "./auth-client";
+const apiBase = import.meta.env.VITE_WORKSPACE_API_URL || "/workspace-api";
 export async function request(path, body) {
+  const authHeaders = {};
+  if (supabase) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) throw new Error("Sign in to continue.");
+    authHeaders.Authorization = `Bearer ${session.access_token}`;
+    authHeaders.apikey =
+      import.meta.env.VITE_WORKSPACE_SUPABASE_PUBLISHABLE_KEY;
+  }
   const response = await fetch(
-    `/workspace-api/${path}`,
+    `${apiBase}/${path}`,
     body === undefined
-      ? {}
+      ? { headers: authHeaders }
       : {
           method: "POST",
           headers: {
+            ...authHeaders,
             "Content-Type": "application/json",
-            "X-Scheduly-Local": "rehearsal",
+            ...(!supabase ? { "X-Scheduly-Local": "rehearsal" } : {}),
           },
           body: JSON.stringify(body),
         },

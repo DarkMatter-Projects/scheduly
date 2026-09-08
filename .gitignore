@@ -42,3 +42,6 @@ coverage/
 platform/.data/
 
 client/dist-workspace/
+
+# Supabase CLI transient state
+supabase/.temp/

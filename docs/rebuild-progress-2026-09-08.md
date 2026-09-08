@@ -35,10 +35,10 @@ Thirteen automated tests currently pass against a separate local PostgreSQL test
 ## Application setup observed
 
 - Meta: dedicated Scheduly app `1557802719481548`, business DarkMatter PTY LTD, Instagram and Pages use cases, Tech Provider classification. Registration complete; app remains unpublished. Access verification and App Review not yet submitted.
-- Google: dedicated project `scheduly-508008`, organisation darkm.co.za, account jason@darkm.co.za. YouTube Data API v3 enabled. OAuth consent configuration, credentials, verification and upload audit are unfinished.
+- Google: dedicated project `scheduly-508008`, organisation darkm.co.za, account jason@darkm.co.za. YouTube Data API v3 enabled. OAuth consent configuration created after approved policy acceptance. OAuth client credentials, verification and upload audit are unfinished.
 - LinkedIn: DarkMatter Social Scheduler `266161292`, Community Management Development Tier review in progress. This request pre-existed this build turn.
 - TikTok: signed in; only DarkMatter Reporting Insights is currently listed. The private team/client use case must not be misrepresented as public SaaS to obtain Direct Post approval. Supported provider or manual handoff route remains to be selected.
-- Supabase: no existing Scheduly project. Organisation/cost confirmation required by the Supabase tool before creating a dedicated hosted project. Local foundation continues independently.
+- Supabase: dedicated Scheduly project `vymziezvqzpnxydakwmc` created in DarkMatter's Org, Ireland (`eu-west-1`), after explicit approval of US$10/month. Private schema and authenticated Edge gateway deployed.
 
 ## Next delivery gates
 
@@ -51,3 +51,15 @@ Native Codex review was run twice. Findings led to retained composer checkpoints
 Observed in the in-app browser: a two-account sample saved its separate LinkedIn caption, retained its 2026-09-15 09:30 SAST proposed time, moved through review/approval/scheduling and created one job for each destination. Uploading an original image and saving the edit created revision 4, reset approval and cancelled both revision 3 jobs. Data survived the local API restart. Month/week/list views and client filters were exercised. Navigating from an unmatched content search to Analytics showed all 13 planned samples. No browser console errors were reported at the final composer check.
 
 CSV export is implemented, but the in-app browser did not emit a download event, so receipt of the downloaded file is not verified. Viewport emulation confirmed a 390px document with no horizontal overflow and a readable list layout; expanded screenshot captures showed browser compositor tiling, so full desktop/mobile screenshot fidelity remains partially verified. The default desktop calendar and composer were visually compared with both generated concepts. No live social publishing or measured social analytics has been tested.
+
+## Hosted foundation, 2026-09-08
+
+Project URL: https://supabase.com/dashboard/project/vymziezvqzpnxydakwmc
+
+The CLI-generated private-workspace migration was rehearsed against a fresh local database. All nine tables enabled RLS, anonymous/authenticated schema access was denied, and transactional rollback restored the empty database. Native review identified no actionable migration defect. Applied via the connected Supabase plugin and verified the same access restrictions live. Security advisors reported nine informational no-policy notices: intentional default-deny tables behind the server gateway. See https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy.
+
+The `workspace` Edge Function verifies bearer tokens using Supabase `getUser`, requires verified non-anonymous users, and passes only that user ID into the existing membership-checked workflow. Gateway JWT verification is intentionally handled in the function body, allowing the current signing-key model; this is not anonymous data access. Both missing and forged tokens returned HTTP 401 in live dashboard tests. The first deployment hit an Edge Runtime environment-mutation restriction; version 2 removed that mutation and passed the live request tests. Database operations for a real signed-in user remain unverified until the login link is completed.
+
+The real frontend uses explicit `VITE_WORKSPACE_*` configuration and a PKCE email-link login gate. The default preview remains local. Hosted preview runs on port 5176; Supabase's temporary site URL points to `http://127.0.0.1:5176/workspace.html`. Replace this with the reviewed hosted HTTPS callback before team rollout. Only a publishable key is used in the browser. No private credentials are committed. A first login email was requested for jason@darkm.co.za; confirmation is pending. The DarkMatter client container and Jason's manager membership were provisioned, with no posts or social credentials imported.
+
+Sixteen automated tests, lint, hosted/local client builds and Deno checking pass. Native review of the gateway and login changes found no actionable defects. Hosted uploads and live scheduling are deliberately unavailable; native provider connections, analytics ingestion, hosted frontend deployment, team invitations and full login verification remain unfinished. The gateway rejects hosted schedule requests and keeps the approved content intact.

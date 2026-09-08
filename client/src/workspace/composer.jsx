@@ -21,7 +21,9 @@ export default function Composer({
   initialDate,
   defaultClient,
 }) {
-  useEffect(() => { window.scrollTo(0, 0); }, []);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   const [checkpoint, setCheckpoint] = useState(null);
   const [clientId, setClient] = useState(
     post?.client_id || defaultClient || data.clients[0]?.id || "",
@@ -101,6 +103,10 @@ export default function Composer({
   }
   async function addFile(file) {
     if (!file) return;
+    if (data.mode !== "local-rehearsal") {
+      setError("Hosted media uploads are not enabled yet.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {

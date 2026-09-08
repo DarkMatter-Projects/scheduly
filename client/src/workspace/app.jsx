@@ -1,3 +1,4 @@
+import { supabase } from "./auth-client";
 import { createElement, useEffect, useState } from "react";
 import {
   CalendarDays,
@@ -94,6 +95,15 @@ export default function App() {
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
   }, []);
+  const newPost = (date) => {
+    if (!data.clients.length) {
+      setToast(
+        "Your account has no assigned clients yet. Ask your workspace administrator for access.",
+      );
+      return;
+    }
+    setComposer(date ? { date } : {});
+  };
   const go = (name, s = "") => {
     setPage(name);
     setQuery("");
@@ -182,9 +192,25 @@ export default function App() {
           <div className="preview-user">
             <span className="workspace-avatar">DM</span>
             <span>
-              Preview manager<small>Local rehearsal workspace</small>
+              {data.user.name}
+              <small>
+                {data.mode === "local-rehearsal"
+                  ? "Local rehearsal workspace"
+                  : "Hosted workspace"}
+              </small>
             </span>
           </div>
+          {supabase && (
+            <button
+              onClick={() =>
+                supabase.auth
+                  .signOut()
+                  .catch(() => setToast("Could not sign out. Please retry."))
+              }
+            >
+              Sign out
+            </button>
+          )}
           <p>
             A clearer plan.
             <br />
@@ -196,7 +222,9 @@ export default function App() {
         <div className="rehearsal-bar">
           <span>
             <i />
-            Local rehearsal · Sample clients · Live publishing disabled
+            {data.mode === "local-rehearsal"
+              ? "Local rehearsal · Sample clients · Live publishing disabled"
+              : "Hosted preview · Live publishing disabled"}
           </span>
           <button
             onClick={() => refresh("Workspace refreshed.").catch(() => {})}
@@ -228,7 +256,7 @@ export default function App() {
                   <h1>{page}</h1>
                   <p>{descriptions[page]}</p>
                 </div>
-                <AddButton onClick={() => setComposer({})} />
+                <AddButton onClick={() => newPost()} />
               </header>
               {!["Settings"].includes(page) && (
                 <div className="filters">
@@ -338,7 +366,7 @@ export default function App() {
                   posts={filtered}
                   data={data}
                   onOpen={(p) => setDetail(p.id)}
-                  onNew={(date) => setComposer({ date })}
+                  onNew={newPost}
                   view={view}
                   setView={setView}
                   anchor={anchor}

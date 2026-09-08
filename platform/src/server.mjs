@@ -18,9 +18,9 @@ if (
     "Local rehearsal only. Production startup is disabled until hosted auth and provider acceptance are configured.",
   );
 if (
-  process.env.DATABASE_URL &&
+  (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL) &&
   !["127.0.0.1", "localhost"].includes(
-    new URL(process.env.DATABASE_URL).hostname,
+    new URL(process.env.DATABASE_URL || process.env.SUPABASE_DB_URL).hostname,
   )
 )
   throw new Error("Rehearsal must use a local database.");

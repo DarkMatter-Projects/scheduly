@@ -72,6 +72,7 @@ export function Media({ data, clientId, onRefresh }) {
   const [chosen, setChosen] = useState(clientId || data.clients[0]?.id),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const hosted = data.mode !== "local-rehearsal";
   const assets = data.media.filter(
     (a) => !clientId || a.client_id === clientId,
   );
@@ -103,10 +104,14 @@ export function Media({ data, clientId, onRefresh }) {
         </label>
         <label className={`button primary ${busy ? "disabled" : ""}`}>
           <Upload size={16} />
-          {busy ? "Uploading…" : "Upload original"}
+          {hosted
+            ? "Hosted uploads coming next"
+            : busy
+              ? "Uploading…"
+              : "Upload original"}
           <input
             hidden
-            disabled={busy}
+            disabled={busy || hosted}
             type="file"
             accept="image/jpeg,image/png,image/webp,video/mp4"
             onChange={(e) => {
@@ -510,7 +515,10 @@ export function Detail({ post, data, onClose, onEdit, onRefresh }) {
               disabled={busy}
               onClick={() => action("schedule")}
             >
-              Schedule rehearsal <ArrowRight size={15} />
+              {data.mode === "local-rehearsal"
+                ? "Schedule rehearsal"
+                : "Check publishing readiness"}{" "}
+              <ArrowRight size={15} />
             </button>
           )}
           {post.status === "scheduled" && (

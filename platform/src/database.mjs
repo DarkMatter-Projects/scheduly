@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 export const pool = new pg.Pool({
   connectionString:
     process.env.DATABASE_URL ||
+    process.env.SUPABASE_DB_URL ||
     "postgres://scheduly:local-rehearsal-only@127.0.0.1:55439/scheduly_local",
   max: 8,
 });
