@@ -32,7 +32,7 @@ const handler = createHostedHandler({
   media,
   allowedOrigins: (
     Deno.env.get("SCHEDULY_ALLOWED_ORIGINS") ||
-    "http://127.0.0.1:5175,http://localhost:5175,http://127.0.0.1:5176,http://localhost:5176"
+    "https://scheduly-workspace.vercel.app,http://127.0.0.1:5175,http://localhost:5175,http://127.0.0.1:5176,http://localhost:5176"
   )
     .split(",")
     .map((s) => s.trim())
