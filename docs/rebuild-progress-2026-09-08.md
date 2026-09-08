@@ -85,3 +85,9 @@ Meta support email, privacy policy, deletion instructions and Business and pages
 Google web OAuth client named Scheduly hosted workspace was created with the HTTPS workspace origin. Credentials are retained in ignored `.env.google.local`, mode 0600. No server redirect URI is configured yet. OAuth verification and YouTube upload audit are not submitted. TikTok Direct Post guidelines were rechecked and still exclude internal/private team upload utilities.
 
 Vercel deployment for GitHub commit 9376d716 was READY. Public privacy page was opened successfully. The in-app and Chrome workspace tabs both showed sign-in, so the positive hosted Admin UI test still awaits the user's active browser session. Jason's confirmed email and active Admin row were verified directly in Supabase.
+
+### Password accounts
+
+Replaced email-link-only login with email/username and password, sign-up with confirmation, and existing-account password setup/reset. Signed-in users can set a password from Settings; unassigned verified users have an access-check and sign-out screen. Browser-only implicit auth permits email confirmation/recovery in another browser without the original PKCE verifier. Supabase's exact HTTPS recovery redirect is allowlisted. Passwords are handled by Supabase Auth and are not sent to the workspace gateway or stored in application tables.
+
+Targeted lint, hosted build and native review pass. Browser-tested sign-up navigation and mismatched-password rejection. Positive password login and email recovery still require the owner's password setup. Supabase dashboard confirms the built-in test SMTP service remains configured; a production email sender is required for team-wide signup/recovery delivery.

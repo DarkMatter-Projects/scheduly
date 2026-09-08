@@ -1821,3 +1821,5 @@ textarea {
 }
 
 .team-row{display:flex;justify-content:space-between;align-items:center;padding:18px 0;border-bottom:1px solid #ddd;gap:20px}.team-row small{display:block;margin-top:6px}.settings fieldset{margin-top:24px;padding:20px;border:1px solid #ccc;display:grid;gap:16px}.settings fieldset label{display:block}.settings fieldset input[type=email],.settings fieldset select{display:block;padding:10px;width:100%;margin-top:8px}.settings fieldset input[type=checkbox]{margin-right:8px}
+
+.auth-form{width:min(400px,90vw);text-align:left}.auth-form label{display:block;margin:18px 0}.auth-form input{display:block;width:100%;padding:12px;margin-top:8px;border:1px solid #b9c6be;border-radius:8px;background:white;color:#23352e}.auth-form button{margin:8px 8px 0 0}.auth-form p[role=status]{line-height:1.5}

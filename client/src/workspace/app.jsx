@@ -121,7 +121,23 @@ export default function App() {
         <h1>scheduly</h1>
         <p>{error || "Opening your workspace…"}</p>
         {error && (
-          <button onClick={() => refresh().catch(() => {})}>Try again</button>
+          <>
+            <button onClick={() => refresh().catch(() => {})}>
+              Check access again
+            </button>
+            {supabase && (
+              <button
+                onClick={async () => {
+                  const { error } = await supabase.auth.signOut({
+                    scope: "local",
+                  });
+                  if (error) setError(error.message);
+                }}
+              >
+                Sign out
+              </button>
+            )}
+          </>
         )}
       </div>
     );

@@ -5,5 +5,5 @@ const hosted = Boolean(import.meta.env.VITE_WORKSPACE_API_URL);
 if (hosted && (!url || !key))
   throw new Error("Hosted workspace authentication is not configured.");
 export const supabase = hosted
-  ? createClient(url, key, { auth: { flowType: "pkce" } })
+  ? createClient(url, key, { auth: { flowType: "implicit" } })
   : null;

@@ -75,6 +75,11 @@ export default function Team({ data, onRefresh }) {
       <section>
         <h2>Team & access</h2>
         <p>
+          <a href="/workspace.html?auth=password">
+            Set or change your password
+          </a>
+        </p>
+        <p>
           Your role: <b>{roles[data.team?.role] || "Local rehearsal"}</b>.
           Client assignments control which calendars and content you can access.
         </p>
