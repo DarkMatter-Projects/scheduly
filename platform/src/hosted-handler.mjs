@@ -6,6 +6,7 @@ export function createHostedHandler({
   act,
   media,
   team,
+  tiktok,
   allowedOrigins,
 }) {
   return async (req) => {
@@ -48,6 +49,8 @@ export function createHostedHandler({
           publishing: false,
         });
       }
+      if (path === "/tiktok/status" && req.method === "GET" && tiktok)
+        return reply(200, await tiktok.status(user.id));
       if (path === "/team" && req.method === "GET" && team)
         return reply(200, await team.list(user.id));
       if (req.method !== "POST") return reply(404, { error: "Not found." });
@@ -84,6 +87,12 @@ export function createHostedHandler({
       }
       if (!body || typeof body !== "object" || Array.isArray(body))
         return reply(400, { error: "Invalid request." });
+      if (tiktok && path === "/tiktok/start")
+        return reply(200, await tiktok.start(user.id, body));
+      if (tiktok && path === "/tiktok/complete")
+        return reply(200, await tiktok.complete(user.id, body));
+      if (tiktok && path === "/tiktok/upload")
+        return reply(200, await tiktok.upload(user.id, body));
       if (path === "/team/invite" && team?.invite)
         return reply(200, await team.invite(user.id, body));
       if (path === "/team" && team)

@@ -29,20 +29,94 @@ const portals = {
     "https://console.cloud.google.com/apis/dashboard?project=scheduly-508008",
   tiktok: "https://developers.tiktok.com/apps/",
 };
-export function Accounts({ data, clientId }) {
+export function Accounts({ data, clientId, onRefresh }) {
+  const [selectedClient, setSelectedClient] = useState(
+    clientId || data.clients[0]?.id || "",
+  );
+  const [busy, setBusy] = useState(false),
+    [message, setMessage] = useState("");
+  const [destination, setDestination] = useState(null),
+    [assetId, setAssetId] = useState("");
+  const [consent, setConsent] = useState(false);
+  const admin = data.team?.role === "admin";
+  const selectedAsset = data.media.find(
+    (a) => a.id === assetId && a.client_id === destination?.client_id,
+  );
+  async function connect() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await request("tiktok/start", {
+        clientId: selectedClient,
+      });
+      const target = new URL(result.url);
+      if (target.origin !== "https://www.tiktok.com")
+        throw new Error("Unexpected connection destination.");
+      window.location.assign(target.href);
+    } catch (e) {
+      setMessage(e.message);
+      setBusy(false);
+    }
+  }
+  async function sendDraft() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await request("tiktok/upload", {
+        accountId: destination.id,
+        mediaId: assetId,
+        confirmDraft: consent,
+      });
+      setMessage(`${result.status}: ${result.message}`);
+      await onRefresh();
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <div className="info-note">
         <CheckCircle2 size={20} />
         <span>
-          <b>Connect with confidence</b>
+          <b>Your clients and their channels</b>
           <p>
-            Connections will show the exact client, account identity and granted
-            publishing permissions. These rehearsal accounts are not connected
-            to live channels.
+            TikTok videos are sent as drafts. The account owner finishes editing
+            and posting in their TikTok inbox.
           </p>
         </span>
       </div>
+      {admin && (
+        <div className="media-toolbar">
+          <label>
+            Connect for client{" "}
+            <select
+              value={selectedClient}
+              onChange={(e) => setSelectedClient(e.target.value)}
+              disabled={busy}
+            >
+              {data.clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="button primary"
+            disabled={busy || !selectedClient}
+            onClick={connect}
+          >
+            {busy ? "Working…" : "Connect TikTok"}
+          </button>
+        </div>
+      )}
+      {message && (
+        <div className="info-note" role="status">
+          {message}
+        </div>
+      )}
       <div className="account-table">
         {data.accounts
           .filter((a) => !clientId || a.client_id === clientId)
@@ -51,21 +125,122 @@ export function Accounts({ data, clientId }) {
               <Avatar client={data.clients.find((c) => c.id === a.client_id)} />
               <span>
                 <b>{a.name}</b>
-                <small>{networks[a.network]}</small>
+                <small>
+                  {networks[a.network]} ·{" "}
+                  {data.clients.find((c) => c.id === a.client_id)?.name}
+                </small>
               </span>
               <Network network={a.network} />
-              <span className="connection-state">Not connected</span>
-              <a
-                className="button"
-                href={portals[a.network]}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Developer setup <ExternalLink size={14} />
-              </a>
+              <span className="connection-state">
+                {a.connection === "connected" ? "Connected" : "Not connected"}
+              </span>
+              {admin &&
+              a.network === "tiktok" &&
+              a.connection === "connected" ? (
+                <button
+                  className="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setDestination(a);
+                    setAssetId("");
+                    setConsent(false);
+                    setMessage("");
+                  }}
+                >
+                  Upload a draft
+                </button>
+              ) : (
+                <a
+                  className="button"
+                  href={portals[a.network]}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Developer setup <ExternalLink size={14} />
+                </a>
+              )}
             </div>
           ))}
       </div>
+      {!data.accounts.length && (
+        <p>
+          No social accounts connected yet. An Admin can connect TikTok above.
+        </p>
+      )}
+      {destination && (
+        <section className="info-note" aria-label="Review TikTok draft upload">
+          <div>
+            <h2>Upload a draft to {destination.name}</h2>
+            <p>
+              Client:{" "}
+              {data.clients.find((c) => c.id === destination.client_id)?.name}.
+              This transfers the original video. Finish your caption, edits and
+              posting in TikTok.
+            </p>
+            <label>
+              Video{" "}
+              <select
+                value={assetId}
+                disabled={busy}
+                onChange={(e) => {
+                  setAssetId(e.target.value);
+                  setConsent(false);
+                }}
+              >
+                <option value="">Choose an MP4</option>
+                {data.media
+                  .filter(
+                    (a) =>
+                      a.client_id === destination.client_id &&
+                      a.mime === "video/mp4",
+                  )
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            {selectedAsset && (
+              <>
+                <p>{selectedAsset.name}</p>
+                <video
+                  controls
+                  preload="metadata"
+                  src={selectedAsset.url || undefined}
+                  style={{ maxWidth: "100%", maxHeight: 280 }}
+                />
+                <p>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={consent}
+                      disabled={busy}
+                      onChange={(e) => setConsent(e.target.checked)}
+                    />{" "}
+                    I have permission to send this video to {destination.name}.
+                    I understand it must be finished in TikTok.
+                  </label>
+                </p>
+              </>
+            )}
+            <button
+              className="button primary"
+              disabled={busy || !selectedAsset || !consent}
+              onClick={sendDraft}
+            >
+              {busy ? "Working…" : "Send draft / check status"}
+            </button>{" "}
+            <button
+              className="button"
+              disabled={busy}
+              onClick={() => setDestination(null)}
+            >
+              Close
+            </button>
+          </div>
+        </section>
+      )}
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { createTikTokService } from "../../../platform/src/tiktok.mjs";
 import {
   bindTeamUser,
   listTeam,
@@ -27,6 +28,17 @@ const media = createMediaService({
   storage: storageClient.storage,
 });
 const handler = createHostedHandler({
+  tiktok: createTikTokService({
+    transaction,
+    storage: storageClient.storage,
+    config: {
+      clientKey: Deno.env.get("TIKTOK_CLIENT_KEY"),
+      clientSecret: Deno.env.get("TIKTOK_CLIENT_SECRET"),
+      tokenKey: Deno.env.get("PROVIDER_TOKEN_KEY"),
+      environment: Deno.env.get("TIKTOK_ENVIRONMENT") || "sandbox",
+      redirectUri: "https://scheduly-workspace.vercel.app/workspace.html",
+    },
+  }),
   authenticate: async (token: string) => {
     const { data, error } = await authClient.auth.getUser(token);
     return error ? null : data.user;

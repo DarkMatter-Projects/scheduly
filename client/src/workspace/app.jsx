@@ -1,5 +1,5 @@
 import Team from "./team";
-import { supabase } from "./auth-client";
+import { supabase, tiktokCallback } from "./auth-client";
 import { createElement, useEffect, useState } from "react";
 import {
   CalendarDays,
@@ -39,6 +39,7 @@ const descriptions = {
   Accounts: "The right channels, connected to the right clients.",
   Settings: "A workspace built around your team.",
 };
+let connectionCompletion;
 export default function App() {
   const [data, setData] = useState(null),
     [error, setError] = useState(""),
@@ -77,7 +78,25 @@ export default function App() {
         .catch((e) => {
           if (active) setError(e.message);
         });
-    load();
+    if (tiktokCallback) {
+      setPage("Accounts");
+      connectionCompletion ||= tiktokCallback.error
+        ? Promise.reject(
+            new Error(
+              "TikTok authorisation was cancelled. You can connect again.",
+            ),
+          )
+        : request("tiktok/complete", tiktokCallback);
+      connectionCompletion
+        .then((result) => {
+          if (active) setToast(`${result.name} connected for draft uploads.`);
+          load();
+        })
+        .catch((e) => {
+          if (active) setToast(e.message);
+          load();
+        });
+    } else load();
     const timer = setInterval(load, 30000);
     return () => {
       active = false;
@@ -118,7 +137,10 @@ export default function App() {
   if (!data)
     return (
       <div className="loading">
-        <h1 className="brand-heading"><img src="/brand/scheduly-mark.png" alt="" width="44" height="44" />scheduly</h1>
+        <h1 className="brand-heading">
+          <img src="/brand/scheduly-mark.png" alt="" width="44" height="44" />
+          scheduly
+        </h1>
         <p>{error || "Opening your workspace…"}</p>
         {error && (
           <>
@@ -175,7 +197,10 @@ export default function App() {
         className={`sidebar ${mobileNav ? "open" : ""}`}
         aria-label="Main navigation"
       >
-        <div className="wordmark brand-heading"><img src="/brand/scheduly-mark.png" alt="" width="36" height="36" />scheduly</div>
+        <div className="wordmark brand-heading">
+          <img src="/brand/scheduly-mark.png" alt="" width="36" height="36" />
+          scheduly
+        </div>
         <div className="workspace-label">Workspace</div>
         <div className="workspace-name">
           <span className="workspace-avatar">D</span>DarkMatter
@@ -414,7 +439,7 @@ export default function App() {
                   </Empty>
                 ))}
               {page === "Accounts" && (
-                <Accounts data={data} clientId={client} />
+                <Accounts data={data} clientId={client} onRefresh={refresh} />
               )}{" "}
               {page === "Media library" && (
                 <Media
