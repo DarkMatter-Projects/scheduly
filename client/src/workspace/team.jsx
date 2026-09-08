@@ -40,8 +40,13 @@ export default function Team({ data, onRefresh }) {
     setError("");
     try {
       await request("team", selected);
-      const d = await request("team");
-      setMembers(d.members);
+      if (
+        selected.email !== data.team.email ||
+        (selected.role === "admin" && selected.active)
+      ) {
+        const d = await request("team");
+        setMembers(d.members);
+      }
       setSelected(null);
       setMessage(
         "Access saved. This person can sign in with their email at the workspace address.",
@@ -82,7 +87,8 @@ export default function Team({ data, onRefresh }) {
             </button>
             <p>
               Grant access by email, then share the workspace address. The
-              person confirms their email when signing in. Use Send sign-in email after saving access to invite them.
+              person confirms their email when signing in. Use Send sign-in
+              email after saving access to invite them.
             </p>
             <div className="team-list">
               {members.map((m) => (

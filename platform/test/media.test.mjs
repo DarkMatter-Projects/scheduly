@@ -7,12 +7,12 @@ const input = {
   mime: "image/png",
   data: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1]).toString("base64"),
 };
-function setup({ denied = false, failInsert = false } = {}) {
+function setup({ denied = false, failInsert = false, role = "editor" } = {}) {
   const calls = [];
   const media = createMediaService({
     membership: async () => {
       if (denied) throw Object.assign(new Error("Denied"), { status: 403 });
-      return "editor";
+      return role;
     },
     transaction: async (fn) =>
       fn({
@@ -69,4 +69,14 @@ test("failed metadata writes remove the uncommitted private original", async () 
   await assert.rejects(media.upload("user", input), /Database offline/);
   assert.equal(calls[1][0], "remove");
   assert.equal(calls[1][1][0], calls[0][1]);
+});
+
+test("team Creators and Editors can upload; Viewers cannot", async () => {
+  for (const role of ["creator", "reviewer"]) {
+    const { media } = setup({ role });
+    assert.ok((await media.upload("user", input)).id);
+  }
+  const { media, calls } = setup({ role: "viewer" });
+  await assert.rejects(media.upload("user", input), (e) => e.status === 403);
+  assert.equal(calls.length, 0);
 });

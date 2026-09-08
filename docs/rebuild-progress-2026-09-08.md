@@ -77,3 +77,11 @@ Vercel import can find the repository, but currently selects `main`. The rebuilt
 Added Admin, Editor, Content Creator and Viewer roles with independent client assignments, audited access changes, stale-update protection and last-Admin protection. Jason's verified hosted user is the initial Admin. The additive migration was rehearsed in a local transaction, including rollback and denied direct anonymous access, then applied to Scheduly. Edge Function version 5 enforces the verified-email team allowlist, role and ownership checks. Admins can grant access and request a sign-in email separately. The invitation action has not been used to email other team members.
 
 22 behavioural tests, workspace lint, hosted build and Deno check pass. Native review identified initial Admin bootstrapping and role upload permissions; both were corrected. Public privacy and deletion instruction pages are included for developer app setup. Applications remain incomplete until actual connection/publishing flows and reviewer evidence exist.
+
+### Developer portals, latest observed state
+
+Meta support email, privacy policy, deletion instructions and Business and pages category were saved. App icon and working publishing review evidence remain outstanding; no submission was made. LinkedIn Community Management API remains under review. Requesting Share on LinkedIn produced an exclusive-product restriction, so no duplicate application or product change was made.
+
+Google web OAuth client named Scheduly hosted workspace was created with the HTTPS workspace origin. Credentials are retained in ignored `.env.google.local`, mode 0600. No server redirect URI is configured yet. OAuth verification and YouTube upload audit are not submitted. TikTok Direct Post guidelines were rechecked and still exclude internal/private team upload utilities.
+
+Vercel deployment for GitHub commit 9376d716 was READY. Public privacy page was opened successfully. The in-app and Chrome workspace tabs both showed sign-in, so the positive hosted Admin UI test still awaits the user's active browser session. Jason's confirmed email and active Admin row were verified directly in Supabase.
