@@ -1,5 +1,5 @@
 import Team from "./team";
-import { supabase, tiktokCallback } from "./auth-client";
+import { supabase, providerCallback } from "./auth-client";
 import { createElement, useEffect, useState } from "react";
 import {
   CalendarDays,
@@ -53,6 +53,7 @@ export default function App() {
     [composer, setComposer] = useState(null),
     [detailId, setDetail] = useState(null),
     [toast, setToast] = useState(""),
+    [pendingConnection, setPendingConnection] = useState(null),
     [mobileNav, setMobileNav] = useState(false);
   async function refresh(message) {
     try {
@@ -78,18 +79,22 @@ export default function App() {
         .catch((e) => {
           if (active) setError(e.message);
         });
-    if (tiktokCallback) {
+    if (providerCallback) {
       setPage("Accounts");
-      connectionCompletion ||= tiktokCallback.error
+      connectionCompletion ||= providerCallback.error
         ? Promise.reject(
             new Error(
-              "TikTok authorisation was cancelled. You can connect again.",
+              `${providerCallback.provider === "meta" ? "Meta" : providerCallback.provider === "youtube" ? "YouTube" : "TikTok"} authorisation was cancelled. You can connect again.`,
             ),
           )
-        : request("tiktok/complete", tiktokCallback);
+        : request(`${providerCallback.provider}/complete`, providerCallback);
       connectionCompletion
         .then((result) => {
-          if (active) setToast(`${result.name} connected for draft uploads.`);
+          if (!active) return;
+          if (result.accounts) {
+            setPendingConnection(result);
+            setToast("Choose the returned accounts to complete this connection.");
+          } else setToast(`${result.name} connected for draft uploads.`);
           load();
         })
         .catch((e) => {
@@ -439,7 +444,7 @@ export default function App() {
                   </Empty>
                 ))}
               {page === "Accounts" && (
-                <Accounts data={data} clientId={client} onRefresh={refresh} />
+              <Accounts data={data} clientId={client} onRefresh={refresh} pendingConnection={pendingConnection} onConnectionFinalized={() => setPendingConnection(null)} />
               )}{" "}
               {page === "Media library" && (
                 <Media

@@ -7,6 +7,8 @@ export function createHostedHandler({
   media,
   team,
   tiktok,
+  meta,
+  youtube,
   allowedOrigins,
 }) {
   return async (req) => {
@@ -51,6 +53,10 @@ export function createHostedHandler({
       }
       if (path === "/tiktok/status" && req.method === "GET" && tiktok)
         return reply(200, await tiktok.status(user.id));
+      if (path === "/meta/status" && req.method === "GET" && meta)
+        return reply(200, await meta.status(user.id));
+      if (path === "/youtube/status" && req.method === "GET" && youtube)
+        return reply(200, await youtube.status(user.id));
       if (path === "/team" && req.method === "GET" && team)
         return reply(200, await team.list(user.id));
       if (req.method !== "POST") return reply(404, { error: "Not found." });
@@ -93,6 +99,18 @@ export function createHostedHandler({
         return reply(200, await tiktok.complete(user.id, body));
       if (tiktok && path === "/tiktok/upload")
         return reply(200, await tiktok.upload(user.id, body));
+      if (meta && path === "/meta/start")
+        return reply(200, await meta.start(user.id, body));
+      if (meta && path === "/meta/complete")
+        return reply(200, await meta.complete(user.id, body));
+      if (meta && path === "/meta/finalize")
+        return reply(200, await meta.finalize(user.id, body));
+      if (youtube && path === "/youtube/start")
+        return reply(200, await youtube.start(user.id, body));
+      if (youtube && path === "/youtube/complete")
+        return reply(200, await youtube.complete(user.id, body));
+      if (youtube && path === "/youtube/finalize")
+        return reply(200, await youtube.finalize(user.id, body));
       if (path === "/team/invite" && team?.invite)
         return reply(200, await team.invite(user.id, body));
       if (path === "/team" && team)

@@ -29,7 +29,7 @@ const portals = {
     "https://console.cloud.google.com/apis/dashboard?project=scheduly-508008",
   tiktok: "https://developers.tiktok.com/apps/",
 };
-export function Accounts({ data, clientId, onRefresh }) {
+export function Accounts({ data, clientId, onRefresh, pendingConnection, onConnectionFinalized }) {
   const [selectedClient, setSelectedClient] = useState(
     clientId || data.clients[0]?.id || "",
   );
@@ -38,23 +38,53 @@ export function Accounts({ data, clientId, onRefresh }) {
   const [destination, setDestination] = useState(null),
     [assetId, setAssetId] = useState("");
   const [consent, setConsent] = useState(false);
+  const [selectedConnectionAccounts, setSelectedConnectionAccounts] = useState([]);
   const admin = data.team?.role === "admin";
   const selectedAsset = data.media.find(
     (a) => a.id === assetId && a.client_id === destination?.client_id,
   );
-  async function connect() {
+  useEffect(() => {
+    setSelectedConnectionAccounts(
+      pendingConnection ? pendingConnection.accounts.map((account) => account.id) : [],
+    );
+  }, [pendingConnection]);
+  async function connect(provider = "tiktok") {
     setBusy(true);
     setMessage("");
     try {
-      const result = await request("tiktok/start", {
+      const result = await request(`${provider}/start`, {
         clientId: selectedClient,
       });
       const target = new URL(result.url);
-      if (target.origin !== "https://www.tiktok.com")
+      const expected = {
+        tiktok: "https://www.tiktok.com",
+        meta: "https://www.facebook.com",
+        youtube: "https://accounts.google.com",
+      }[provider];
+      if (target.origin !== expected)
         throw new Error("Unexpected connection destination.");
       window.location.assign(target.href);
     } catch (e) {
       setMessage(e.message);
+      setBusy(false);
+    }
+  }
+  async function finaliseConnection() {
+    if (!pendingConnection) return;
+    const accountIds = selectedConnectionAccounts;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await request(`${pendingConnection.provider}/finalize`, {
+        sessionId: pendingConnection.sessionId,
+        accountIds,
+      });
+      setMessage(`${result.connected.length} account${result.connected.length === 1 ? "" : "s"} connected.`);
+      onConnectionFinalized();
+      await onRefresh();
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
       setBusy(false);
     }
   }
@@ -103,19 +133,32 @@ export function Accounts({ data, clientId, onRefresh }) {
               ))}
             </select>
           </label>
-          <button
-            className="button primary"
-            disabled={busy || !selectedClient}
-            onClick={connect}
-          >
-            {busy ? "Working…" : "Connect TikTok"}
-          </button>
+          <button className="button primary" disabled={busy || !selectedClient} onClick={() => connect("tiktok")}>{busy ? "Working…" : "Connect TikTok"}</button>
+          <button className="button" disabled={busy || !selectedClient} onClick={() => connect("meta")}>Connect Meta</button>
+          <button className="button" disabled={busy || !selectedClient} onClick={() => connect("youtube")}>Connect YouTube</button>
         </div>
       )}
       {message && (
         <div className="info-note" role="status">
           {message}
         </div>
+      )}
+      {pendingConnection && (
+        <section className="info-note" aria-label={`Choose ${pendingConnection.provider} accounts`}>
+          <div>
+            <h2>Choose accounts for {data.clients.find((client) => client.id === pendingConnection.clientId)?.name}</h2>
+            <p>Only the accounts you select will be connected. Access credentials remain private to Scheduly.</p>
+            {pendingConnection.accounts.map((account) => (
+              <p key={account.id}>
+                <label>
+                  <input type="checkbox" checked={selectedConnectionAccounts.includes(account.id)} disabled={busy} onChange={(event) => setSelectedConnectionAccounts((selected) => event.target.checked ? [...selected, account.id] : selected.filter((id) => id !== account.id))} /> {account.name} · {networks[account.network]}
+                </label>
+              </p>
+            ))}
+            <button className="button primary" disabled={busy} onClick={finaliseConnection}>{busy ? "Connecting…" : "Connect selected accounts"}</button>
+            <button className="button" disabled={busy} onClick={onConnectionFinalized}>Cancel</button>
+          </div>
+        </section>
       )}
       <div className="account-table">
         {data.accounts

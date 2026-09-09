@@ -1,4 +1,6 @@
 import { createTikTokService } from "../../../platform/src/tiktok.mjs";
+import { createMetaService } from "../../../platform/src/meta.mjs";
+import { createYouTubeService } from "../../../platform/src/youtube.mjs";
 import {
   bindTeamUser,
   listTeam,
@@ -37,6 +39,27 @@ const handler = createHostedHandler({
       tokenKey: Deno.env.get("PROVIDER_TOKEN_KEY"),
       environment: Deno.env.get("TIKTOK_ENVIRONMENT") || "sandbox",
       redirectUri: "https://scheduly-workspace.vercel.app/workspace.html",
+    },
+  }),
+  meta: createMetaService({
+    transaction,
+    config: {
+      appId: Deno.env.get("META_APP_ID"),
+      appSecret: Deno.env.get("META_APP_SECRET"),
+      tokenKey: Deno.env.get("PROVIDER_TOKEN_KEY"),
+      graphVersion: Deno.env.get("META_GRAPH_VERSION") || "v24.0",
+      redirectUri:
+        "https://scheduly-workspace.vercel.app/workspace.html?provider=meta",
+    },
+  }),
+  youtube: createYouTubeService({
+    transaction,
+    config: {
+      clientId: Deno.env.get("GOOGLE_CLIENT_ID"),
+      clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
+      tokenKey: Deno.env.get("PROVIDER_TOKEN_KEY"),
+      redirectUri:
+        "https://scheduly-workspace.vercel.app/workspace.html?provider=youtube",
     },
   }),
   authenticate: async (token: string) => {

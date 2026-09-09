@@ -1,16 +1,23 @@
 import { createClient } from "@supabase/supabase-js";
 // Remove provider codes before the auth SDK or other UI can inspect the URL.
 const callbackParams = new URLSearchParams(window.location.search);
-export const tiktokCallback = /^[0-9a-f]{64}$/.test(
-  callbackParams.get("state") || "",
+const state = callbackParams.get("state") || "";
+const provider = callbackParams.get("provider") || "tiktok";
+export const providerCallback = /^[0-9a-f]{64}$/.test(
+  state,
 )
   ? {
-      state: callbackParams.get("state"),
+      provider: ["tiktok", "meta", "youtube"].includes(provider)
+        ? provider
+        : "tiktok",
+      state,
       code: callbackParams.get("code"),
       error: callbackParams.get("error"),
     }
   : null;
-if (tiktokCallback)
+export const tiktokCallback =
+  providerCallback?.provider === "tiktok" ? providerCallback : null;
+if (providerCallback)
   window.history.replaceState(null, "", window.location.pathname);
 const url = import.meta.env.VITE_WORKSPACE_SUPABASE_URL;
 const key = import.meta.env.VITE_WORKSPACE_SUPABASE_PUBLISHABLE_KEY;
