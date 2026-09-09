@@ -9,7 +9,6 @@ const scopes = [
   "pages_manage_posts",
   "instagram_basic",
   "instagram_content_publish",
-  "read_insights",
 ];
 
 export function createMetaService({ transaction, config, fetcher = fetch }) {
