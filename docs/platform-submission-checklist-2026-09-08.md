@@ -1,6 +1,6 @@
 # Scheduly platform submission checklist
 
-Checked 2026-09-08. This is the current checklist and supersedes older setup notes. **The four platform applications have not all been submitted.**
+Checked 2026-09-09. This is the current checklist and supersedes older setup notes. **The four platform applications have not all been submitted.**
 
 ## Workspace and shared requirements
 
@@ -11,7 +11,7 @@ Checked 2026-09-08. This is the current checklist and supersedes older setup not
 - [x] Public privacy, terms and data-deletion pages deployed.
 - [x] Scheduly icon generated and used by the workspace; Google and LinkedIn uploads completed.
 - [x] GitHub rebuild branch connected to Vercel deployment.
-- [x] 29 behavioural tests passed, targeted frontend lint/build passed, and Deno encryption runtime test passed.
+- [x] 31 behavioural tests passed, targeted frontend lint/build passed, and Deno encryption runtime test passed.
 - [x] Native review performed. Safe retry finding fixed and regression-tested.
 - [ ] Production email delivery service and delivery checks.
 - [ ] All-provider account connections, live publishing worker and delivery reconciliation.
@@ -62,10 +62,12 @@ App: Scheduly `1557802719481548`. Review draft: `1557804679481352`.
 - [x] Dedicated app created with Instagram and Facebook Pages use cases.
 - [x] DarkMatter business verification completed.
 - [x] Privacy and data-deletion URLs configured.
-- [ ] Basic settings fully persisted. Meta reports “Changes saved”, but re-opening Basic still shows the icon missing and the terms field as `https://www.facebook.com/`. Do not mark icon/terms complete until a fresh load retains them.
+- [x] Basic settings rechecked: app icon, privacy, terms and data-deletion URLs are present.
 - [x] `pages_manage_posts` added to the Pages use case and marked Ready for testing.
-- [ ] Remaining publishing permissions added and tested, then included in review. The earlier review request contains `pages_show_list`, `business_management`, `public_profile`, which is insufficient for publishing.
-- [ ] Hosted connection and publishing flows implemented; required API calls executed.
+- [x] `instagram_basic` and `instagram_content_publish` added to the Instagram use case and marked Ready for testing.
+- [x] Exact hosted OAuth callback registered and a real Facebook Login for Business consent flow completed for the selected DarkMatter Page and `darkmatter.creative` Instagram account.
+- [ ] Hosted connection is blocked at token discovery: Meta's callback returned no usable Page token after the selected-asset consent, so neither account was attached. Resolve this before recording or submitting app review.
+- [ ] Required provider publishing calls, review recordings, data-handling answers and reviewer access instructions completed.
 - [ ] Permission-specific demonstration recordings, data-handling answers and reviewer access instructions completed.
 - [ ] App Review submitted and approved. Current portal status: **Not submitted**.
 
@@ -77,8 +79,9 @@ Project: `scheduly-508008`. OAuth client: Scheduly hosted workspace.
 - [x] YouTube Data API v3 enabled.
 - [x] App name, support contact, icon, website, privacy and terms branding saved.
 - [x] `youtube.upload` and `youtube.readonly` scopes added and saved.
-- [ ] Working hosted OAuth callback and authorised redirect URI.
-- [ ] Channel identity selection, private upload test, resumable transfer recovery and actual processing checks.
+- [x] Exact hosted OAuth callback and authorised redirect URI registered.
+- [x] Jason added as the sole OAuth test user. The real hosted OAuth flow completed with `youtube.upload` and `youtube.readonly`; the returned DarkMatter channel was selected and is connected with an encrypted server-side grant.
+- [ ] Private upload test, resumable transfer recovery and actual processing checks.
 - [ ] Domain ownership verification and OAuth verification submission with working-flow evidence.
 - [ ] YouTube API compliance audit submitted where needed for production upload visibility.
 - [ ] YouTube Analytics API and reporting scopes/integration.
