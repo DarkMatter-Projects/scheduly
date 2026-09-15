@@ -87,6 +87,27 @@ export function createMetaService({ transaction, config, fetcher = fetch }) {
           : null,
     };
   }
+  async function discoverPages(accessToken) {
+    const path =
+      "/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100";
+    const listed = (await get(path, accessToken)).data || [];
+    const direct = listed.map(selectPage).filter(Boolean);
+    if (direct.length) return direct;
+    // Meta Business Login can list a selected Page without including its token
+    // in the collection response. Fetch each returned Page once by ID before
+    // treating the grant as unusable.
+    const pages = [];
+    for (const page of listed) {
+      if (typeof page?.id !== "string" || !page.id) continue;
+      const found = await get(
+        `/${encodeURIComponent(page.id)}?fields=id,name,access_token,instagram_business_account{id,username}`,
+        accessToken,
+      );
+      const selected = selectPage(found);
+      if (selected) pages.push(selected);
+    }
+    return pages;
+  }
   return {
     async status(user) {
       return transaction(async (c) => {
@@ -161,18 +182,12 @@ export function createMetaService({ transaction, config, fetcher = fetch }) {
         client_secret: config.appSecret,
         fb_exchange_token: shortGrant.access_token,
       });
-      const path =
-        "/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100";
       // Some Meta Business Login sessions omit Page tokens after the long-lived
-      // exchange even though the authorisation-code grant carries them. Retry
-      // that one discovery read with the original grant before failing closed.
-      let pages = (await get(path, longGrant.access_token)).data
-        ?.map(selectPage)
-        .filter(Boolean);
+      // exchange or collection query even though the authorisation-code grant
+      // carries them. Retry discovery with the original grant before failing closed.
+      let pages = await discoverPages(longGrant.access_token);
       if (!pages?.length)
-        pages = (await get(path, shortGrant.access_token)).data
-          ?.map(selectPage)
-          .filter(Boolean);
+        pages = await discoverPages(shortGrant.access_token);
       if (!pages.length)
         throw new Fault(
           422,

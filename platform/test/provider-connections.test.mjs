@@ -130,6 +130,35 @@ test("Meta retries Page discovery with the authorisation-code grant", async () =
   ]);
 });
 
+test("Meta fetches a selected Page when the collection omits its token", async () => {
+  const pageFallback = createMetaService({
+    transaction,
+    config,
+    fetcher: async (url) => {
+      const target = new URL(String(url));
+      if (target.pathname.endsWith("/oauth/access_token"))
+        return Response.json({ access_token: "short-user" });
+      if (target.pathname.endsWith("/me/accounts"))
+        return Response.json({ data: [{ id: "page-direct", name: "Direct Page" }] });
+      if (target.pathname.endsWith("/page-direct"))
+        return Response.json({
+          id: "page-direct",
+          name: "Direct Page",
+          access_token: "private-page-token",
+        });
+      throw new Error(`Unexpected Meta URL ${target}`);
+    },
+  });
+  const { url } = await pageFallback.start("admin", { clientId: "a" });
+  const pending = await pageFallback.complete("admin", {
+    state: new URL(url).searchParams.get("state"),
+    code: "code",
+  });
+  assert.deepEqual(pending.accounts, [
+    { id: "facebook:page-direct", name: "Direct Page", network: "facebook" },
+  ]);
+});
+
 test("YouTube connection stores only selected channels and rejects client reassignment", async () => {
   await connect(youtube, "youtube", ["youtube:channel-one"]);
   const { url } = await youtube.start("admin", { clientId: "b" });
