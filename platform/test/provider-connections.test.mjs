@@ -91,6 +91,44 @@ test("Meta connection is Admin-bound, requires selection and keeps grants privat
   await connect(meta, "meta", ["facebook:page-one", "instagram:page-one"]);
 });
 
+test("Meta retries Page discovery with the authorisation-code grant", async () => {
+  const fallbackMeta = createMetaService({
+    transaction,
+    config,
+    fetcher: async (url) => {
+      const target = new URL(String(url));
+      if (target.pathname.endsWith("/oauth/access_token"))
+        return Response.json({
+          access_token: target.searchParams.has("fb_exchange_token")
+            ? "long-user"
+            : "short-user",
+        });
+      if (target.pathname.endsWith("/me/accounts")) {
+        if (target.searchParams.get("access_token") === "long-user")
+          return Response.json({ data: [] });
+        return Response.json({
+          data: [
+            {
+              id: "page-fallback",
+              name: "Fallback Page",
+              access_token: "private-fallback-token",
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected Meta URL ${target}`);
+    },
+  });
+  const { url } = await fallbackMeta.start("admin", { clientId: "a" });
+  const pending = await fallbackMeta.complete("admin", {
+    state: new URL(url).searchParams.get("state"),
+    code: "code",
+  });
+  assert.deepEqual(pending.accounts, [
+    { id: "facebook:page-fallback", name: "Fallback Page", network: "facebook" },
+  ]);
+});
+
 test("YouTube connection stores only selected channels and rejects client reassignment", async () => {
   await connect(youtube, "youtube", ["youtube:channel-one"]);
   const { url } = await youtube.start("admin", { clientId: "b" });

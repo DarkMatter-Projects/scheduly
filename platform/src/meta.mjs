@@ -161,13 +161,23 @@ export function createMetaService({ transaction, config, fetcher = fetch }) {
         client_secret: config.appSecret,
         fb_exchange_token: shortGrant.access_token,
       });
-      const response = await get(
-        "/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100",
-        longGrant.access_token,
-      );
-      const pages = (response.data || []).map(selectPage).filter(Boolean);
+      const path =
+        "/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100";
+      // Some Meta Business Login sessions omit Page tokens after the long-lived
+      // exchange even though the authorisation-code grant carries them. Retry
+      // that one discovery read with the original grant before failing closed.
+      let pages = (await get(path, longGrant.access_token)).data
+        ?.map(selectPage)
+        .filter(Boolean);
+      if (!pages?.length)
+        pages = (await get(path, shortGrant.access_token)).data
+          ?.map(selectPage)
+          .filter(Boolean);
       if (!pages.length)
-        throw new Fault(422, "No Facebook Pages were available for this Meta account.");
+        throw new Fault(
+          422,
+          "Meta returned no Page access token. Confirm that your Facebook profile has full control of the selected Page, then reconnect.",
+        );
       const id = randomUUID();
       await transaction(async (c) => {
         await admin(c, user);
