@@ -39,6 +39,7 @@ const meta = createMetaService({
 const youtube = createYouTubeService({
   transaction,
   config,
+  storage: { from: () => ({ download: async () => ({ data: new Blob(["test"]) }) }) },
   fetcher: async (url) => {
     const target = String(url);
     if (target === "https://oauth2.googleapis.com/token")

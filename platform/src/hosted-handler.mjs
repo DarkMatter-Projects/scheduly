@@ -111,6 +111,8 @@ export function createHostedHandler({
         return reply(200, await youtube.complete(user.id, body));
       if (youtube && path === "/youtube/finalize")
         return reply(200, await youtube.finalize(user.id, body));
+      if (youtube && path === "/youtube/upload")
+        return reply(200, await youtube.upload(user.id, body));
       if (path === "/team/invite" && team?.invite)
         return reply(200, await team.invite(user.id, body));
       if (path === "/team" && team)

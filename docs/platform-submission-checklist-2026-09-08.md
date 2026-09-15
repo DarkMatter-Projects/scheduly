@@ -1,6 +1,6 @@
 # Scheduly platform submission checklist
 
-Checked 2026-09-09. This is the current checklist and supersedes older setup notes. **The four platform applications have not all been submitted.**
+Checked 2026-09-15. This is the current checklist and supersedes older setup notes. **The four platform applications have not all been submitted.**
 
 ## Workspace and shared requirements
 
@@ -11,7 +11,7 @@ Checked 2026-09-09. This is the current checklist and supersedes older setup not
 - [x] Public privacy, terms and data-deletion pages deployed.
 - [x] Scheduly icon generated and used by the workspace; Google and LinkedIn uploads completed.
 - [x] GitHub rebuild branch connected to Vercel deployment.
-- [x] 31 behavioural tests passed, targeted frontend lint/build passed, and Deno encryption runtime test passed.
+- [x] 33 behavioural tests passed, targeted frontend lint/build passed, and Deno encryption runtime test passed.
 - [x] Native review performed. Safe retry finding fixed and regression-tested.
 - [ ] Production email delivery service and delivery checks.
 - [ ] All-provider account connections, live publishing worker and delivery reconciliation.
@@ -36,7 +36,8 @@ App: DarkMatter Scheduly `7683147026833475605`. Sandbox: `7683114165468284949`.
 - [x] Chrome authorisation verified as Rossi after the user signed in.
 - [x] Two actual Chrome recordings saved, inspected and attached: `scheduly-tiktok-consent-2026-09-08.mp4` and `scheduly-tiktok-review-2026-09-08.mp4`. The second records selection, consent and a status check of the previously transferred draft, not a fresh transfer. This limitation is explicitly disclosed in the submission.
 - [x] Production configuration saved and application submitted on 2026-09-08. Portal confirms **In review** and “Your app has been submitted for review”.
-- [ ] TikTok review approved. Production credentials must replace sandbox credentials only after approval and a controlled test.
+- [x] TikTok approved and live in production on 2026-09-15. The portal shows **Live in production**.
+- [ ] Production credentials must replace sandbox credentials only after a controlled production draft-upload test.
 - [ ] Account disconnection UI and durable operational recovery tooling for ambiguous provider outcomes.
 
 The MP4 named `tiktok-sandbox-test-2026-09-08.mp4` is the original test content, **not a review recording**. Do not upload it as evidence of the application flow.
@@ -81,7 +82,8 @@ Project: `scheduly-508008`. OAuth client: Scheduly hosted workspace.
 - [x] `youtube.upload` and `youtube.readonly` scopes added and saved.
 - [x] Exact hosted OAuth callback and authorised redirect URI registered.
 - [x] Jason added as the sole OAuth test user. The real hosted OAuth flow completed with `youtube.upload` and `youtube.readonly`; the returned DarkMatter channel was selected and is connected with an encrypted server-side grant.
-- [ ] Private upload test, resumable transfer recovery and actual processing checks.
+- [x] Admin-only private-upload workflow implemented: encrypted resumable-transfer state, same-client MP4 validation, duplicate protection and private-only visibility with subscriber notifications disabled.
+- [ ] Actual private upload test, resumed-transfer recovery and YouTube processing checks.
 - [ ] Domain ownership verification and OAuth verification submission with working-flow evidence.
 - [ ] YouTube API compliance audit submitted where needed for production upload visibility.
 - [ ] YouTube Analytics API and reporting scopes/integration.

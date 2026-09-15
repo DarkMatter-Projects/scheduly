@@ -36,7 +36,8 @@ export function Accounts({ data, clientId, onRefresh, pendingConnection, onConne
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   const [destination, setDestination] = useState(null),
-    [assetId, setAssetId] = useState("");
+    [assetId, setAssetId] = useState(""),
+    [uploadTitle, setUploadTitle] = useState("Scheduly private upload check");
   const [consent, setConsent] = useState(false);
   const [selectedConnectionAccounts, setSelectedConnectionAccounts] = useState([]);
   const admin = data.team?.role === "admin";
@@ -88,14 +89,17 @@ export function Accounts({ data, clientId, onRefresh, pendingConnection, onConne
       setBusy(false);
     }
   }
-  async function sendDraft() {
+  async function sendUpload() {
     setBusy(true);
     setMessage("");
     try {
-      const result = await request("tiktok/upload", {
+      const youtube = destination.network === "youtube";
+      const result = await request(youtube ? "youtube/upload" : "tiktok/upload", {
         accountId: destination.id,
         mediaId: assetId,
-        confirmDraft: consent,
+        ...(youtube
+          ? { title: uploadTitle, confirmPrivateUpload: consent }
+          : { confirmDraft: consent }),
       });
       setMessage(`${result.status}: ${result.message}`);
       await onRefresh();
@@ -178,7 +182,7 @@ export function Accounts({ data, clientId, onRefresh, pendingConnection, onConne
                 {a.connection === "connected" ? "Connected" : "Not connected"}
               </span>
               {admin &&
-              a.network === "tiktok" &&
+              ["tiktok", "youtube"].includes(a.network) &&
               a.connection === "connected" ? (
                 <button
                   className="button"
@@ -186,11 +190,12 @@ export function Accounts({ data, clientId, onRefresh, pendingConnection, onConne
                   onClick={() => {
                     setDestination(a);
                     setAssetId("");
+                    setUploadTitle("Scheduly private upload check");
                     setConsent(false);
                     setMessage("");
                   }}
                 >
-                  Upload a draft
+                  {a.network === "youtube" ? "Private upload test" : "Upload a draft"}
                 </button>
               ) : (
                 <a
@@ -207,19 +212,26 @@ export function Accounts({ data, clientId, onRefresh, pendingConnection, onConne
       </div>
       {!data.accounts.length && (
         <p>
-          No social accounts connected yet. An Admin can connect TikTok above.
+          No social accounts connected yet. An Admin can connect an approved platform above.
         </p>
       )}
       {destination && (
-        <section className="info-note" aria-label="Review TikTok draft upload">
+        <section className="info-note" aria-label={destination.network === "youtube" ? "Review private YouTube upload" : "Review TikTok draft upload"}>
           <div>
-            <h2>Upload a draft to {destination.name}</h2>
+            <h2>{destination.network === "youtube" ? "Upload a private video to" : "Upload a draft to"} {destination.name}</h2>
             <p>
               Client:{" "}
               {data.clients.find((c) => c.id === destination.client_id)?.name}.
-              This transfers the original video. Finish your caption, edits and
-              posting in TikTok.
+              {destination.network === "youtube"
+                ? " This sends the original video as a private YouTube video. It is visible only to the channel owner and does not notify subscribers."
+                : " This transfers the original video. Finish your caption, edits and posting in TikTok."}
             </p>
+            {destination.network === "youtube" && (
+              <label>
+                Private video title{" "}
+                <input value={uploadTitle} maxLength="100" disabled={busy} onChange={(e) => setUploadTitle(e.target.value)} />
+              </label>
+            )}
             <label>
               Video{" "}
               <select
@@ -261,8 +273,9 @@ export function Accounts({ data, clientId, onRefresh, pendingConnection, onConne
                       disabled={busy}
                       onChange={(e) => setConsent(e.target.checked)}
                     />{" "}
-                    I have permission to send this video to {destination.name}.
-                    I understand it must be finished in TikTok.
+                    {destination.network === "youtube"
+                      ? `I have permission to upload this video privately to ${destination.name}. I understand it will not be public or notify subscribers.`
+                      : `I have permission to send this video to ${destination.name}. I understand it must be finished in TikTok.`}
                   </label>
                 </p>
               </>
@@ -270,9 +283,9 @@ export function Accounts({ data, clientId, onRefresh, pendingConnection, onConne
             <button
               className="button primary"
               disabled={busy || !selectedAsset || !consent}
-              onClick={sendDraft}
+              onClick={sendUpload}
             >
-              {busy ? "Working…" : "Send draft / check status"}
+              {busy ? "Working…" : destination.network === "youtube" ? "Upload private test video" : "Send draft / check status"}
             </button>{" "}
             <button
               className="button"

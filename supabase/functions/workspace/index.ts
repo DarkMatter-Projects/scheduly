@@ -54,6 +54,7 @@ const handler = createHostedHandler({
   }),
   youtube: createYouTubeService({
     transaction,
+    storage: storageClient.storage,
     config: {
       clientId: Deno.env.get("GOOGLE_CLIENT_ID"),
       clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
